@@ -1,0 +1,580 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10001001 /* VoomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002001; };
+		A10001002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002002; };
+		A10001018 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002020; };
+		A10001019 /* ControlPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002021; };
+		A10001020 /* ControlPanelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002022; };
+		A10001004 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002004; };
+		A10001005 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002005; };
+		A10001007 /* Recording.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002007; };
+		A10001008 /* ScreenRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002008; };
+		A10001009 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002009; };
+		A10001010 /* FrameCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010; };
+		A10001011 /* VideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002011; };
+		A10001012 /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002012; };
+		A10001013 /* RecordingStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002013; };
+		A10001014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10002014; };
+		A10001015 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002017; };
+		A10001016 /* NativePlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002018; };
+				A10009021 /* CountdownOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009020 /* CountdownOverlay.swift */; };
+		A10001017 /* RecordingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002019; };
+		A10009031 /* DisplayPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009030 /* DisplayPicker.swift */; };
+		A10009041 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009040 /* Theme.swift */; };
+		A10009051 /* ShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009050 /* ShareService.swift */; };
+		A10009061 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009060 /* SettingsView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A10002001 /* VoomApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoomApp.swift; sourceTree = "<group>"; };
+		A10002002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		A10002020 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A10002021 /* ControlPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanelView.swift; sourceTree = "<group>"; };
+		A10002022 /* ControlPanelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanelManager.swift; sourceTree = "<group>"; };
+		A10002004 /* LibraryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWindow.swift; sourceTree = "<group>"; };
+		A10002005 /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
+		A10002007 /* Recording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recording.swift; sourceTree = "<group>"; };
+		A10002008 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
+		A10002009 /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
+		A10002010 /* FrameCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameCompositor.swift; sourceTree = "<group>"; };
+		A10002011 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
+		A10002012 /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
+		A10002013 /* RecordingStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingStorage.swift; sourceTree = "<group>"; };
+		A10002014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A10002015 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A10002016 /* Voom.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Voom.entitlements; sourceTree = "<group>"; };
+		A10002017 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
+		A10002018 /* NativePlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativePlayerView.swift; sourceTree = "<group>"; };
+				A10009020 /* CountdownOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownOverlay.swift; sourceTree = "<group>"; };
+		A10002019 /* RecordingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingOverlay.swift; sourceTree = "<group>"; };
+		A10009030 /* DisplayPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayPicker.swift; sourceTree = "<group>"; };
+		A10009040 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		A10009050 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
+		A10009060 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A10003000 /* Voom.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Voom.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A10004000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A10005000 /* Root */ = {
+			isa = PBXGroup;
+			children = (
+				A10005001 /* Voom */,
+				A10005099 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A10005099 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A10003000 /* Voom.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A10005001 /* Voom */ = {
+			isa = PBXGroup;
+			children = (
+				A10005002 /* App */,
+				A10005003 /* Views */,
+				A10005010 /* Models */,
+				A10005011 /* Services */,
+				A10005020 /* Resources */,
+			);
+			path = Voom;
+			sourceTree = "<group>";
+		};
+		A10005002 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				A10002001 /* VoomApp.swift */,
+				A10002002 /* AppState.swift */,
+				A10002020 /* AppDelegate.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		A10005003 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A10009040 /* Theme.swift */,
+				A10005009 /* Panel */,
+				A10005004 /* MenuBar */,
+				A10005005 /* Library */,
+				A10005006 /* Player */,
+				A10005008 /* Overlay */,
+				A10005017 /* Settings */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A10005009 /* Panel */ = {
+			isa = PBXGroup;
+			children = (
+				A10002021 /* ControlPanelView.swift */,
+				A10002022 /* ControlPanelManager.swift */,
+			);
+			path = Panel;
+			sourceTree = "<group>";
+		};
+		A10005008 /* Overlay */ = {
+			isa = PBXGroup;
+			children = (
+				A10002019 /* RecordingOverlay.swift */,
+				A10009020 /* CountdownOverlay.swift */,
+				A10009030 /* DisplayPicker.swift */,
+			);
+			path = Overlay;
+			sourceTree = "<group>";
+		};
+		A10005004 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				A10002017 /* CameraPreviewView.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		A10005005 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				A10002004 /* LibraryWindow.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		A10005006 /* Player */ = {
+			isa = PBXGroup;
+			children = (
+				A10002005 /* PlayerView.swift */,
+				A10002018 /* NativePlayerView.swift */,
+			);
+			path = Player;
+			sourceTree = "<group>";
+		};
+		A10005017 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				A10009060 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		A10005010 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A10002007 /* Recording.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A10005011 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A10005012 /* Capture */,
+				A10005013 /* Writing */,
+				A10005014 /* Transcription */,
+				A10005015 /* Storage */,
+				A10005016 /* Sharing */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A10005012 /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				A10002008 /* ScreenRecorder.swift */,
+				A10002009 /* CameraCapture.swift */,
+				A10002010 /* FrameCompositor.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
+		A10005013 /* Writing */ = {
+			isa = PBXGroup;
+			children = (
+				A10002011 /* VideoWriter.swift */,
+			);
+			path = Writing;
+			sourceTree = "<group>";
+		};
+		A10005014 /* Transcription */ = {
+			isa = PBXGroup;
+			children = (
+				A10002012 /* TranscriptionService.swift */,
+			);
+			path = Transcription;
+			sourceTree = "<group>";
+		};
+		A10005015 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				A10002013 /* RecordingStorage.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		A10005016 /* Sharing */ = {
+			isa = PBXGroup;
+			children = (
+				A10009050 /* ShareService.swift */,
+			);
+			path = Sharing;
+			sourceTree = "<group>";
+		};
+		A10005020 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A10002014 /* Assets.xcassets */,
+				A10002015 /* Info.plist */,
+				A10002016 /* Voom.entitlements */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10006000 /* Voom */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10008000 /* Build configuration list for PBXNativeTarget "Voom" */;
+			buildPhases = (
+				A10006001 /* Sources */,
+				A10004000 /* Frameworks */,
+				A10006002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Voom;
+			packageProductDependencies = (
+				A10009001 /* WhisperKit */,
+			);
+			productName = Voom;
+			productReference = A10003000 /* Voom.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10007000 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A10006000 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = A10008002 /* Build configuration list for PBXProject "Voom" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A10005000;
+			packageReferences = (
+				A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
+			productRefGroup = A10005099 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A10006000 /* Voom */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A10006002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10001014 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A10006001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10001001 /* VoomApp.swift in Sources */,
+				A10001002 /* AppState.swift in Sources */,
+				A10001018 /* AppDelegate.swift in Sources */,
+				A10001019 /* ControlPanelView.swift in Sources */,
+				A10001020 /* ControlPanelManager.swift in Sources */,
+				A10001004 /* LibraryWindow.swift in Sources */,
+				A10001005 /* PlayerView.swift in Sources */,
+				A10001007 /* Recording.swift in Sources */,
+				A10001008 /* ScreenRecorder.swift in Sources */,
+				A10001009 /* CameraCapture.swift in Sources */,
+				A10001010 /* FrameCompositor.swift in Sources */,
+				A10001011 /* VideoWriter.swift in Sources */,
+				A10001012 /* TranscriptionService.swift in Sources */,
+				A10001013 /* RecordingStorage.swift in Sources */,
+				A10001015 /* CameraPreviewView.swift in Sources */,
+				A10001016 /* NativePlayerView.swift in Sources */,
+				A10001017 /* RecordingOverlay.swift in Sources */,
+				A10009021 /* CountdownOverlay.swift in Sources */,
+				A10009031 /* DisplayPicker.swift in Sources */,
+				A10009041 /* Theme.swift in Sources */,
+				A10009051 /* ShareService.swift in Sources */,
+				A10009061 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A10008003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A10008004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		A10008005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Voom/Resources/Voom.entitlements;
+				CODE_SIGN_IDENTITY = "Voom Development";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Voom/Resources/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Voom needs camera access to record webcam overlay in your screen recordings.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Voom needs microphone access to record audio narration in your screen recordings.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.voom.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A10008006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Voom/Resources/Voom.entitlements;
+				CODE_SIGN_IDENTITY = "Voom Development";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Voom/Resources/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Voom needs camera access to record webcam overlay in your screen recordings.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Voom needs microphone access to record audio narration in your screen recordings.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.voom.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A10008000 /* Build configuration list for PBXNativeTarget "Voom" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10008005 /* Debug */,
+				A10008006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10008002 /* Build configuration list for PBXProject "Voom" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10008003 /* Debug */,
+				A10008004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10009001 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+	};
+	rootObject = A10007000 /* Project object */;
+}
