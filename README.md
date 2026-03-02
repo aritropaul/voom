@@ -8,11 +8,36 @@
 
 ## What it does
 
+### Recording
 - **Screen recording** — capture any display at full retina resolution (HEVC)
-- **Camera overlay** — picture-in-picture webcam with draggable positioning
+- **Camera-only mode** — record webcam directly without screen capture
+- **Region selection** — drag to select a portion of your screen to record
+- **Camera overlay** — picture-in-picture webcam with draggable corner positioning
 - **System + mic audio** — record both simultaneously
+- **Drawing tools** — annotate your screen live during recording (freehand, arrows, shapes, text)
+- **Pause/resume** — pause and resume recording without splitting files
+
+### Post-recording
 - **On-device transcription** — powered by WhisperKit (distil-large-v3), fully offline
+- **Trim** — cut the start and end of a recording
+- **Cut/splice** — remove sections from the middle of a recording
+- **Stitch** — combine multiple recordings into one
+- **Filler word removal** — detect and cut "um", "uh", "like", etc. from transcribed recordings
+- **Chapters** — add timestamped chapter markers for easy navigation
+- **GIF export** — copy a GIF of the first 15 seconds to clipboard
+
+### Organization
+- **Folders** — organize recordings into color-coded folders
+- **Tags** — add color-coded tags and filter by them
+- **Search** — search across titles and transcripts
+
+### Sharing
 - **Share via link** — upload to your own Cloudflare infrastructure, get a clean share page with synced transcript and captions
+- **Password protection** — optionally require a password to view shared recordings
+- **Emoji reactions** — viewers can react at specific timestamps
+- **Timestamped comments** — viewers can leave comments tied to video timestamps
+- **CTA buttons** — add a call-to-action overlay that appears when the video ends
+- **View notifications** — get macOS notifications when someone watches your recording
 - **30-day expiry** — links auto-expire, daily cron cleans up storage
 
 ## Architecture
@@ -40,6 +65,7 @@ npx wrangler r2 bucket create voom-videos
 npx wrangler d1 create voom-share-db
 # paste the database_id into wrangler.toml
 npx wrangler d1 execute voom-share-db --file=./schema.sql --remote
+npx wrangler d1 execute voom-share-db --file=./migrations/0002_share_enhancements.sql --remote
 npx wrangler secret put API_SECRET
 npx wrangler deploy
 ```
@@ -52,7 +78,10 @@ Each shared recording gets a minimal dark page with:
 - Video player with range-request seeking
 - Live captions (CC toggle)
 - Clickable synced transcript
-- View-only — no download
+- Emoji reactions at timestamps
+- Timestamped comments
+- Optional password protection
+- Optional CTA button overlay
 
 ## Voom vs Loom
 
@@ -63,8 +92,15 @@ Each shared recording gets a minimal dark page with:
 | **Privacy** | Recordings stay on your Mac. Cloud sharing is opt-in to your own infra | All recordings uploaded to Loom servers |
 | **Transcription** | On-device via WhisperKit — nothing leaves your machine | Cloud-based |
 | **Screen + cam + mic** | Yes | Yes |
+| **Camera-only mode** | Yes | Yes |
+| **Region selection** | Yes | Yes |
+| **Drawing tools** | Yes | Yes (paid) |
+| **Trim / cut / stitch** | Yes | Trim only (paid) |
+| **Filler word removal** | Yes | Yes (paid) |
 | **Share via link** | Yes (self-hosted on Cloudflare) | Yes (Loom-hosted) |
 | **Synced transcript** | Yes | Yes |
+| **Comments & reactions** | Yes | Yes |
+| **Password protection** | Yes | Yes (paid) |
 | **Link expiry** | 30 days (configurable) | Never (paid), 5 min (free) |
 | **Recording limit** | Unlimited, any length | 5 min (free), 45 min (business) |
 | **Storage limit** | Your disk + your R2 bucket | 25 videos (free) |
@@ -74,8 +110,6 @@ Each shared recording gets a minimal dark page with:
 | **Dependencies** | WhisperKit | Electron, ffmpeg, many more |
 | **Offline recording** | Yes | No |
 | **Platform** | macOS | macOS, Windows, Chrome, iOS, Android |
-
-Voom doesn't try to replace every Loom feature. No comments, no reactions, no CRM integrations, no analytics dashboard. It records your screen, transcribes it locally, and gives you a link. That's it.
 
 ## Stack
 
