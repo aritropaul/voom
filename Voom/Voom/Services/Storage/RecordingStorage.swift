@@ -115,7 +115,7 @@ actor RecordingStorage {
         let asset = AVURLAsset(url: videoURL)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
-        generator.maximumSize = CGSize(width: 640, height: 360)
+        generator.maximumSize = CGSize(width: 1920, height: 1080)
 
         let time = CMTime(seconds: 1, preferredTimescale: 600)
         do {

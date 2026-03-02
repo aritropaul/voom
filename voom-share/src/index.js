@@ -112,6 +112,28 @@ export default {
       return handleOGImage(env, ogMatch[1]);
     }
 
+    // Thumbnail (high-res poster)
+    const thumbMatch = path.match(/^\/thumb\/([a-z0-9]+)$/);
+    if (thumbMatch && request.method === 'GET') {
+      const thumb = await env.VIDEOS_BUCKET.get(`thumbnails/${thumbMatch[1]}.jpg`);
+      if (thumb) {
+        return new Response(thumb.body, {
+          headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' },
+        });
+      }
+      return new Response('Not found', { status: 404 });
+    }
+
+    // Static assets from R2
+    if (path === '/icon-64.png' && request.method === 'GET') {
+      const obj = await env.VIDEOS_BUCKET.get('static/icon-64.png');
+      if (obj) {
+        return new Response(obj.body, {
+          headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800' },
+        });
+      }
+    }
+
     if (path === '/') {
       return new Response('Voom Share', { status: 200 });
     }
@@ -498,7 +520,8 @@ function sharePageHTML(video, segments, shareCode, viewCount) {
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
 body{background:var(--bg);color:var(--text-main);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
 
-.container{max-width:800px;margin:0 auto;padding:var(--space-m) var(--space-s);display:flex;flex-direction:column;gap:var(--space-m);min-height:100vh;justify-content:center}
+.container{max-width:800px;margin:0 auto;padding:80px var(--space-s) var(--space-m);display:flex;flex-direction:column;gap:var(--space-m);align-items:center}
+.container>*{width:100%}
 
 /* Player */
 .player-section{width:100%;border-radius:12px;position:relative;overflow:hidden;background:#050505;border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 32px rgba(0,0,0,.4),0 2px 8px rgba(0,0,0,.3);cursor:pointer}
@@ -562,6 +585,8 @@ video{display:block;width:100%;background:#000}
 .metadata{display:flex;flex-direction:column;gap:var(--space-xs)}
 .meta-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-s)}
 .stats{display:flex;gap:var(--space-s);font-family:var(--font-mono);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;flex-wrap:wrap}
+.title-row{display:flex;align-items:center;gap:10px}
+.voom-icon{border-radius:6px;flex-shrink:0}
 h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
 .summary{font-size:13px;line-height:1.6;color:var(--text-muted);margin-top:6px}
 .copy-link-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap;text-transform:uppercase;letter-spacing:1px}
@@ -608,7 +633,7 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
 <div class="container">
 
   <div class="player-section" id="player-section">
-    <video id="player" preload="metadata" playsinline poster="/og/${shareCode}">
+    <video id="player" preload="metadata" playsinline poster="/thumb/${shareCode}">
       <source src="/v/${shareCode}" type="video/mp4">
     </video>
     <div class="big-play" id="big-play">
@@ -666,7 +691,10 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
         Copy link
       </button>
     </div>
-    <h1>${escapeHTML(video.title)}</h1>
+    <div class="title-row">
+      <img src="/icon-64.png" width="32" height="32" alt="Voom" class="voom-icon">
+      <h1>${escapeHTML(video.title)}</h1>
+    </div>
     ${video.summary ? `<p class="summary">${escapeHTML(video.summary)}</p>` : ''}
   </div>
 
