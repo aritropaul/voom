@@ -17,6 +17,18 @@ struct PlayerView: View {
     @State private var playbackSpeed: Float = 1.0
     @State private var editingTitle: String = ""
     @State private var editingSummary: String = ""
+    @State private var showTrimView = false
+    @State private var showCutView = false
+    @State private var showFillerSheet = false
+    @State private var showStitchSheet = false
+    @State private var showSharePasswordPopover = false
+    @State private var sharePassword = ""
+    @State private var ctaURLString = ""
+    @State private var ctaText = ""
+    @State private var isExportingGIF = false
+    @State private var trimStart: TimeInterval = 0
+    @State private var trimEnd: TimeInterval = 0
+    @State private var cutRegions: [CutRegion] = []
 
     private let speeds: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
@@ -29,45 +41,120 @@ struct PlayerView: View {
         return CGFloat(recording.width) / CGFloat(recording.height)
     }
 
+    @ViewBuilder
+    private func mainContent(outerProxy: ScrollViewProxy) -> some View {
+        VStack(spacing: 0) {
+            videoPlayer
+                .id("video-player")
+                .padding(.horizontal, VoomTheme.spacingXL)
+                .padding(.top, VoomTheme.spacingXL)
+
+            actionBar
+                .padding(.horizontal, VoomTheme.spacingXL)
+                .padding(.top, VoomTheme.spacingSM)
+
+            if let recording {
+                detailsSection(recording: recording)
+                    .padding(.horizontal, VoomTheme.spacingXL)
+                    .padding(.top, VoomTheme.spacingLG)
+            }
+
+            editingSection
+
+            if let recording, let summary = recording.summary, !summary.isEmpty {
+                summarySection(summary: summary)
+                    .padding(.horizontal, VoomTheme.spacingXL)
+                    .padding(.top, VoomTheme.spacingLG)
+            }
+
+            if let recording {
+                ChapterView(
+                    chapters: Binding(
+                        get: { store.recording(for: recordingID)?.chapters ?? [] },
+                        set: { newChapters in
+                            if var rec = store.recording(for: recordingID) {
+                                rec.chapters = newChapters
+                                store.update(rec)
+                            }
+                        }
+                    ),
+                    currentTime: currentTime,
+                    onSeek: { time in
+                        player?.seek(to: CMTime(seconds: time, preferredTimescale: 600))
+                    }
+                )
+                .padding(.horizontal, VoomTheme.spacingXL)
+                .padding(.top, VoomTheme.spacingLG)
+            }
+
+            if let recording {
+                tagsSection(recording: recording)
+                    .padding(.horizontal, VoomTheme.spacingXL)
+                    .padding(.top, VoomTheme.spacingSM)
+            }
+
+            transcriptSection(scrollToVideo: {
+                withAnimation(.smooth(duration: 0.3)) {
+                    outerProxy.scrollTo("video-player", anchor: .top)
+                }
+            })
+                .padding(.horizontal, VoomTheme.spacingXL)
+                .padding(.top, VoomTheme.spacingLG)
+                .padding(.bottom, VoomTheme.spacingXXL)
+        }
+    }
+
+    @ViewBuilder
+    private var editingSection: some View {
+        if let recording {
+            editingToolsBar(recording: recording)
+                .padding(.horizontal, VoomTheme.spacingXL)
+                .padding(.top, VoomTheme.spacingSM)
+        }
+        if showTrimView, let recording {
+            TrimView(
+                videoURL: recording.fileURL,
+                duration: recording.duration,
+                startTime: $trimStart,
+                endTime: $trimEnd,
+                onApply: { start, end in
+                    Task {
+                        await applyTrim(recording: recording, start: start, end: end)
+                    }
+                    showTrimView = false
+                },
+                onCancel: { showTrimView = false }
+            )
+            .padding(.horizontal, VoomTheme.spacingXL)
+            .padding(.top, VoomTheme.spacingSM)
+            .onAppear {
+                trimStart = 0
+                trimEnd = recording.duration
+            }
+        }
+        if showCutView, let recording {
+            CutSpliceView(
+                videoURL: recording.fileURL,
+                duration: recording.duration,
+                cutRegions: $cutRegions,
+                onApply: { regions in
+                    Task {
+                        await applyCut(recording: recording, regions: regions)
+                    }
+                    showCutView = false
+                },
+                onCancel: { showCutView = false }
+            )
+            .padding(.horizontal, VoomTheme.spacingXL)
+            .padding(.top, VoomTheme.spacingSM)
+            .onAppear { cutRegions = [] }
+        }
+    }
+
     var body: some View {
         ScrollViewReader { outerProxy in
         ScrollView {
-            VStack(spacing: 0) {
-                // Video player with native controls (fullscreen, PiP, volume built-in)
-                videoPlayer
-                    .id("video-player")
-                    .padding(.horizontal, VoomTheme.spacingXL)
-                    .padding(.top, VoomTheme.spacingXL)
-
-                // Action bar (captions, transcribe, share)
-                actionBar
-                    .padding(.horizontal, VoomTheme.spacingXL)
-                    .padding(.top, VoomTheme.spacingSM)
-
-                // Details section
-                if let recording {
-                    detailsSection(recording: recording)
-                        .padding(.horizontal, VoomTheme.spacingXL)
-                        .padding(.top, VoomTheme.spacingLG)
-                }
-
-                // Summary section
-                if let recording, let summary = recording.summary, !summary.isEmpty {
-                    summarySection(summary: summary)
-                        .padding(.horizontal, VoomTheme.spacingXL)
-                        .padding(.top, VoomTheme.spacingLG)
-                }
-
-                // Transcript section
-                transcriptSection(scrollToVideo: {
-                    withAnimation(.smooth(duration: 0.3)) {
-                        outerProxy.scrollTo("video-player", anchor: .top)
-                    }
-                })
-                    .padding(.horizontal, VoomTheme.spacingXL)
-                    .padding(.top, VoomTheme.spacingLG)
-                    .padding(.bottom, VoomTheme.spacingXXL)
-            }
+            mainContent(outerProxy: outerProxy)
         }
         }
         .onAppear {
@@ -98,7 +185,7 @@ struct PlayerView: View {
     private var videoPlayer: some View {
         Group {
             if let player {
-                NativePlayerView(player: player, wrapper: $playerWrapperRef)
+                NativePlayerView(player: player, wrapper: $playerWrapperRef, chapters: recording?.chapters ?? [])
             } else {
                 VoomTheme.backgroundTertiary
                     .overlay {
@@ -551,6 +638,274 @@ struct PlayerView: View {
             RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
                 .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
         )
+    }
+
+    // MARK: - Editing Tools Bar
+
+    @ViewBuilder
+    private func editingToolsBar(recording: Recording) -> some View {
+        HStack(spacing: 8) {
+            Spacer()
+
+            Button {
+                showTrimView.toggle()
+                showCutView = false
+            } label: {
+                Label("Trim", systemImage: "scissors")
+                    .font(.system(size: 11))
+                    .foregroundStyle(showTrimView ? Color.accentColor : VoomTheme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .help("Trim start/end")
+
+            Button {
+                showCutView.toggle()
+                showTrimView = false
+            } label: {
+                Label("Cut", systemImage: "rectangle.split.3x1")
+                    .font(.system(size: 11))
+                    .foregroundStyle(showCutView ? Color.accentColor : VoomTheme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .help("Cut sections")
+
+            if recording.isTranscribed {
+                Button {
+                    showFillerSheet = true
+                } label: {
+                    Label("Remove Fillers", systemImage: "wand.and.stars")
+                        .font(.system(size: 11))
+                        .foregroundStyle(VoomTheme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .help("Detect and remove filler words")
+                .sheet(isPresented: $showFillerSheet) {
+                    FillerWordSheet(recordingID: recording.id, isPresented: $showFillerSheet)
+                }
+            }
+
+            Button {
+                isExportingGIF = true
+                Task {
+                    await exportGIF(recording)
+                    isExportingGIF = false
+                }
+            } label: {
+                if isExportingGIF {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .frame(width: 28, height: 28)
+                } else {
+                    Label("GIF", systemImage: "photo.on.rectangle.angled")
+                        .font(.system(size: 11))
+                        .foregroundStyle(VoomTheme.textSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(isExportingGIF)
+            .help("Export as GIF")
+
+            Divider()
+                .frame(height: 16)
+
+            // Share settings (password + CTA)
+            Button {
+                showSharePasswordPopover.toggle()
+            } label: {
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 11))
+                    .foregroundStyle(recording.sharePassword != nil ? Color.accentColor : VoomTheme.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .help("Share settings")
+            .popover(isPresented: $showSharePasswordPopover) {
+                shareSettingsPopover(recording: recording)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func shareSettingsPopover(recording: Recording) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Share Settings")
+                .font(.system(size: 13, weight: .semibold))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Password Protection")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(VoomTheme.textSecondary)
+                SecureField("Optional password", text: $sharePassword)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Call to Action")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(VoomTheme.textSecondary)
+                TextField("CTA URL", text: $ctaURLString)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                TextField("Button text (e.g. Learn More)", text: $ctaText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+            }
+
+            Button("Save") {
+                var updated = recording
+                updated.sharePassword = sharePassword.isEmpty ? nil : sharePassword
+                updated.ctaURL = URL(string: ctaURLString)
+                updated.ctaText = ctaText.isEmpty ? nil : ctaText
+                store.update(updated)
+                showSharePasswordPopover = false
+                toast.success("Share settings saved")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding()
+        .frame(width: 260)
+        .onAppear {
+            sharePassword = recording.sharePassword ?? ""
+            ctaURLString = recording.ctaURL?.absoluteString ?? ""
+            ctaText = recording.ctaText ?? ""
+        }
+    }
+
+    // MARK: - Tags Section
+
+    @ViewBuilder
+    private func tagsSection(recording: Recording) -> some View {
+        let tags = recording.tags ?? []
+        let availableTags = store.availableTags
+
+        if !availableTags.isEmpty || !tags.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(tags) { tag in
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color(hex: tag.colorHex) ?? .gray)
+                            .frame(width: 8, height: 8)
+                        Text(tag.name)
+                            .font(.system(size: 11))
+                            .foregroundStyle(VoomTheme.textSecondary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule().fill(VoomTheme.backgroundSecondary)
+                    )
+                    .overlay(Capsule().strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5))
+                    .onTapGesture {
+                        // Remove tag
+                        var updated = recording
+                        updated.tags = (updated.tags ?? []).filter { $0.id != tag.id }
+                        store.update(updated)
+                    }
+                }
+
+                Menu {
+                    ForEach(availableTags.filter { tag in
+                        !(recording.tags ?? []).contains(where: { $0.id == tag.id })
+                    }) { tag in
+                        Button {
+                            var updated = recording
+                            var currentTags = updated.tags ?? []
+                            currentTags.append(tag)
+                            updated.tags = currentTags
+                            store.update(updated)
+                        } label: {
+                            Label(tag.name, systemImage: "tag")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(VoomTheme.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Add tag")
+
+                Spacer()
+            }
+        }
+    }
+
+    // MARK: - GIF Export
+
+    private func exportGIF(_ recording: Recording) async {
+        do {
+            let data = try await GIFExporter.shared.exportGIF(
+                from: recording.fileURL,
+                startTime: 0,
+                endTime: 15
+            )
+            await MainActor.run {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setData(data, forType: .init("com.compuserve.gif"))
+                toast.success("GIF copied to clipboard!", icon: "photo.on.rectangle.angled")
+            }
+        } catch {
+            await MainActor.run {
+                toast.error("GIF export failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - Trim & Cut
+
+    private func applyTrim(recording: Recording, start: TimeInterval, end: TimeInterval) async {
+        guard var rec = store.recording(for: recordingID) else { return }
+        let storage = RecordingStorage.shared
+        let outputURL = await storage.editedRecordingURL(for: rec.fileURL, suffix: "trimmed")
+        do {
+            try await VideoEditor.shared.trim(
+                sourceURL: rec.fileURL,
+                startTime: CMTime(seconds: start, preferredTimescale: 600),
+                endTime: CMTime(seconds: end, preferredTimescale: 600),
+                outputURL: outputURL
+            )
+            try? FileManager.default.removeItem(at: rec.fileURL)
+            try FileManager.default.moveItem(at: outputURL, to: rec.fileURL)
+            rec.duration = await storage.videoDuration(at: rec.fileURL)
+            rec.fileSize = await storage.fileSize(at: rec.fileURL)
+            await MainActor.run { store.update(rec) }
+        } catch {
+            NSLog("[Voom] Trim failed: %@", "\(error)")
+        }
+    }
+
+    private func applyCut(recording: Recording, regions: [CutRegion]) async {
+        guard var rec = store.recording(for: recordingID) else { return }
+        let storage = RecordingStorage.shared
+        let outputURL = await storage.editedRecordingURL(for: rec.fileURL, suffix: "cut")
+        let removals = regions.map {
+            CMTimeRange(
+                start: CMTime(seconds: $0.start, preferredTimescale: 600),
+                end: CMTime(seconds: $0.end, preferredTimescale: 600)
+            )
+        }
+        do {
+            try await VideoEditor.shared.cutSections(
+                sourceURL: rec.fileURL,
+                removals: removals,
+                outputURL: outputURL
+            )
+            try? FileManager.default.removeItem(at: rec.fileURL)
+            try FileManager.default.moveItem(at: outputURL, to: rec.fileURL)
+            rec.duration = await storage.videoDuration(at: rec.fileURL)
+            rec.fileSize = await storage.fileSize(at: rec.fileURL)
+            if !rec.transcriptSegments.isEmpty {
+                rec.transcriptSegments = await VideoEditor.shared.adjustTranscript(
+                    segments: rec.transcriptSegments,
+                    removals: removals
+                )
+            }
+            await MainActor.run { store.update(rec) }
+        } catch {
+            NSLog("[Voom] Cut failed: %@", "\(error)")
+        }
     }
 
     // MARK: - Speed Label

@@ -1,4 +1,63 @@
 import Foundation
+import CoreGraphics
+
+// MARK: - Recording Mode
+
+enum RecordingMode: String, Codable, CaseIterable, Hashable {
+    case fullScreen
+    case region
+    case cameraOnly
+}
+
+// MARK: - Codable CGRect
+
+struct CodableCGRect: Codable, Hashable {
+    var x: CGFloat
+    var y: CGFloat
+    var width: CGFloat
+    var height: CGFloat
+
+    var cgRect: CGRect {
+        CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    init(_ rect: CGRect) {
+        self.x = rect.origin.x
+        self.y = rect.origin.y
+        self.width = rect.size.width
+        self.height = rect.size.height
+    }
+}
+
+// MARK: - Chapter
+
+struct Chapter: Codable, Hashable, Identifiable {
+    var id: UUID
+    var timestamp: TimeInterval
+    var title: String
+
+    init(timestamp: TimeInterval, title: String) {
+        self.id = UUID()
+        self.timestamp = timestamp
+        self.title = title
+    }
+}
+
+// MARK: - Recording Tag
+
+struct RecordingTag: Codable, Hashable, Identifiable {
+    var id: UUID
+    var name: String
+    var colorHex: String
+
+    init(name: String, colorHex: String) {
+        self.id = UUID()
+        self.name = name
+        self.colorHex = colorHex
+    }
+}
+
+// MARK: - Transcript Entry
 
 struct TranscriptEntry: Codable, Hashable, Identifiable {
     var id: UUID
@@ -13,6 +72,8 @@ struct TranscriptEntry: Codable, Hashable, Identifiable {
         self.text = text
     }
 }
+
+// MARK: - Recording
 
 struct Recording: Codable, Identifiable, Hashable {
     var id: UUID
@@ -36,6 +97,23 @@ struct Recording: Codable, Identifiable, Hashable {
     var shareURL: URL?
     var shareCode: String?
     var shareExpiresAt: Date?
+    var sharePassword: String?
+    var ctaURL: URL?
+    var ctaText: String?
+
+    // Recording mode & region
+    var recordingMode: RecordingMode?
+    var cropRect: CodableCGRect?
+
+    // Organization
+    var folderID: UUID?
+    var tags: [RecordingTag]?
+
+    // Chapters
+    var chapters: [Chapter]?
+
+    // View notification tracking
+    var lastNotifiedViewCount: Int?
 
     var isShared: Bool {
         shareURL != nil && shareExpiresAt != nil
@@ -65,7 +143,8 @@ struct Recording: Codable, Identifiable, Hashable {
         height: Int = 0,
         hasWebcam: Bool = false,
         hasSystemAudio: Bool = false,
-        hasMicAudio: Bool = false
+        hasMicAudio: Bool = false,
+        recordingMode: RecordingMode? = nil
     ) {
         self.id = UUID()
         self.title = title
@@ -85,5 +164,13 @@ struct Recording: Codable, Identifiable, Hashable {
         self.shareURL = nil
         self.shareCode = nil
         self.shareExpiresAt = nil
+        self.sharePassword = nil
+        self.ctaURL = nil
+        self.ctaText = nil
+        self.recordingMode = recordingMode
+        self.cropRect = nil
+        self.folderID = nil
+        self.tags = nil
+        self.chapters = nil
     }
 }

@@ -91,13 +91,43 @@ export default {
         return handleDelete(env, deleteMatch[1]);
       }
 
+      if (path === '/api/check-views' && request.method === 'POST') {
+        return handleCheckViews(request, env);
+      }
+
       return errorResponse('Not found', 404);
+    }
+
+    // Password verification (public)
+    const verifyMatch = path.match(/^\/s\/([a-z0-9]+)\/verify-password$/);
+    if (verifyMatch && request.method === 'POST') {
+      return handleVerifyPassword(request, env, verifyMatch[1]);
+    }
+
+    // Reactions (public)
+    const reactMatch = path.match(/^\/s\/([a-z0-9]+)\/react$/);
+    if (reactMatch && request.method === 'POST') {
+      return handleReact(request, env, reactMatch[1]);
+    }
+    const reactGetMatch = path.match(/^\/s\/([a-z0-9]+)\/reactions$/);
+    if (reactGetMatch && request.method === 'GET') {
+      return handleGetReactions(env, reactGetMatch[1]);
+    }
+
+    // Comments (public)
+    const commentMatch = path.match(/^\/s\/([a-z0-9]+)\/comment$/);
+    if (commentMatch && request.method === 'POST') {
+      return handleComment(request, env, commentMatch[1]);
+    }
+    const commentGetMatch = path.match(/^\/s\/([a-z0-9]+)\/comments$/);
+    if (commentGetMatch && request.method === 'GET') {
+      return handleGetComments(env, commentGetMatch[1]);
     }
 
     // Share page
     const shareMatch = path.match(/^\/s\/([a-z0-9]+)$/);
     if (shareMatch && request.method === 'GET') {
-      return handleSharePage(env, shareMatch[1]);
+      return handleSharePage(request, env, shareMatch[1]);
     }
 
     // Video streaming
@@ -150,7 +180,7 @@ export default {
 
 async function handleUpload(request, env) {
   const body = await request.json();
-  const { title, duration, width, height, hasWebcam, fileSize } = body;
+  const { title, duration, width, height, hasWebcam, fileSize, password_hash, cta_url, cta_text } = body;
 
   if (!title) return errorResponse('title is required');
 
@@ -158,10 +188,10 @@ async function handleUpload(request, env) {
   const expiresAt = new Date(Date.now() + EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   await env.DB.prepare(
-    `INSERT INTO videos (share_code, title, duration, width, height, has_webcam, file_size, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO videos (share_code, title, duration, width, height, has_webcam, file_size, expires_at, password_hash, cta_url, cta_text)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
-    .bind(shareCode, title, duration || 0, width || 0, height || 0, hasWebcam ? 1 : 0, fileSize || 0, expiresAt)
+    .bind(shareCode, title, duration || 0, width || 0, height || 0, hasWebcam ? 1 : 0, fileSize || 0, expiresAt, password_hash || null, cta_url || null, cta_text || null)
     .run();
 
   const baseUrl = new URL(request.url).origin;
@@ -284,6 +314,8 @@ async function handleDelete(env, shareCode) {
 
   await env.VIDEOS_BUCKET.delete(`videos/${shareCode}.mp4`);
   await env.VIDEOS_BUCKET.delete(`thumbnails/${shareCode}.jpg`);
+  await env.DB.prepare('DELETE FROM reactions WHERE video_id = ?').bind(video.id).run();
+  await env.DB.prepare('DELETE FROM comments WHERE video_id = ?').bind(video.id).run();
   await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
   await env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(video.id).run();
 
@@ -300,6 +332,14 @@ async function handleVideoStream(request, env, shareCode) {
     .first();
 
   if (!video) return new Response('Not found', { status: 404 });
+
+  // Password protection check for video stream
+  if (video.password_hash) {
+    const cookies = parseCookies(request.headers.get('Cookie') || '');
+    if (cookies[`voom_auth_${shareCode}`] !== video.password_hash) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+  }
 
   const key = `videos/${shareCode}.mp4`;
   const rangeHeader = request.headers.get('Range');
@@ -348,7 +388,7 @@ async function handleVideoStream(request, env, shareCode) {
 
 // --- Share Page ---
 
-async function handleSharePage(env, shareCode) {
+async function handleSharePage(request, env, shareCode) {
   const video = await env.DB.prepare(
     "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1"
   )
@@ -368,6 +408,18 @@ async function handleSharePage(env, shareCode) {
       status: 404,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
+  }
+
+  // Password protection check
+  if (video.password_hash) {
+    const cookies = parseCookies(request.headers.get('Cookie') || '');
+    const authToken = cookies[`voom_auth_${shareCode}`];
+    if (authToken !== video.password_hash) {
+      return new Response(passwordPageHTML(shareCode, video.title), {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
+    }
   }
 
   // Increment view count
@@ -397,9 +449,171 @@ async function cleanupExpired(env) {
   for (const video of expired.results || []) {
     await env.VIDEOS_BUCKET.delete(`videos/${video.share_code}.mp4`);
     await env.VIDEOS_BUCKET.delete(`thumbnails/${video.share_code}.jpg`);
+    await env.DB.prepare('DELETE FROM reactions WHERE video_id = ?').bind(video.id).run();
+    await env.DB.prepare('DELETE FROM comments WHERE video_id = ?').bind(video.id).run();
     await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
     await env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(video.id).run();
   }
+}
+
+// --- Password Verification ---
+
+function parseCookies(cookieStr) {
+  const cookies = {};
+  cookieStr.split(';').forEach(c => {
+    const [key, ...val] = c.trim().split('=');
+    if (key) cookies[key] = val.join('=');
+  });
+  return cookies;
+}
+
+async function handleVerifyPassword(request, env, shareCode) {
+  const video = await env.DB.prepare(
+    "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1"
+  ).bind(shareCode).first();
+
+  if (!video || !video.password_hash) return errorResponse('Not found', 404);
+
+  const body = await request.json();
+  const password = body.password || '';
+
+  // Hash the provided password with SHA-256 and compare
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+  if (hashHex !== video.password_hash) {
+    return jsonResponse({ error: 'Incorrect password' }, 403);
+  }
+
+  // Set auth cookie (expires with share link)
+  const expires = new Date(video.expires_at + 'Z');
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Set-Cookie': `voom_auth_${shareCode}=${video.password_hash}; Path=/; Expires=${expires.toUTCString()}; SameSite=Lax; Secure`,
+    },
+  });
+}
+
+// --- Reactions ---
+
+async function handleReact(request, env, shareCode) {
+  const video = await env.DB.prepare(
+    "SELECT id, password_hash FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
+  ).bind(shareCode).first();
+
+  if (!video) return errorResponse('Not found', 404);
+
+  // Password check
+  if (video.password_hash) {
+    const cookies = parseCookies(request.headers.get('Cookie') || '');
+    if (cookies[`voom_auth_${shareCode}`] !== video.password_hash) {
+      return errorResponse('Unauthorized', 401);
+    }
+  }
+
+  const body = await request.json();
+  const { timestamp, emoji } = body;
+  const allowedEmojis = ['👍', '❤️', '😂', '😮', '🔥', '👏'];
+  if (!allowedEmojis.includes(emoji)) return errorResponse('Invalid emoji');
+  if (typeof timestamp !== 'number' || timestamp < 0) return errorResponse('Invalid timestamp');
+
+  // Rate limit: 50 reactions per IP per video
+  const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const count = await env.DB.prepare(
+    'SELECT COUNT(*) as cnt FROM reactions WHERE video_id = ? AND client_ip = ?'
+  ).bind(video.id, clientIP).first();
+  if (count && count.cnt >= 50) return errorResponse('Rate limit exceeded', 429);
+
+  await env.DB.prepare(
+    'INSERT INTO reactions (video_id, timestamp, emoji, client_ip) VALUES (?, ?, ?, ?)'
+  ).bind(video.id, timestamp, emoji, clientIP).run();
+
+  return jsonResponse({ ok: true });
+}
+
+async function handleGetReactions(env, shareCode) {
+  const video = await env.DB.prepare(
+    "SELECT id FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
+  ).bind(shareCode).first();
+
+  if (!video) return errorResponse('Not found', 404);
+
+  const reactions = await env.DB.prepare(
+    'SELECT timestamp, emoji, created_at FROM reactions WHERE video_id = ? ORDER BY created_at DESC LIMIT 500'
+  ).bind(video.id).all();
+
+  return jsonResponse({ reactions: reactions.results || [] });
+}
+
+// --- Comments ---
+
+async function handleComment(request, env, shareCode) {
+  const video = await env.DB.prepare(
+    "SELECT id, password_hash FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
+  ).bind(shareCode).first();
+
+  if (!video) return errorResponse('Not found', 404);
+
+  // Password check
+  if (video.password_hash) {
+    const cookies = parseCookies(request.headers.get('Cookie') || '');
+    if (cookies[`voom_auth_${shareCode}`] !== video.password_hash) {
+      return errorResponse('Unauthorized', 401);
+    }
+  }
+
+  const body = await request.json();
+  const { timestamp, author_name, text } = body;
+  if (typeof timestamp !== 'number' || timestamp < 0) return errorResponse('Invalid timestamp');
+  if (!text || text.trim().length === 0) return errorResponse('Text is required');
+  if (text.length > 2000) return errorResponse('Text too long');
+
+  const name = (author_name || 'Anonymous').substring(0, 100);
+
+  await env.DB.prepare(
+    'INSERT INTO comments (video_id, timestamp, author_name, text) VALUES (?, ?, ?, ?)'
+  ).bind(video.id, timestamp, name, text.trim().substring(0, 2000)).run();
+
+  return jsonResponse({ ok: true });
+}
+
+async function handleGetComments(env, shareCode) {
+  const video = await env.DB.prepare(
+    "SELECT id FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
+  ).bind(shareCode).first();
+
+  if (!video) return errorResponse('Not found', 404);
+
+  const comments = await env.DB.prepare(
+    'SELECT timestamp, author_name, text, created_at FROM comments WHERE video_id = ? ORDER BY timestamp ASC'
+  ).bind(video.id).all();
+
+  return jsonResponse({ comments: comments.results || [] });
+}
+
+// --- Check Views (authenticated) ---
+
+async function handleCheckViews(request, env) {
+  const body = await request.json();
+  const { shareCodes } = body;
+  if (!Array.isArray(shareCodes) || shareCodes.length === 0) return errorResponse('shareCodes required');
+
+  const placeholders = shareCodes.map(() => '?').join(',');
+  const results = await env.DB.prepare(
+    `SELECT share_code, view_count FROM videos WHERE share_code IN (${placeholders})`
+  ).bind(...shareCodes).all();
+
+  const views = {};
+  for (const row of results.results || []) {
+    views[row.share_code] = row.view_count || 0;
+  }
+
+  return jsonResponse({ views });
 }
 
 // --- OG Image ---
@@ -615,6 +829,41 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
 .transcript-list::-webkit-scrollbar-track{background:transparent}
 .transcript-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}
 
+/* CTA overlay */
+.cta-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;flex-direction:column;gap:16px;z-index:5}
+.cta-overlay.visible{display:flex}
+.cta-overlay a{display:inline-flex;align-items:center;gap:8px;padding:14px 28px;background:#fff;color:#000;font-size:15px;font-weight:600;border-radius:10px;text-decoration:none;transition:opacity .15s}
+.cta-overlay a:hover{opacity:.85}
+.cta-replay{background:none!important;border:1px solid rgba(255,255,255,.2)!important;color:#fff!important;font-size:13px!important;padding:10px 20px!important}
+
+/* Reactions */
+.reactions-bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.react-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:6px 12px;font-size:16px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px;color:var(--text-muted);font-family:var(--font-mono);font-size:11px}
+.react-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.15)}
+.react-btn .emoji{font-size:16px}
+.react-btn .count{font-size:11px}
+.reaction-bubble{position:absolute;pointer-events:none;font-size:24px;animation:floatUp 1.5s ease-out forwards;z-index:10}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-80px)}}
+
+/* Comments */
+.comments-section{display:flex;flex-direction:column;gap:var(--space-s)}
+.comment-list{display:flex;flex-direction:column;gap:16px;max-height:400px;overflow-y:auto}
+.comment{display:flex;flex-direction:column;gap:4px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px}
+.comment-header{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)}
+.comment-author{font-weight:500;color:var(--text-main)}
+.comment-ts{font-family:var(--font-mono);cursor:pointer;transition:color .15s}
+.comment-ts:hover{color:var(--text-main)}
+.comment-text{font-size:14px;line-height:1.5;color:var(--text-main)}
+.comment-form{display:flex;flex-direction:column;gap:8px;padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px}
+.comment-form input,.comment-form textarea{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:8px 12px;color:#fff;font-size:13px;font-family:inherit;outline:none;resize:vertical}
+.comment-form input:focus,.comment-form textarea:focus{border-color:rgba(255,255,255,.25)}
+.comment-form textarea{min-height:60px}
+.comment-form button{align-self:flex-end;padding:8px 16px;background:#fff;color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.comment-form button:hover{opacity:.85}
+.comment-list::-webkit-scrollbar{width:4px}
+.comment-list::-webkit-scrollbar-track{background:transparent}
+.comment-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:4px}
+
 @media(max-width:600px){
   .container{padding:var(--space-s) 16px}
   .player-section{border-radius:10px}
@@ -640,6 +889,10 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
     <div class="big-play" id="big-play">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21"/></svg>
     </div>
+    ${video.cta_url ? `<div class="cta-overlay" id="cta-overlay">
+      <a href="${escapeHTML(video.cta_url)}" target="_blank" rel="noopener">${escapeHTML(video.cta_text || 'Learn More')}</a>
+      <button class="cta-replay" id="cta-replay">Replay</button>
+    </div>` : ''}
     <div class="caption-overlay hidden" id="captions"><span></span></div>
     <div class="progress-bar-bottom" id="progress-bottom"><div class="fill" id="progress-fill"></div></div>
     <div class="controls" id="controls">
@@ -696,6 +949,15 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
     ${video.summary ? `<p class="summary">${escapeHTML(video.summary)}</p>` : ''}
   </div>
 
+  <div class="reactions-bar" id="reactions-bar">
+    <button class="react-btn" data-emoji="\u{1F44D}"><span class="emoji">\u{1F44D}</span><span class="count" id="rc-0">0</span></button>
+    <button class="react-btn" data-emoji="\u{2764}\u{FE0F}"><span class="emoji">\u{2764}\u{FE0F}</span><span class="count" id="rc-1">0</span></button>
+    <button class="react-btn" data-emoji="\u{1F602}"><span class="emoji">\u{1F602}</span><span class="count" id="rc-2">0</span></button>
+    <button class="react-btn" data-emoji="\u{1F62E}"><span class="emoji">\u{1F62E}</span><span class="count" id="rc-3">0</span></button>
+    <button class="react-btn" data-emoji="\u{1F525}"><span class="emoji">\u{1F525}</span><span class="count" id="rc-4">0</span></button>
+    <button class="react-btn" data-emoji="\u{1F44F}"><span class="emoji">\u{1F44F}</span><span class="count" id="rc-5">0</span></button>
+  </div>
+
   ${segments.length > 0 ? `
   <div class="transcript-section">
     <div class="section-header">
@@ -703,6 +965,18 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
     </div>
     <div class="transcript-list" id="transcript-list">${segmentsHTML}</div>
   </div>` : ''}
+
+  <div class="comments-section">
+    <div class="section-header">
+      <span class="label">Comments</span>
+    </div>
+    <div class="comment-list" id="comment-list"></div>
+    <div class="comment-form" id="comment-form">
+      <input type="text" id="comment-name" placeholder="Your name" maxlength="100">
+      <textarea id="comment-text" placeholder="Add a comment..." maxlength="2000"></textarea>
+      <button id="comment-submit">Post Comment</button>
+    </div>
+  </div>
 
 </div>
 <div class="toast" id="toast">Copied!</div>
@@ -815,7 +1089,7 @@ vid.addEventListener('timeupdate',()=>{
     const active=t>=s.start&&t<s.end;
     el.classList.toggle('active',active);
     if(active){
-      el.scrollIntoView({block:'nearest',behavior:'smooth'});
+      /* scroll disabled — was pulling page down to transcript */
       if(capSpan&&ccOn){capSpan.textContent=s.text;cap.classList.remove('hidden');found=true}
     }
   });
@@ -946,7 +1220,154 @@ document.getElementById('copy-link-btn').addEventListener('click',()=>{
   navigator.clipboard.writeText(url).then(()=>showToast('Copied!')).catch(()=>{});
 });
 
+/* --- CTA overlay --- */
+const ctaOverlay=document.getElementById('cta-overlay');
+const ctaReplay=document.getElementById('cta-replay');
+if(ctaOverlay){
+  vid.addEventListener('ended',()=>{ctaOverlay.classList.add('visible')});
+  vid.addEventListener('play',()=>{ctaOverlay.classList.remove('visible')});
+  if(ctaReplay){ctaReplay.addEventListener('click',(e)=>{e.stopPropagation();vid.currentTime=0;vid.play()})}
+}
+
+/* --- Reactions --- */
+const shareCode='${shareCode}';
+const emojiList=['\u{1F44D}','\u{2764}\u{FE0F}','\u{1F602}','\u{1F62E}','\u{1F525}','\u{1F44F}'];
+const reactionCounts=[0,0,0,0,0,0];
+
+function updateReactionCounts(){
+  emojiList.forEach((_,i)=>{
+    const el=document.getElementById('rc-'+i);
+    if(el)el.textContent=reactionCounts[i]>0?reactionCounts[i]:'';
+  });
+}
+
+// Load initial reactions
+fetch('/s/'+shareCode+'/reactions').then(r=>r.json()).then(data=>{
+  (data.reactions||[]).forEach(r=>{
+    const idx=emojiList.indexOf(r.emoji);
+    if(idx>=0)reactionCounts[idx]++;
+  });
+  updateReactionCounts();
+}).catch(()=>{});
+
+document.querySelectorAll('.react-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const emoji=btn.dataset.emoji;
+    const t=vid.currentTime||0;
+    fetch('/s/'+shareCode+'/react',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({timestamp:t,emoji:emoji})})
+    .then(r=>{if(r.ok){
+      const idx=emojiList.indexOf(emoji);
+      if(idx>=0){reactionCounts[idx]++;updateReactionCounts()}
+      // Float bubble
+      const bubble=document.createElement('div');
+      bubble.className='reaction-bubble';
+      bubble.textContent=emoji;
+      const rect=btn.getBoundingClientRect();
+      bubble.style.left=rect.left+'px';
+      bubble.style.top=(rect.top-10)+'px';
+      document.body.appendChild(bubble);
+      setTimeout(()=>bubble.remove(),1500);
+    }}).catch(()=>{});
+  });
+});
+
+/* --- Comments --- */
+const commentList=document.getElementById('comment-list');
+const commentName=document.getElementById('comment-name');
+const commentText=document.getElementById('comment-text');
+const commentSubmit=document.getElementById('comment-submit');
+
+// Restore saved name
+commentName.value=localStorage.getItem('voom_comment_name')||'';
+
+function renderComment(c){
+  const div=document.createElement('div');
+  div.className='comment';
+  const ts=Math.floor(c.timestamp);
+  const m=Math.floor(ts/60);const s=ts%60;
+  const timeStr=m+':'+String(s).padStart(2,'0');
+  div.innerHTML='<div class="comment-header"><span class="comment-author">'+escapeHTMLJS(c.author_name)+'</span><span class="comment-ts" data-time="'+c.timestamp+'">'+timeStr+'</span></div><div class="comment-text">'+escapeHTMLJS(c.text)+'</div>';
+  div.querySelector('.comment-ts').addEventListener('click',()=>{vid.currentTime=c.timestamp;vid.play()});
+  return div;
+}
+
+function escapeHTMLJS(str){return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// Load comments
+fetch('/s/'+shareCode+'/comments').then(r=>r.json()).then(data=>{
+  (data.comments||[]).forEach(c=>commentList.appendChild(renderComment(c)));
+}).catch(()=>{});
+
+commentSubmit.addEventListener('click',()=>{
+  const text=commentText.value.trim();
+  if(!text)return;
+  const name=commentName.value.trim()||'Anonymous';
+  localStorage.setItem('voom_comment_name',name);
+  commentSubmit.disabled=true;
+  commentSubmit.textContent='Posting...';
+  fetch('/s/'+shareCode+'/comment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({timestamp:vid.currentTime||0,author_name:name,text:text})})
+  .then(r=>{
+    if(r.ok){
+      commentList.appendChild(renderComment({timestamp:vid.currentTime||0,author_name:name,text:text}));
+      commentText.value='';
+      showToast('Comment posted');
+    }else{showToast('Failed to post')}
+    commentSubmit.disabled=false;commentSubmit.textContent='Post Comment';
+  }).catch(()=>{commentSubmit.disabled=false;commentSubmit.textContent='Post Comment'});
+});
+
 })();
+</script>
+</body>
+</html>`;
+}
+
+function passwordPageHTML(shareCode, title) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHTML(title)} — Voom</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#e5e5e5;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;-webkit-font-smoothing:antialiased}
+.card{text-align:center;padding:48px;max-width:400px;width:100%}
+.icon{font-size:48px;margin-bottom:24px;opacity:.5}
+h1{font-size:20px;font-weight:600;margin-bottom:8px}
+p{font-size:14px;color:rgba(255,255,255,.45);line-height:1.6;margin-bottom:24px}
+input{width:100%;padding:12px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#fff;font-size:15px;outline:none;margin-bottom:12px;font-family:inherit}
+input:focus{border-color:rgba(255,255,255,.25)}
+button{width:100%;padding:12px;background:#fff;color:#000;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+button:hover{opacity:.85}
+.error{color:#ff4444;font-size:13px;margin-bottom:12px;display:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">🔒</div>
+  <h1>This recording is protected</h1>
+  <p>Enter the password to view this recording.</p>
+  <input type="password" id="pw" placeholder="Password" autocomplete="off" autofocus>
+  <div class="error" id="error">Incorrect password. Please try again.</div>
+  <button id="submit">Unlock</button>
+</div>
+<script>
+const pw=document.getElementById('pw');
+const err=document.getElementById('error');
+const btn=document.getElementById('submit');
+async function verify(){
+  err.style.display='none';
+  btn.textContent='Verifying...';
+  btn.disabled=true;
+  try{
+    const res=await fetch('/s/${shareCode}/verify-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw.value})});
+    if(res.ok){window.location.reload()}
+    else{err.style.display='block';btn.textContent='Unlock';btn.disabled=false;pw.focus();pw.select()}
+  }catch(e){err.textContent='Connection error';err.style.display='block';btn.textContent='Unlock';btn.disabled=false}
+}
+btn.addEventListener('click',verify);
+pw.addEventListener('keydown',(e)=>{if(e.key==='Enter')verify()});
 </script>
 </body>
 </html>`;

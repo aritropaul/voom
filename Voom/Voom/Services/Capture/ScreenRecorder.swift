@@ -26,7 +26,8 @@ actor ScreenRecorder {
         micEnabled: Bool,
         systemAudioEnabled: Bool,
         pipPosition: PiPPosition,
-        existingCamera: CameraCapture? = nil
+        existingCamera: CameraCapture? = nil,
+        cropRect: CGRect? = nil
     ) async throws {
         self.hadWebcam = cameraEnabled
         self.hadSystemAudio = systemAudioEnabled
@@ -41,7 +42,7 @@ actor ScreenRecorder {
         let voomApp = shareableContent.applications.first { $0.bundleIdentifier == Bundle.main.bundleIdentifier }
         let filter: SCContentFilter
 
-        // Find the camera PiP window to include it in the capture
+        // Find the camera PiP and annotation windows to include them in the capture
         var exceptWindows: [SCWindow] = []
         if cameraEnabled {
             let pipWindowNumber = await MainActor.run { OverlayManager.shared.cameraPanelWindowNumber }
@@ -49,6 +50,12 @@ actor ScreenRecorder {
                let pipSCWindow = shareableContent.windows.first(where: { $0.windowID == CGWindowID(pipWindowNumber) }) {
                 exceptWindows.append(pipSCWindow)
             }
+        }
+        // Include annotation overlay if active
+        let annotationWindowNumber = await MainActor.run { OverlayManager.shared.annotationWindowNumber }
+        if let annotationWindowNumber,
+           let annotationSCWindow = shareableContent.windows.first(where: { $0.windowID == CGWindowID(annotationWindowNumber) }) {
+            exceptWindows.append(annotationSCWindow)
         }
 
         if let voomApp {
@@ -63,11 +70,22 @@ actor ScreenRecorder {
             $0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID == CGDirectDisplayID(display.displayID)
         } ?? NSScreen.main
         let scaleFactor = Int(screen?.backingScaleFactor ?? 2)
-        let finalWidth = (display.width * scaleFactor) & ~1
-        let finalHeight = (display.height * scaleFactor) & ~1
 
-        config.width = finalWidth
-        config.height = finalHeight
+        // Region capture: use sourceRect and compute dimensions from crop
+        if let cropRect {
+            config.sourceRect = cropRect
+            let cropWidth = (Int(cropRect.width) * scaleFactor) & ~1
+            let cropHeight = (Int(cropRect.height) * scaleFactor) & ~1
+            config.width = cropWidth
+            config.height = cropHeight
+        } else {
+            config.width = (display.width * scaleFactor) & ~1
+            config.height = (display.height * scaleFactor) & ~1
+        }
+
+        let finalWidth = config.width
+        let finalHeight = config.height
+
         config.minimumFrameInterval = CMTime(value: 1, timescale: 60)
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.showsCursor = true

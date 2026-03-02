@@ -35,6 +35,9 @@ final class AppState {
     var recordingDuration: TimeInterval = 0
     var currentRecordingURL: URL?
     var selectedRecordingID: UUID?
+    var recordingMode: RecordingMode = .fullScreen
+    var selectedRegion: CGRect?
+    var isAnnotating: Bool = false
     var hasCompletedOnboarding: Bool {
         get { UserDefaults.standard.bool(forKey: "HasCompletedOnboarding") }
         set { UserDefaults.standard.set(newValue, forKey: "HasCompletedOnboarding") }

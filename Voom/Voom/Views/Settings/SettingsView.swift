@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("ShareAPISecret") private var apiSecret = ""
     @AppStorage("AutoTranscribe") private var autoTranscribe = true
     @AppStorage("GlobalHotkeyEnabled") private var globalHotkeyEnabled = true
+    @AppStorage("ViewNotificationsEnabled") private var viewNotificationsEnabled = true
     @State private var testStatus: TestStatus = .idle
 
     private enum TestStatus: Equatable {
@@ -53,6 +54,16 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section {
+                Toggle("View notifications", isOn: $viewNotificationsEnabled)
+            } header: {
+                Text("Notifications")
+            } footer: {
+                Text("Get notified when someone views your shared recordings.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .padding()
@@ -61,6 +72,16 @@ struct SettingsView: View {
                 GlobalHotkey.shared.register()
             } else {
                 GlobalHotkey.shared.unregister()
+            }
+        }
+        .onChange(of: viewNotificationsEnabled) { _, enabled in
+            Task {
+                if enabled {
+                    await ViewNotificationService.shared.requestNotificationPermission()
+                    await ViewNotificationService.shared.startPolling()
+                } else {
+                    await ViewNotificationService.shared.stopPolling()
+                }
             }
         }
     }

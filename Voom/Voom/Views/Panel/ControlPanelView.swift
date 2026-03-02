@@ -5,6 +5,7 @@ import AVFoundation
 struct ControlPanelView: View {
     @Environment(AppState.self) private var appState
     @State private var screenRecorder: ScreenRecorder?
+    @State private var cameraOnlyRecorder: CameraOnlyRecorder?
     @State private var activeCamera: CameraCapture?
     @State private var durationTimer: Timer?
     @State private var errorMessage: String?
@@ -111,23 +112,32 @@ struct ControlPanelView: View {
 
         divider
 
+        // Mode picker
+        modePicker
+
+        divider
+
         // Toggle buttons
         HStack(spacing: 2) {
-            toggleButton(icon: "camera.fill", isOn: appState.isCameraEnabled) {
-                appState.isCameraEnabled.toggle()
+            if appState.recordingMode != .cameraOnly {
+                toggleButton(icon: "camera.fill", isOn: appState.isCameraEnabled) {
+                    appState.isCameraEnabled.toggle()
+                }
             }
             toggleButton(icon: "mic.fill", isOn: appState.isMicEnabled) {
                 appState.isMicEnabled.toggle()
             }
-            toggleButton(icon: "speaker.wave.2.fill", isOn: appState.isSystemAudioEnabled) {
-                appState.isSystemAudioEnabled.toggle()
+            if appState.recordingMode != .cameraOnly {
+                toggleButton(icon: "speaker.wave.2.fill", isOn: appState.isSystemAudioEnabled) {
+                    appState.isSystemAudioEnabled.toggle()
+                }
             }
         }
 
-        divider
+        // PiP position (only if camera on and not cam-only mode)
+        if appState.isCameraEnabled && appState.recordingMode != .cameraOnly {
+            divider
 
-        // PiP position (only if camera on)
-        if appState.isCameraEnabled {
             Menu {
                 ForEach(PiPPosition.allCases, id: \.self) { pos in
                     Button(pos.label) { appState.pipPosition = pos }
@@ -151,31 +161,33 @@ struct ControlPanelView: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
+        }
 
+        // Display selector (hidden for cam-only)
+        if appState.recordingMode != .cameraOnly {
             divider
-        }
 
-        // Display selector
-        Button {
-            Task { await pickDisplay() }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "display")
-                    .font(.system(size: 11))
-                Text(displayLabel)
-                    .font(.system(size: 11, weight: .medium))
+            Button {
+                Task { await pickDisplay() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "display")
+                        .font(.system(size: 11))
+                    Text(displayLabel)
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(VoomTheme.textSecondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(VoomTheme.backgroundHover)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+                )
             }
-            .foregroundStyle(VoomTheme.textSecondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(VoomTheme.backgroundHover)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
-            )
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
 
         divider
 
@@ -204,6 +216,36 @@ struct ControlPanelView: View {
         .animation(.easeOut(duration: 0.1), value: isRecordHovered)
         .onHover { isRecordHovered = $0 }
         .disabled(appState.recordingState == .preparing)
+    }
+
+    // MARK: - Mode Picker
+
+    @ViewBuilder
+    private var modePicker: some View {
+        HStack(spacing: 2) {
+            modeButton(icon: "display", mode: .fullScreen)
+            modeButton(icon: "rectangle.dashed", mode: .region)
+            modeButton(icon: "camera.fill", mode: .cameraOnly)
+        }
+    }
+
+    @ViewBuilder
+    private func modeButton(icon: String, mode: RecordingMode) -> some View {
+        Button {
+            appState.recordingMode = mode
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+                .foregroundStyle(appState.recordingMode == mode ? .white : VoomTheme.textQuaternary)
+                .frame(width: 28, height: 28)
+                .background(appState.recordingMode == mode ? VoomTheme.borderMedium : Color.clear)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .strokeBorder(appState.recordingMode == mode ? VoomTheme.borderSubtle : Color.clear, lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Recording Content
@@ -242,6 +284,18 @@ struct ControlPanelView: View {
             .animation(.snappy(duration: 0.25), value: appState.formattedDuration)
 
         divider
+
+        // Annotation toggle (screen modes only)
+        if appState.recordingMode != .cameraOnly {
+            toggleButton(icon: "pencil.tip", isOn: appState.isAnnotating) {
+                appState.isAnnotating.toggle()
+                if appState.isAnnotating {
+                    OverlayManager.shared.showAnnotationOverlay()
+                } else {
+                    OverlayManager.shared.hideAnnotationOverlay()
+                }
+            }
+        }
 
         // Pause/Resume
         iconButton(icon: appState.recordingState == .paused ? "play.fill" : "pause.fill", dimmed: false) {
@@ -376,6 +430,26 @@ struct ControlPanelView: View {
         errorMessage = nil
         appState.recordingState = .preparing
 
+        // Camera-only mode
+        if appState.recordingMode == .cameraOnly {
+            await startCameraOnlyRecording()
+            return
+        }
+
+        // Region mode — show selector first
+        if appState.recordingMode == .region {
+            if let display = appState.selectedDisplay ?? appState.availableDisplays.first {
+                let selector = RegionSelector()
+                nonisolated(unsafe) let captureDisplay = display
+                if let rect = await selector.selectRegion(on: captureDisplay) {
+                    appState.selectedRegion = rect
+                } else {
+                    appState.recordingState = .idle
+                    return
+                }
+            }
+        }
+
         if appState.availableDisplays.isEmpty {
             do {
                 let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
@@ -400,7 +474,6 @@ struct ControlPanelView: View {
         var camera: CameraCapture?
         if cameraEnabled {
             if let existing = activeCamera {
-                // Reuse the already-running camera — don't touch the PiP overlay
                 camera = existing
             } else {
                 let cam = CameraCapture()
@@ -428,6 +501,7 @@ struct ControlPanelView: View {
         let micEnabled = appState.isMicEnabled
         let systemAudioEnabled = appState.isSystemAudioEnabled
         let pipPosition = appState.pipPosition
+        let cropRect = appState.selectedRegion
 
         do {
             nonisolated(unsafe) let captureDisplay = display
@@ -437,7 +511,8 @@ struct ControlPanelView: View {
                 micEnabled: micEnabled,
                 systemAudioEnabled: systemAudioEnabled,
                 pipPosition: pipPosition,
-                existingCamera: camera
+                existingCamera: camera,
+                cropRect: cropRect
             )
             appState.recordingState = .recording
             appState.recordingDuration = 0
@@ -451,20 +526,62 @@ struct ControlPanelView: View {
         }
     }
 
+    private func startCameraOnlyRecording() async {
+        var camera: CameraCapture?
+        if let existing = activeCamera {
+            camera = existing
+        } else {
+            let cam = CameraCapture()
+            do {
+                try await cam.startCapture()
+                camera = cam
+                self.activeCamera = cam
+            } catch {
+                appState.recordingState = .idle
+                errorMessage = "Camera failed: \(error.localizedDescription)"
+                return
+            }
+        }
+
+        let recorder = CameraOnlyRecorder(appState: appState)
+        self.cameraOnlyRecorder = recorder
+        let micEnabled = appState.isMicEnabled
+
+        do {
+            try await recorder.startRecording(
+                micEnabled: micEnabled,
+                existingCamera: camera
+            )
+            appState.recordingState = .recording
+            appState.recordingDuration = 0
+            startDurationTimer()
+        } catch {
+            appState.recordingState = .idle
+            if let cam = activeCamera { await cam.stopCapture() }
+            activeCamera = nil
+            cameraOnlyRecorder = nil
+            errorMessage = "Recording failed: \(error.localizedDescription)"
+        }
+    }
+
     private func stopRecording() async {
         appState.recordingState = .stopping
         stopDurationTimer()
 
         var recordingID: UUID?
-        if let recorder = screenRecorder {
+        if let recorder = cameraOnlyRecorder {
             recordingID = await recorder.stopRecording()
+            cameraOnlyRecorder = nil
+        } else if let recorder = screenRecorder {
+            recordingID = await recorder.stopRecording()
+            screenRecorder = nil
         }
-        screenRecorder = nil
-        // activeCamera stays alive — ScreenRecorder didn't stop it
+
         appState.recordingState = .idle
+        appState.selectedRegion = nil
 
         // PiP stays visible if camera is enabled (session is still running)
-        if !appState.isCameraEnabled {
+        if !appState.isCameraEnabled || appState.recordingMode == .cameraOnly {
             OverlayManager.shared.hideCameraPiP()
             if let cam = activeCamera {
                 Task { await cam.stopCapture() }
@@ -479,15 +596,26 @@ struct ControlPanelView: View {
     }
 
     private func togglePause() async {
-        guard let recorder = screenRecorder else { return }
-        if appState.recordingState == .paused {
-            await recorder.resume()
-            appState.recordingState = .recording
-            startDurationTimer()
-        } else {
-            await recorder.pause()
-            appState.recordingState = .paused
-            stopDurationTimer()
+        if let recorder = cameraOnlyRecorder {
+            if appState.recordingState == .paused {
+                await recorder.resume()
+                appState.recordingState = .recording
+                startDurationTimer()
+            } else {
+                await recorder.pause()
+                appState.recordingState = .paused
+                stopDurationTimer()
+            }
+        } else if let recorder = screenRecorder {
+            if appState.recordingState == .paused {
+                await recorder.resume()
+                appState.recordingState = .recording
+                startDurationTimer()
+            } else {
+                await recorder.pause()
+                appState.recordingState = .paused
+                stopDurationTimer()
+            }
         }
     }
 

@@ -145,6 +145,7 @@ final class OverlayManager {
     private var cameraPanel: NSPanel?
     private var currentPipPosition: PiPPosition = .bottomRight
     private var currentScreen: NSScreen?
+    private var annotationPanel: AnnotationPanel?
 
     // MARK: - Camera PiP
 
@@ -302,6 +303,23 @@ final class OverlayManager {
             panel.animator().setFrameOrigin(adjustedOrigin)
         }
     }
+
+    // MARK: - Annotation Overlay
+
+    func showAnnotationOverlay() {
+        guard annotationPanel == nil else { return }
+        let panel = AnnotationPanel()
+        let screen = currentScreen ?? NSScreen.main ?? NSScreen.screens[0]
+        panel.show(on: screen)
+        self.annotationPanel = panel
+    }
+
+    func hideAnnotationOverlay() {
+        annotationPanel?.hide()
+        annotationPanel = nil
+    }
+
+    var annotationWindowNumber: Int? { annotationPanel?.windowNumber }
 
     // MARK: - Helpers
 

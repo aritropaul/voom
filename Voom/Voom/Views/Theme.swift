@@ -24,6 +24,12 @@ enum VoomTheme {
     static let accentGreen  = Color(nsColor: NSColor(red: 0.25, green: 0.78, blue: 0.45, alpha: 1))
     static let accentOrange = Color(nsColor: NSColor(red: 1.0, green: 0.62, blue: 0.04, alpha: 1))
 
+    // Tag colors
+    static let tagBlue   = Color(nsColor: NSColor(red: 0.37, green: 0.36, blue: 0.90, alpha: 1))
+    static let tagPurple = Color(nsColor: NSColor(red: 0.75, green: 0.35, blue: 0.95, alpha: 1))
+    static let tagPink   = Color(nsColor: NSColor(red: 1.0, green: 0.22, blue: 0.37, alpha: 1))
+    static let tagTeal   = Color(nsColor: NSColor(red: 0.39, green: 0.82, blue: 1.0, alpha: 1))
+
     // MARK: Typography
 
     static func fontTitle() -> Font { .system(size: 18, weight: .semibold) }

@@ -4,6 +4,7 @@ import AVKit
 struct NativePlayerView: NSViewRepresentable {
     let player: AVPlayer
     @Binding var wrapper: _PlayerWrapper?
+    var chapters: [Chapter] = []
 
     func makeNSView(context: Context) -> _PlayerWrapper {
         let playerView = AVPlayerView()
@@ -19,6 +20,7 @@ struct NativePlayerView: NSViewRepresentable {
 
     func updateNSView(_ nsView: _PlayerWrapper, context: Context) {
         nsView.playerView.player = player
+        nsView.updateChapterMarkers(chapters: chapters, duration: player.currentItem?.duration.seconds ?? 0)
     }
 }
 
@@ -113,6 +115,42 @@ final class _PlayerWrapper: NSView {
         ])
         captionBottomConstraint?.constant = isFullScreen ? -120 : -40
         captionLabel?.superview?.layoutSubtreeIfNeeded()
+    }
+
+    // MARK: - Chapter Markers
+
+    private var chapterMarkerLayers: [CALayer] = []
+
+    func updateChapterMarkers(chapters: [Chapter], duration: TimeInterval) {
+        // Remove old markers
+        for layer in chapterMarkerLayers {
+            layer.removeFromSuperlayer()
+        }
+        chapterMarkerLayers.removeAll()
+
+        guard duration > 0, !chapters.isEmpty,
+              let overlay = playerView.contentOverlayView else { return }
+        overlay.wantsLayer = true
+
+        let trackHeight: CGFloat = 4
+        let markerWidth: CGFloat = 3
+        // Approximate position of the scrubber track (near bottom of player)
+        let trackY: CGFloat = 12
+
+        for chapter in chapters {
+            let fraction = CGFloat(chapter.timestamp / duration)
+            let marker = CALayer()
+            marker.backgroundColor = NSColor.systemOrange.withAlphaComponent(0.9).cgColor
+            marker.cornerRadius = 1
+            marker.frame = CGRect(
+                x: overlay.bounds.width * fraction - markerWidth / 2,
+                y: trackY,
+                width: markerWidth,
+                height: trackHeight + 4
+            )
+            overlay.layer?.addSublayer(marker)
+            chapterMarkerLayers.append(marker)
+        }
     }
 
     func updateCaption(_ text: String?) {

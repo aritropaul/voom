@@ -173,6 +173,10 @@ actor CameraCapture {
         self.audioOutput = audioOutput
     }
 
+    func setVideoFrameHandler(_ handler: CameraFrameRecordHandler?) {
+        delegateHandler.recordHandler = handler
+    }
+
     func stopCapture() {
         captureSession?.stopRunning()
         captureSession = nil
@@ -205,6 +209,8 @@ final class CameraDelegateHandler: NSObject, AVCaptureVideoDataOutputSampleBuffe
         if output is AVCaptureVideoDataOutput {
             if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
                 _latestPixelBuffer.pointee = pixelBuffer
+                let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                recordHandler?.handleFrame(pixelBuffer, at: time)
             }
         } else if output is AVCaptureAudioDataOutput {
             micHandler?(sampleBuffer)

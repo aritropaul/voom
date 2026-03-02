@@ -9,14 +9,35 @@ struct LibraryWindow: View {
     @State private var showDeleteConfirmation = false
     @State private var uploadTracker = ShareUploadTracker.shared
     @State private var toast = ToastManager.shared
+    @State private var selectedFolderID: UUID?
+    @State private var showCreateFolder = false
+    @State private var showStitchSheet = false
+    @State private var selectedTagIDs: Set<UUID> = []
 
     private var filteredRecordings: [Recording] {
-        let sorted = store.recordings.sorted { $0.createdAt > $1.createdAt }
-        if searchText.isEmpty { return sorted }
-        return sorted.filter { recording in
-            recording.title.localizedCaseInsensitiveContains(searchText) ||
-            recording.transcriptSegments.contains { $0.text.localizedCaseInsensitiveContains(searchText) }
+        var result = store.recordings.sorted { $0.createdAt > $1.createdAt }
+
+        // Folder filter
+        if let folderID = selectedFolderID {
+            result = result.filter { $0.folderID == folderID }
         }
+
+        // Tag filter
+        if !selectedTagIDs.isEmpty {
+            result = result.filter { recording in
+                guard let tags = recording.tags else { return false }
+                return !selectedTagIDs.isDisjoint(with: Set(tags.map(\.id)))
+            }
+        }
+
+        // Search filter
+        if !searchText.isEmpty {
+            result = result.filter { recording in
+                recording.title.localizedCaseInsensitiveContains(searchText) ||
+                recording.transcriptSegments.contains { $0.text.localizedCaseInsensitiveContains(searchText) }
+            }
+        }
+        return result
     }
 
     private var selectedRecordings: [Recording] {
@@ -88,101 +109,13 @@ struct LibraryWindow: View {
         .searchable(text: $searchText, prompt: "Search recordings...")
         .frame(minWidth: 900, minHeight: 540)
         .navigationTitle("Voom")
-        .toolbar {
-            // Share via Link group
-            ToolbarItemGroup(placement: .primaryAction) {
-                if !selectedIDs.isEmpty {
-                    let selected = selectedRecordings
-
-                    if selected.count == 1, let rec = selected.first {
-                        if uploadTracker.isUploading(rec.id) {
-                            ProgressView(value: uploadTracker.progress(for: rec.id) ?? 0)
-                                .progressViewStyle(.circular)
-                                .controlSize(.small)
-                                .help("Uploading...")
-                        } else if rec.isShared && !rec.isShareExpired {
-                            Button {
-                                copyShareLink(rec)
-                            } label: {
-                                Label("Copy Link", systemImage: "link")
-                            }
-                            .help(rec.shareExpiryDescription ?? "Copy share link")
-
-                            Button(role: .destructive) {
-                                removeShareLink(rec)
-                            } label: {
-                                Label("Unshare", systemImage: "xmark.circle.fill")
-                            }
-                            .help("Remove shared link")
-                        } else {
-                            Button {
-                                shareViaLink(rec)
-                            } label: {
-                                Label("Share via Link", systemImage: "link.badge.plus")
-                            }
-                            .help("Upload and get a shareable link")
-                        }
-                    }
-                }
-            }
-
-            // Share File
-            ToolbarItem(placement: .primaryAction) {
-                if !selectedIDs.isEmpty {
-                    let urls = selectedRecordings.map(\.fileURL)
-                    if urls.count == 1, let url = urls.first {
-                        ShareLink(item: url) {
-                            Label("Share File", systemImage: "square.and.arrow.up")
-                        }
-                        .help("Share file")
-                    } else if urls.count > 1 {
-                        ShareLink(items: urls) { url in
-                            SharePreview(url.lastPathComponent, image: Image(systemName: "video.fill"))
-                        } label: {
-                            Label("Share \(urls.count)", systemImage: "square.and.arrow.up")
-                        }
-                        .help("Share \(urls.count) recordings")
-                    }
-                }
-            }
-
-            // Reveal in Finder
-            ToolbarItem(placement: .primaryAction) {
-                if let rec = selectedRecordings.first, selectedIDs.count == 1 {
-                    Button {
-                        NSWorkspace.shared.selectFile(rec.fileURL.path, inFileViewerRootedAtPath: "")
-                    } label: {
-                        Label("Reveal in Finder", systemImage: "folder")
-                    }
-                    .help("Reveal in Finder")
-                }
-            }
-
-            // Delete
-            ToolbarItem(placement: .destructiveAction) {
-                if !selectedIDs.isEmpty {
-                    let count = selectedIDs.count
-                    Button(role: .destructive) {
-                        promptDeleteSelected()
-                    } label: {
-                        Label(
-                            count > 1 ? "Delete \(count)" : "Delete",
-                            systemImage: "trash"
-                        )
-                    }
-                    .keyboardShortcut(.delete, modifiers: .command)
-                    .help(count > 1 ? "Delete \(count) recordings" : "Delete recording")
-                }
-            }
-        }
+        .toolbar { toolbarItems }
         .alert(
             "Delete \(selectedRecordings.count) Recordings?",
             isPresented: $showDeleteConfirmation
         ) {
             Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
-                deleteSelected()
-            }
+            Button("Delete", role: .destructive) { deleteSelected() }
         } message: {
             Text("This will permanently delete the selected recordings and their files.")
         }
@@ -199,6 +132,117 @@ struct LibraryWindow: View {
                 appState.selectedRecordingID = nil
             }
         }
+        .sheet(isPresented: $showCreateFolder) {
+            CreateFolderSheet(isPresented: $showCreateFolder) { name, colorHex in
+                store.addFolder(Folder(name: name, colorHex: colorHex))
+            }
+        }
+        .sheet(isPresented: $showStitchSheet) {
+            StitchSheet(recordings: selectedRecordings, isPresented: $showStitchSheet) { ordered in
+                Task { await stitchRecordings(ordered) }
+            }
+        }
+    }
+
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbarItems: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            shareLinkToolbarContent
+        }
+        ToolbarItem(placement: .primaryAction) {
+            shareFileToolbarContent
+        }
+        ToolbarItem(placement: .primaryAction) {
+            stitchToolbarContent
+        }
+        ToolbarItem(placement: .primaryAction) {
+            revealToolbarContent
+        }
+        ToolbarItem(placement: .destructiveAction) {
+            deleteToolbarContent
+        }
+    }
+
+    @ViewBuilder
+    private var shareLinkToolbarContent: some View {
+        if let rec = selectedRecordings.first, selectedIDs.count == 1 {
+            if uploadTracker.isUploading(rec.id) {
+                ProgressView(value: uploadTracker.progress(for: rec.id) ?? 0)
+                    .progressViewStyle(.circular)
+                    .controlSize(.small)
+                    .help("Uploading...")
+            } else if rec.isShared && !rec.isShareExpired {
+                Button { copyShareLink(rec) } label: {
+                    Label("Copy Link", systemImage: "link")
+                }
+                .help(rec.shareExpiryDescription ?? "Copy share link")
+                Button(role: .destructive) { removeShareLink(rec) } label: {
+                    Label("Unshare", systemImage: "xmark.circle.fill")
+                }
+                .help("Remove shared link")
+            } else {
+                Button { shareViaLink(rec) } label: {
+                    Label("Share via Link", systemImage: "link.badge.plus")
+                }
+                .help("Upload and get a shareable link")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var shareFileToolbarContent: some View {
+        if !selectedIDs.isEmpty {
+            let urls = selectedRecordings.map(\.fileURL)
+            if urls.count == 1, let url = urls.first {
+                ShareLink(item: url) {
+                    Label("Share File", systemImage: "square.and.arrow.up")
+                }
+                .help("Share file")
+            } else if urls.count > 1 {
+                ShareLink(items: urls) { url in
+                    SharePreview(url.lastPathComponent, image: Image(systemName: "video.fill"))
+                } label: {
+                    Label("Share \(urls.count)", systemImage: "square.and.arrow.up")
+                }
+                .help("Share \(urls.count) recordings")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stitchToolbarContent: some View {
+        if selectedIDs.count >= 2 {
+            Button { showStitchSheet = true } label: {
+                Label("Stitch", systemImage: "film.stack")
+            }
+            .help("Stitch selected recordings together")
+        }
+    }
+
+    @ViewBuilder
+    private var revealToolbarContent: some View {
+        if let rec = selectedRecordings.first, selectedIDs.count == 1 {
+            Button {
+                NSWorkspace.shared.selectFile(rec.fileURL.path, inFileViewerRootedAtPath: "")
+            } label: {
+                Label("Reveal in Finder", systemImage: "folder")
+            }
+            .help("Reveal in Finder")
+        }
+    }
+
+    @ViewBuilder
+    private var deleteToolbarContent: some View {
+        if !selectedIDs.isEmpty {
+            let count = selectedIDs.count
+            Button(role: .destructive) { promptDeleteSelected() } label: {
+                Label(count > 1 ? "Delete \(count)" : "Delete", systemImage: "trash")
+            }
+            .keyboardShortcut(.delete, modifiers: .command)
+            .help(count > 1 ? "Delete \(count) recordings" : "Delete recording")
+        }
     }
 
     // MARK: - Sidebar
@@ -206,55 +250,111 @@ struct LibraryWindow: View {
     @ViewBuilder
     private var sidebarContent: some View {
         if filteredRecordings.isEmpty {
-            VStack(spacing: 0) {
-                Spacer()
-                if searchText.isEmpty {
-                    VoomEmptyState(
-                        icon: "video.slash",
-                        title: "No Recordings",
-                        subtitle: "Record your first video from the menu bar."
-                    )
-                } else {
-                    VoomEmptyState(
-                        icon: "magnifyingglass",
-                        title: "No Results",
-                        subtitle: "No recordings match \"\(searchText)\"."
-                    )
-                }
-                Spacer()
-            }
-            .frame(maxWidth: .infinity)
+            sidebarEmptyState
         } else {
-            List(selection: $selectedIDs) {
-                Section {
-                    statsBar
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-                }
-                ForEach(groupedRecordings) { group in
-                    Section {
-                        ForEach(group.recordings) { recording in
-                            RecordingRow(
-                                recording: recording,
-                                uploadProgress: uploadTracker.progress(for: recording.id)
-                            )
-                                .tag(recording.id)
-                                .contextMenu {
-                                    recordingContextMenu(for: recording)
-                                }
-                        }
-                    } header: {
-                        Text(group.key)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(VoomTheme.textTertiary)
-                            .textCase(nil)
-                    }
-                }
+            sidebarList
+        }
+    }
+
+    @ViewBuilder
+    private var sidebarEmptyState: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            if searchText.isEmpty {
+                VoomEmptyState(
+                    icon: "video.slash",
+                    title: "No Recordings",
+                    subtitle: "Record your first video from the menu bar."
+                )
+            } else {
+                VoomEmptyState(
+                    icon: "magnifyingglass",
+                    title: "No Results",
+                    subtitle: "No recordings match \"\(searchText)\"."
+                )
             }
-            .listStyle(.sidebar)
-            .navigationTitle("Recordings")
-            .onDeleteCommand {
-                promptDeleteSelected()
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var sidebarList: some View {
+        List(selection: $selectedIDs) {
+            sidebarFoldersSection
+            sidebarTagsSection
+            Section {
+                statsBar
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+            }
+            sidebarRecordingsSection
+        }
+        .listStyle(.sidebar)
+        .navigationTitle("Recordings")
+        .onDeleteCommand { promptDeleteSelected() }
+    }
+
+    @ViewBuilder
+    private var sidebarFoldersSection: some View {
+        Section {
+            Button { selectedFolderID = nil } label: {
+                Label("All Recordings", systemImage: "tray.fill")
+                    .foregroundStyle(selectedFolderID == nil ? .primary : VoomTheme.textSecondary)
+            }
+            .buttonStyle(.plain)
+
+            ForEach(store.folders) { folder in
+                FolderRow(folder: folder, recordingCount: store.recordings(in: folder).count, isSelected: selectedFolderID == folder.id)
+                    .onTapGesture { selectedFolderID = folder.id }
+                    .contextMenu {
+                        Button("Rename") { /* handled via sheet */ }
+                        Button("Delete", role: .destructive) { store.deleteFolder(folder) }
+                    }
+            }
+
+            Button { showCreateFolder = true } label: {
+                Label("New Folder", systemImage: "folder.badge.plus")
+                    .font(.system(size: 12))
+                    .foregroundStyle(VoomTheme.textTertiary)
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Text("Folders")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(VoomTheme.textTertiary)
+                .textCase(nil)
+        }
+    }
+
+    @ViewBuilder
+    private var sidebarTagsSection: some View {
+        if !store.availableTags.isEmpty {
+            Section {
+                TagFilterView(availableTags: store.availableTags, selectedTagIDs: $selectedTagIDs)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sidebarRecordingsSection: some View {
+        ForEach(groupedRecordings) { group in
+            Section {
+                ForEach(group.recordings) { recording in
+                    RecordingRow(
+                        recording: recording,
+                        uploadProgress: uploadTracker.progress(for: recording.id)
+                    )
+                    .tag(recording.id)
+                    .contextMenu { recordingContextMenu(for: recording) }
+                }
+            } header: {
+                Text(group.key)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(VoomTheme.textTertiary)
+                    .textCase(nil)
             }
         }
     }
@@ -370,6 +470,26 @@ struct LibraryWindow: View {
             Label("Copy File Path", systemImage: "doc.on.doc")
         }
         ShareLink(item: recording.fileURL)
+
+        // Move to Folder
+        if !store.folders.isEmpty {
+            Menu("Move to Folder") {
+                Button("None") {
+                    var updated = recording
+                    updated.folderID = nil
+                    store.update(updated)
+                }
+                Divider()
+                ForEach(store.folders) { folder in
+                    Button(folder.name) {
+                        var updated = recording
+                        updated.folderID = folder.id
+                        store.update(updated)
+                    }
+                }
+            }
+        }
+
         Divider()
         Button(role: .destructive) {
             selectedIDs.remove(recording.id)
@@ -396,6 +516,34 @@ struct LibraryWindow: View {
             showDeleteConfirmation = true
         } else if !selectedIDs.isEmpty {
             deleteSelected()
+        }
+    }
+
+    private func stitchRecordings(_ recordings: [Recording]) async {
+        let storage = RecordingStorage.shared
+        let outputURL = await storage.newRecordingURL()
+        let sourceURLs = recordings.map(\.fileURL)
+        do {
+            try await VideoEditor.shared.stitch(sourceURLs: sourceURLs, outputURL: outputURL)
+            let duration = await storage.videoDuration(at: outputURL)
+            let resolution = await storage.videoResolution(at: outputURL)
+            let fileSize = await storage.fileSize(at: outputURL)
+            var recording = Recording(
+                title: "Stitched Recording",
+                fileURL: outputURL,
+                duration: duration,
+                fileSize: fileSize,
+                width: resolution.width,
+                height: resolution.height,
+                hasWebcam: false,
+                hasSystemAudio: true,
+                hasMicAudio: true
+            )
+            let thumbURL = await storage.generateThumbnail(for: outputURL, recordingID: recording.id)
+            recording.thumbnailURL = thumbURL
+            await MainActor.run { store.add(recording) }
+        } catch {
+            NSLog("[Voom] Stitch failed: %@", "\(error)")
         }
     }
 

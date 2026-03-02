@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import CryptoKit
 
 // MARK: - Configuration
 
@@ -201,7 +202,7 @@ actor ShareService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(&request)
 
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "title": recording.title,
             "duration": recording.duration,
             "width": recording.width,
@@ -209,12 +210,33 @@ actor ShareService {
             "hasWebcam": recording.hasWebcam,
             "fileSize": recording.fileSize,
         ]
+
+        // Password protection: SHA-256 hash before sending
+        if let password = recording.sharePassword, !password.isEmpty {
+            let hash = sha256Hash(password)
+            body["password_hash"] = hash
+        }
+
+        // CTA fields
+        if let ctaURL = recording.ctaURL {
+            body["cta_url"] = ctaURL.absoluteString
+        }
+        if let ctaText = recording.ctaText, !ctaText.isEmpty {
+            body["cta_text"] = ctaText
+        }
+
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
         try validateResponse(response, data: data)
 
         return try JSONDecoder().decode(UploadResponse.self, from: data)
+    }
+
+    private func sha256Hash(_ input: String) -> String {
+        let data = Data(input.utf8)
+        let hash = SHA256.hash(data: data)
+        return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
 
     private static let chunkSize = 10 * 1024 * 1024 // 10 MB

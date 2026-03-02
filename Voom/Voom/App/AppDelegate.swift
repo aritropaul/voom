@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import SwiftUI
 @preconcurrency import ScreenCaptureKit
+import UserNotifications
 import os
 
 private let logger = Logger(subsystem: "com.voom.app", category: "AppDelegate")
@@ -35,6 +36,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Request all permissions upfront on launch
         requestPermissions()
+
+        // Start view notification polling if enabled
+        let viewNotificationsEnabled = UserDefaults.standard.object(forKey: "ViewNotificationsEnabled") == nil ? true : UserDefaults.standard.bool(forKey: "ViewNotificationsEnabled")
+        if viewNotificationsEnabled {
+            Task {
+                await ViewNotificationService.shared.requestNotificationPermission()
+                await ViewNotificationService.shared.startPolling()
+            }
+        }
 
         // Show onboarding on first launch only
         if !appState.hasCompletedOnboarding {

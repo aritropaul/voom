@@ -8,6 +8,8 @@ final class RecordingStore {
     static let shared = RecordingStore()
 
     var recordings: [Recording] = []
+    var folders: [Folder] = []
+    var availableTags: [RecordingTag] = []
 
     private let storageURL: URL = {
         let dir = FileManager.default.homeDirectoryForCurrentUser
@@ -17,8 +19,24 @@ final class RecordingStore {
         return dir.appendingPathComponent(".recordings.json")
     }()
 
+    private let foldersURL: URL = {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Movies")
+            .appendingPathComponent("Voom")
+        return dir.appendingPathComponent(".folders.json")
+    }()
+
+    private let tagsURL: URL = {
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Movies")
+            .appendingPathComponent("Voom")
+        return dir.appendingPathComponent(".tags.json")
+    }()
+
     init() {
         load()
+        loadFolders()
+        loadTags()
     }
 
     func load() {
@@ -56,6 +74,71 @@ final class RecordingStore {
         recordings.first { $0.id == id }
     }
 
+    // MARK: - Folders
+
+    func loadFolders() {
+        guard let data = try? Data(contentsOf: foldersURL) else { return }
+        folders = (try? JSONDecoder().decode([Folder].self, from: data)) ?? []
+    }
+
+    func saveFolders() {
+        guard let data = try? JSONEncoder().encode(folders) else { return }
+        try? data.write(to: foldersURL, options: .atomic)
+    }
+
+    func addFolder(_ folder: Folder) {
+        folders.append(folder)
+        saveFolders()
+    }
+
+    func updateFolder(_ folder: Folder) {
+        if let idx = folders.firstIndex(where: { $0.id == folder.id }) {
+            folders[idx] = folder
+            saveFolders()
+        }
+    }
+
+    func deleteFolder(_ folder: Folder) {
+        // Remove folder assignment from recordings
+        for i in recordings.indices where recordings[i].folderID == folder.id {
+            recordings[i].folderID = nil
+        }
+        folders.removeAll { $0.id == folder.id }
+        saveFolders()
+        save()
+    }
+
+    func recordings(in folder: Folder) -> [Recording] {
+        recordings.filter { $0.folderID == folder.id }
+    }
+
+    // MARK: - Tags
+
+    func loadTags() {
+        guard let data = try? Data(contentsOf: tagsURL) else { return }
+        availableTags = (try? JSONDecoder().decode([RecordingTag].self, from: data)) ?? []
+    }
+
+    func saveTags() {
+        guard let data = try? JSONEncoder().encode(availableTags) else { return }
+        try? data.write(to: tagsURL, options: .atomic)
+    }
+
+    func addTag(_ tag: RecordingTag) {
+        availableTags.append(tag)
+        saveTags()
+    }
+
+    func deleteTag(_ tag: RecordingTag) {
+        // Remove tag from recordings
+        for i in recordings.indices {
+            recordings[i].tags?.removeAll { $0.id == tag.id }
+        }
+        availableTags.removeAll { $0.id == tag.id }
+        saveTags()
+        save()
+    }
+
     func backfillTitlesAndSummaries() {
         let candidates = recordings.filter { $0.isTranscribed && !$0.transcriptSegments.isEmpty && $0.summary == nil }
         guard !candidates.isEmpty else { return }
@@ -77,7 +160,6 @@ final class RecordingStore {
             NSLog("[Voom] Backfilled titles/summaries for %d recordings", candidates.count)
         }
     }
-
 }
 
 actor RecordingStorage {
@@ -147,6 +229,12 @@ actor RecordingStorage {
         } catch {
             return 0
         }
+    }
+
+    func editedRecordingURL(for originalURL: URL, suffix: String) -> URL {
+        let name = originalURL.deletingPathExtension().lastPathComponent
+        let ext = originalURL.pathExtension
+        return baseDirectory.appendingPathComponent("\(name)-\(suffix).\(ext)")
     }
 
     func videoResolution(at url: URL) async -> (width: Int, height: Int) {

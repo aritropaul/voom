@@ -35,6 +35,25 @@
 		A10009081 /* GlobalHotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009080 /* GlobalHotkey.swift */; };
 		A10009091 /* ToastOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009090 /* ToastOverlay.swift */; };
 		A10009101 /* TextAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009100 /* TextAnalysisService.swift */; };
+		042557EE8F2A4F204E1B08B3 /* Folder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B957058D4314DA218DFFD92 /* Folder.swift */; };
+		C88E3E9D6252C0246E669B2B /* Annotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B3E7A3BC9AA6F788796145E /* Annotation.swift */; };
+		950B9DDF70673E1EF79B2592 /* CameraOnlyRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56901B55FB1EEE4EBA2A7900 /* CameraOnlyRecorder.swift */; };
+		F639D7279356240701F64776 /* VideoEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14B6E44E75F934668CB951E8 /* VideoEditor.swift */; };
+		F03AC56DDBB86EFDA3A43C76 /* FillerWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760E2E06DF8F442AB73F4B64 /* FillerWordDetector.swift */; };
+		CA29E40CFDDC9649D3649113 /* GIFExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5184F82573AAD949B103725A /* GIFExporter.swift */; };
+		D529D177BB0E6B53CFC49D9A /* ViewNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C49C88AC1A93C0F59F95E4A /* ViewNotificationService.swift */; };
+		B04B8D5B0A0DCCE2E6FAAE1A /* AnnotationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F1B859C84CB7A44AFF4E3A9 /* AnnotationOverlay.swift */; };
+		64D86073DFD9D7EC9CA27E05 /* AnnotationToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97E6F160020DC12A67366CF7 /* AnnotationToolbar.swift */; };
+		EB5D182176B346C35EA148E9 /* RegionSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F62201DF7112D57351F750 /* RegionSelector.swift */; };
+		1056F2812BC517F06659A708 /* TrimView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B3BD4E85C9A3307AC4DB577 /* TrimView.swift */; };
+		5F958621AEBCB1F0EE222894 /* CutSpliceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFDEBDE922D4BAEF4661EF66 /* CutSpliceView.swift */; };
+		AB52FEA7E24C83286D60D0E0 /* ChapterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC24AAAF50FB392D2C36351C /* ChapterView.swift */; };
+		E14BCD5FB42BE4CD9C358BAA /* FillerWordSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71AB4284447814B1D09F3494 /* FillerWordSheet.swift */; };
+		36882B0EA506A4CD702A8DD7 /* FolderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F09AAD33B5DD0F4B37D50D7 /* FolderRow.swift */; };
+		3583B5CB28528F88B818C029 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B8F0625718DC1FB5B11915 /* CreateFolderSheet.swift */; };
+		EB030D819B4963073A112855 /* StitchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B99777057266A65C2DA21A6 /* StitchSheet.swift */; };
+		B3E119C1C2816FBCD6EE077F /* TagManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5995C11C4373DCD98BC11A7 /* TagManager.swift */; };
+		BB1E82A02048325BF6FDB3C1 /* TagFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38B9F4C385C5B8C908DDAAC /* TagFilterView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +87,25 @@
 		A10009080 /* GlobalHotkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkey.swift; sourceTree = "<group>"; };
 		A10009090 /* ToastOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastOverlay.swift; sourceTree = "<group>"; };
 		A10009100 /* TextAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextAnalysisService.swift; sourceTree = "<group>"; };
+		5B957058D4314DA218DFFD92 /* Folder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Folder.swift; sourceTree = "<group>"; };
+		1B3E7A3BC9AA6F788796145E /* Annotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Annotation.swift; sourceTree = "<group>"; };
+		56901B55FB1EEE4EBA2A7900 /* CameraOnlyRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraOnlyRecorder.swift; sourceTree = "<group>"; };
+		14B6E44E75F934668CB951E8 /* VideoEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditor.swift; sourceTree = "<group>"; };
+		760E2E06DF8F442AB73F4B64 /* FillerWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordDetector.swift; sourceTree = "<group>"; };
+		5184F82573AAD949B103725A /* GIFExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GIFExporter.swift; sourceTree = "<group>"; };
+		9C49C88AC1A93C0F59F95E4A /* ViewNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewNotificationService.swift; sourceTree = "<group>"; };
+		6F1B859C84CB7A44AFF4E3A9 /* AnnotationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationOverlay.swift; sourceTree = "<group>"; };
+		97E6F160020DC12A67366CF7 /* AnnotationToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationToolbar.swift; sourceTree = "<group>"; };
+		E5F62201DF7112D57351F750 /* RegionSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelector.swift; sourceTree = "<group>"; };
+		8B3BD4E85C9A3307AC4DB577 /* TrimView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrimView.swift; sourceTree = "<group>"; };
+		FFDEBDE922D4BAEF4661EF66 /* CutSpliceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CutSpliceView.swift; sourceTree = "<group>"; };
+		EC24AAAF50FB392D2C36351C /* ChapterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterView.swift; sourceTree = "<group>"; };
+		71AB4284447814B1D09F3494 /* FillerWordSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordSheet.swift; sourceTree = "<group>"; };
+		9F09AAD33B5DD0F4B37D50D7 /* FolderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderRow.swift; sourceTree = "<group>"; };
+		A5B8F0625718DC1FB5B11915 /* CreateFolderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFolderSheet.swift; sourceTree = "<group>"; };
+		9B99777057266A65C2DA21A6 /* StitchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchSheet.swift; sourceTree = "<group>"; };
+		E5995C11C4373DCD98BC11A7 /* TagManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManager.swift; sourceTree = "<group>"; };
+		E38B9F4C385C5B8C908DDAAC /* TagFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagFilterView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -140,6 +178,11 @@
 			isa = PBXGroup;
 			children = (
 				A10002004 /* LibraryWindow.swift */,
+				9F09AAD33B5DD0F4B37D50D7 /* FolderRow.swift */,
+				A5B8F0625718DC1FB5B11915 /* CreateFolderSheet.swift */,
+				9B99777057266A65C2DA21A6 /* StitchSheet.swift */,
+				E5995C11C4373DCD98BC11A7 /* TagManager.swift */,
+				E38B9F4C385C5B8C908DDAAC /* TagFilterView.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -149,6 +192,10 @@
 			children = (
 				A10002005 /* PlayerView.swift */,
 				A10002018 /* NativePlayerView.swift */,
+				8B3BD4E85C9A3307AC4DB577 /* TrimView.swift */,
+				FFDEBDE922D4BAEF4661EF66 /* CutSpliceView.swift */,
+				EC24AAAF50FB392D2C36351C /* ChapterView.swift */,
+				71AB4284447814B1D09F3494 /* FillerWordSheet.swift */,
 			);
 			path = Player;
 			sourceTree = "<group>";
@@ -159,6 +206,9 @@
 				A10002019 /* RecordingOverlay.swift */,
 				A10009020 /* CountdownOverlay.swift */,
 				A10009030 /* DisplayPicker.swift */,
+				6F1B859C84CB7A44AFF4E3A9 /* AnnotationOverlay.swift */,
+				97E6F160020DC12A67366CF7 /* AnnotationToolbar.swift */,
+				E5F62201DF7112D57351F750 /* RegionSelector.swift */,
 			);
 			path = Overlay;
 			sourceTree = "<group>";
@@ -176,6 +226,8 @@
 			isa = PBXGroup;
 			children = (
 				A10002007 /* Recording.swift */,
+				5B957058D4314DA218DFFD92 /* Folder.swift */,
+				1B3E7A3BC9AA6F788796145E /* Annotation.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -189,6 +241,8 @@
 				A10005015 /* Storage */,
 				A10005016 /* Sharing */,
 				A10005021 /* TextAnalysis */,
+				FCDFE53032F7A60C97860CFA /* Editing */,
+				8F115A63A1F20CA2AFCC3D30 /* Export */,
 				A10009080 /* GlobalHotkey.swift */,
 			);
 			path = Services;
@@ -200,6 +254,7 @@
 				A10002008 /* ScreenRecorder.swift */,
 				A10002009 /* CameraCapture.swift */,
 				A10002010 /* FrameCompositor.swift */,
+				56901B55FB1EEE4EBA2A7900 /* CameraOnlyRecorder.swift */,
 			);
 			path = Capture;
 			sourceTree = "<group>";
@@ -232,6 +287,7 @@
 			isa = PBXGroup;
 			children = (
 				A10009050 /* ShareService.swift */,
+				9C49C88AC1A93C0F59F95E4A /* ViewNotificationService.swift */,
 			);
 			path = Sharing;
 			sourceTree = "<group>";
@@ -242,6 +298,23 @@
 				A10009100 /* TextAnalysisService.swift */,
 			);
 			path = TextAnalysis;
+			sourceTree = "<group>";
+		};
+		FCDFE53032F7A60C97860CFA /* Editing */ = {
+			isa = PBXGroup;
+			children = (
+				14B6E44E75F934668CB951E8 /* VideoEditor.swift */,
+				760E2E06DF8F442AB73F4B64 /* FillerWordDetector.swift */,
+			);
+			path = Editing;
+			sourceTree = "<group>";
+		};
+		8F115A63A1F20CA2AFCC3D30 /* Export */ = {
+			isa = PBXGroup;
+			children = (
+				5184F82573AAD949B103725A /* GIFExporter.swift */,
+			);
+			path = Export;
 			sourceTree = "<group>";
 		};
 		A10005017 /* Settings */ = {
@@ -387,6 +460,25 @@
 				A10009081 /* GlobalHotkey.swift in Sources */,
 				A10009091 /* ToastOverlay.swift in Sources */,
 				A10009101 /* TextAnalysisService.swift in Sources */,
+				042557EE8F2A4F204E1B08B3 /* Folder.swift in Sources */,
+				C88E3E9D6252C0246E669B2B /* Annotation.swift in Sources */,
+				950B9DDF70673E1EF79B2592 /* CameraOnlyRecorder.swift in Sources */,
+				F639D7279356240701F64776 /* VideoEditor.swift in Sources */,
+				F03AC56DDBB86EFDA3A43C76 /* FillerWordDetector.swift in Sources */,
+				CA29E40CFDDC9649D3649113 /* GIFExporter.swift in Sources */,
+				D529D177BB0E6B53CFC49D9A /* ViewNotificationService.swift in Sources */,
+				B04B8D5B0A0DCCE2E6FAAE1A /* AnnotationOverlay.swift in Sources */,
+				64D86073DFD9D7EC9CA27E05 /* AnnotationToolbar.swift in Sources */,
+				EB5D182176B346C35EA148E9 /* RegionSelector.swift in Sources */,
+				1056F2812BC517F06659A708 /* TrimView.swift in Sources */,
+				5F958621AEBCB1F0EE222894 /* CutSpliceView.swift in Sources */,
+				AB52FEA7E24C83286D60D0E0 /* ChapterView.swift in Sources */,
+				E14BCD5FB42BE4CD9C358BAA /* FillerWordSheet.swift in Sources */,
+				36882B0EA506A4CD702A8DD7 /* FolderRow.swift in Sources */,
+				3583B5CB28528F88B818C029 /* CreateFolderSheet.swift in Sources */,
+				EB030D819B4963073A112855 /* StitchSheet.swift in Sources */,
+				B3E119C1C2816FBCD6EE077F /* TagManager.swift in Sources */,
+				BB1E82A02048325BF6FDB3C1 /* TagFilterView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
