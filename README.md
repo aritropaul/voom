@@ -1,6 +1,10 @@
-# Voom
+<p align="center">
+  <img src="icon.png" width="128" height="128" alt="Voom icon">
+</p>
 
-Open-source Loom alternative for macOS. Record your screen, camera, and mic — get a shareable link in seconds.
+<h1 align="center">Voom</h1>
+
+<p align="center">Open-source Loom alternative for macOS. Record your screen, camera, and mic — get a shareable link in seconds.</p>
 
 ## What it does
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0 — 2026-03-02 (DEFAULT)
+
+### Changes
+- New app icon.
+- Added icon to README.
+
 ## 2.0.0 — 2026-03-02 (PROUD)
 
 ### Highlights
