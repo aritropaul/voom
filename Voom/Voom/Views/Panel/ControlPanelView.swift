@@ -1,5 +1,5 @@
 import SwiftUI
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 
 struct ControlPanelView: View {
     @Environment(AppState.self) private var appState
@@ -495,7 +495,9 @@ struct ControlPanelView: View {
 
     private func startDurationTimer() {
         durationTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            appState.recordingDuration += 1
+            Task { @MainActor in
+                appState.recordingDuration += 1
+            }
         }
     }
 

@@ -323,15 +323,16 @@ struct PlayerView: View {
         self.player = avPlayer
 
         let interval = CMTime(seconds: 0.1, preferredTimescale: 600)
-        timeObserver = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
-            let t = time.seconds
-            currentTime = t
-            isPlaying = avPlayer.rate > 0
+        timeObserver = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [self] time in
+            MainActor.assumeIsolated {
+                let t = time.seconds
+                currentTime = t
+                isPlaying = avPlayer.rate > 0
 
-            // Push captions imperatively — outside SwiftUI body
-            if showCaptions, let segments = store.recording(for: recordingID)?.transcriptSegments {
-                let caption = segments.first { t >= $0.startTime && t < $0.endTime }?.text
-                playerWrapperRef?.updateCaption(caption)
+                if showCaptions, let segments = store.recording(for: recordingID)?.transcriptSegments {
+                    let caption = segments.first { t >= $0.startTime && t < $0.endTime }?.text
+                    playerWrapperRef?.updateCaption(caption)
+                }
             }
         }
     }

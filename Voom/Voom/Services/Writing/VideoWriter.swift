@@ -103,22 +103,24 @@ final class VideoWriter: @unchecked Sendable {
     }
 
     func appendSystemAudioSample(_ sampleBuffer: CMSampleBuffer) {
+        nonisolated(unsafe) let buffer = sampleBuffer
         queue.async { [self] in
             guard let input = systemAudioInput,
                   input.isReadyForMoreMediaData,
                   isSessionStarted else { return }
-            let boosted = Self.applyGain(to: sampleBuffer, gain: systemAudioGain)
-            input.append(boosted ?? sampleBuffer)
+            let boosted = Self.applyGain(to: buffer, gain: systemAudioGain)
+            input.append(boosted ?? buffer)
         }
     }
 
     func appendMicAudioSample(_ sampleBuffer: CMSampleBuffer) {
+        nonisolated(unsafe) let buffer = sampleBuffer
         queue.async { [self] in
             guard let input = micAudioInput,
                   input.isReadyForMoreMediaData,
                   isSessionStarted else { return }
-            let boosted = Self.applyGain(to: sampleBuffer, gain: micAudioGain)
-            input.append(boosted ?? sampleBuffer)
+            let boosted = Self.applyGain(to: buffer, gain: micAudioGain)
+            input.append(boosted ?? buffer)
         }
     }
 

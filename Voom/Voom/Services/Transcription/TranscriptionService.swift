@@ -1,7 +1,7 @@
 import Foundation
 @preconcurrency import AVFoundation
 #if canImport(WhisperKit)
-import WhisperKit
+@preconcurrency import WhisperKit
 #endif
 
 struct VoomTranscriptSegment: Sendable {

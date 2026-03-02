@@ -1,5 +1,5 @@
 import Foundation
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 import AVFoundation
 import CoreImage
 
@@ -401,6 +401,9 @@ final class StreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
             let adjustedTime = CMTimeSubtract(CMTimeSubtract(timestamp, firstAudioTime!), accumulatedAudioPause)
             lock.unlock()
             handleSystemAudioSample(sampleBuffer, adjustedTime: adjustedTime)
+
+        case .microphone:
+            lock.unlock()
 
         @unknown default:
             lock.unlock()

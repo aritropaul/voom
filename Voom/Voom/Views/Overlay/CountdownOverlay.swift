@@ -107,7 +107,9 @@ final class CountdownOverlay {
         let progressTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { _ in
             let elapsed = CACurrentMediaTime() - startTime
             let p = min(elapsed / totalDuration, 1.0)
-            countdownView.progress = p
+            Task { @MainActor in
+                countdownView.progress = p
+            }
         }
 
         // Countdown: 3, 2, 1
