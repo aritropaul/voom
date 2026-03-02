@@ -50,6 +50,29 @@ Each shared recording gets a minimal dark page with:
 - Clickable synced transcript
 - View-only — no download
 
+## Voom vs Loom
+
+| | Voom | Loom |
+|---|---|---|
+| **Price** | Free, forever | $15/user/month (Business) |
+| **App size** | ~5 MB | ~200 MB |
+| **Privacy** | Recordings stay on your Mac. Cloud sharing is opt-in to your own infra | All recordings uploaded to Loom servers |
+| **Transcription** | On-device via WhisperKit — nothing leaves your machine | Cloud-based |
+| **Screen + cam + mic** | Yes | Yes |
+| **Share via link** | Yes (self-hosted on Cloudflare) | Yes (Loom-hosted) |
+| **Synced transcript** | Yes | Yes |
+| **Link expiry** | 30 days (configurable) | Never (paid), 5 min (free) |
+| **Recording limit** | Unlimited, any length | 5 min (free), 45 min (business) |
+| **Storage limit** | Your disk + your R2 bucket | 25 videos (free) |
+| **Open source** | Yes (MIT) | No |
+| **Custom branding** | Fork it, it's yours | Enterprise plan only |
+| **Electron** | No — native Swift/SwiftUI | Yes |
+| **Dependencies** | WhisperKit | Electron, ffmpeg, many more |
+| **Offline recording** | Yes | No |
+| **Platform** | macOS | macOS, Windows, Chrome, iOS, Android |
+
+Voom doesn't try to replace every Loom feature. No comments, no reactions, no CRM integrations, no analytics dashboard. It records your screen, transcribes it locally, and gives you a link. That's it.
+
 ## Stack
 
 | Component | Technology |

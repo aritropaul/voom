@@ -19,7 +19,7 @@ jobs:
         run: xcodebuild -resolvePackageDependencies -project Voom/Voom.xcodeproj -scheme Voom
 
       - name: Build Release
-        run: xcodebuild -project Voom/Voom.xcodeproj -scheme Voom -configuration Release -destination 'platform=macOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project Voom/Voom.xcodeproj -scheme Voom -configuration Release -destination 'platform=macOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO SWIFT_STRICT_CONCURRENCY=minimal build
 
       - name: Create DMG
         run: |
