@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 
 // MARK: - Configuration
 
@@ -236,10 +237,12 @@ actor ShareService {
         applyAuth(&request)
 
         let delegate = UploadProgressDelegate(recordingID: recordingID)
-        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 300
+        config.timeoutIntervalForResource = 3600
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
 
-        let fileData = try Data(contentsOf: fileURL)
-        let (_, response) = try await session.upload(for: request, from: fileData)
+        let (_, response) = try await session.upload(for: request, fromFile: fileURL)
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {

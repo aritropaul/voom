@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 @preconcurrency import ScreenCaptureKit
 
 struct ControlPanelView: View {
@@ -6,7 +7,6 @@ struct ControlPanelView: View {
     @State private var screenRecorder: ScreenRecorder?
     @State private var activeCamera: CameraCapture?
     @State private var durationTimer: Timer?
-    @State private var hasScreenPermission = CGPreflightScreenCaptureAccess()
     @State private var errorMessage: String?
     @State private var isRecordHovered = false
 
@@ -36,8 +36,7 @@ struct ControlPanelView: View {
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isRecordingActive)
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: appState.isCameraEnabled)
             .onAppear {
-                hasScreenPermission = CGPreflightScreenCaptureAccess()
-                if appState.recordingState == .idle && appState.isCameraEnabled {
+                if appState.isCameraEnabled {
                     Task { await startCameraPreview() }
                 }
             }
@@ -45,7 +44,6 @@ struct ControlPanelView: View {
                 stopCameraPreview()
             }
             .onChange(of: appState.isCameraEnabled) { _, enabled in
-                if appState.recordingState != .idle { return }
                 if enabled {
                     Task { await startCameraPreview() }
                 } else {
@@ -205,7 +203,7 @@ struct ControlPanelView: View {
         .opacity(isRecordHovered ? 0.85 : 1.0)
         .animation(.easeOut(duration: 0.1), value: isRecordHovered)
         .onHover { isRecordHovered = $0 }
-        .disabled(appState.recordingState == .preparing || !hasScreenPermission)
+        .disabled(appState.recordingState == .preparing)
     }
 
     // MARK: - Recording Content

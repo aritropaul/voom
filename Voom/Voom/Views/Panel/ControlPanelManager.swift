@@ -53,10 +53,7 @@ final class ControlPanelManager {
         let screen = screenForPanel(appState: appState)
         positionPanel(panel, on: screen)
 
-        // Auto-select the display matching the screen the panel is on
-        if appState.selectedDisplay == nil {
-            autoSelectDisplay(for: screen, appState: appState)
-        }
+        autoSelectDisplay(for: screen, appState: appState)
 
         panel.alphaValue = 0
         panel.orderFrontRegardless()

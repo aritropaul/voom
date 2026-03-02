@@ -1,5 +1,7 @@
 import AppKit
+import AVFoundation
 import SwiftUI
+@preconcurrency import ScreenCaptureKit
 import os
 
 private let logger = Logger(subsystem: "com.voom.app", category: "AppDelegate")
@@ -12,6 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.notice("[Voom] AppDelegate.applicationDidFinishLaunching called")
+        // Disable macOS window restoration so onboarding doesn't reappear
+        UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "record.circle", accessibilityDescription: "Voom")
@@ -29,12 +33,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             GlobalHotkey.shared.register()
         }
 
-        // Show onboarding on first launch
+        // Request all permissions upfront on launch
+        requestPermissions()
+
+        // Show onboarding on first launch only
         if !appState.hasCompletedOnboarding {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 WindowActions.openWindow?(id: "onboarding")
             }
         }
+    }
+
+    private func requestPermissions() {
+        // Screen recording
+        CGRequestScreenCaptureAccess()
+
+        // Camera
+        AVCaptureDevice.requestAccess(for: .video) { _ in }
+
+        // Microphone
+        AVCaptureDevice.requestAccess(for: .audio) { _ in }
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {

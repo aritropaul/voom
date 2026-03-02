@@ -19,14 +19,25 @@ struct VoomApp: App {
                 .environment(appDelegate.appState)
                 .preferredColorScheme(.dark)
                 .onAppear {
-                    NSApp.setActivationPolicy(.regular)
+                    // If onboarding already completed, macOS restored this window — close it
+                    if appDelegate.appState.hasCompletedOnboarding {
+                        DispatchQueue.main.async {
+                            for window in NSApp.windows where !(window is NSPanel) && window.identifier?.rawValue.contains("onboarding") != false {
+                                window.close()
+                            }
+                        }
+                    } else {
+                        NSApp.setActivationPolicy(.regular)
+                    }
                 }
         }
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)
+        .defaultLaunchBehavior(.suppressed)
 
         Window("Voom Library", id: "library") {
             LibraryWindow()
+                .overlay { ToastOverlay() }
                 .environment(appDelegate.appState)
                 .environment(appDelegate.store)
                 .preferredColorScheme(.dark)
@@ -50,6 +61,7 @@ struct VoomApp: App {
         WindowGroup("Player", id: "player", for: UUID.self) { $recordingID in
             if let recordingID {
                 PlayerView(recordingID: recordingID)
+                    .overlay { ToastOverlay() }
                     .environment(appDelegate.appState)
                     .environment(appDelegate.store)
                     .preferredColorScheme(.dark)

@@ -8,6 +8,7 @@ struct LibraryWindow: View {
     @State private var didPickUpInitialSelection = false
     @State private var showDeleteConfirmation = false
     @State private var uploadTracker = ShareUploadTracker.shared
+    @State private var toast = ToastManager.shared
 
     private var filteredRecordings: [Recording] {
         let sorted = store.recordings.sorted { $0.createdAt > $1.createdAt }
@@ -88,12 +89,11 @@ struct LibraryWindow: View {
         .frame(minWidth: 900, minHeight: 540)
         .navigationTitle("Voom")
         .toolbar {
+            // Share via Link group
             ToolbarItemGroup(placement: .primaryAction) {
                 if !selectedIDs.isEmpty {
                     let selected = selectedRecordings
-                    let urls = selected.map(\.fileURL)
 
-                    // Share via Link
                     if selected.count == 1, let rec = selected.first {
                         if uploadTracker.isUploading(rec.id) {
                             ProgressView(value: uploadTracker.progress(for: rec.id) ?? 0)
@@ -107,6 +107,13 @@ struct LibraryWindow: View {
                                 Label("Copy Link", systemImage: "link")
                             }
                             .help(rec.shareExpiryDescription ?? "Copy share link")
+
+                            Button(role: .destructive) {
+                                removeShareLink(rec)
+                            } label: {
+                                Label("Unshare", systemImage: "xmark.circle.fill")
+                            }
+                            .help("Remove shared link")
                         } else {
                             Button {
                                 shareViaLink(rec)
@@ -116,7 +123,13 @@ struct LibraryWindow: View {
                             .help("Upload and get a shareable link")
                         }
                     }
+                }
+            }
 
+            // Share File
+            ToolbarItem(placement: .primaryAction) {
+                if !selectedIDs.isEmpty {
+                    let urls = selectedRecordings.map(\.fileURL)
                     if urls.count == 1, let url = urls.first {
                         ShareLink(item: url) {
                             Label("Share File", systemImage: "square.and.arrow.up")
@@ -130,26 +143,35 @@ struct LibraryWindow: View {
                         }
                         .help("Share \(urls.count) recordings")
                     }
+                }
+            }
 
-                    if selected.count == 1, let rec = selected.first {
-                        Button {
-                            NSWorkspace.shared.selectFile(rec.fileURL.path, inFileViewerRootedAtPath: "")
-                        } label: {
-                            Label("Reveal in Finder", systemImage: "folder")
-                        }
-                        .help("Reveal in Finder")
+            // Reveal in Finder
+            ToolbarItem(placement: .primaryAction) {
+                if let rec = selectedRecordings.first, selectedIDs.count == 1 {
+                    Button {
+                        NSWorkspace.shared.selectFile(rec.fileURL.path, inFileViewerRootedAtPath: "")
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
                     }
+                    .help("Reveal in Finder")
+                }
+            }
 
+            // Delete
+            ToolbarItem(placement: .destructiveAction) {
+                if !selectedIDs.isEmpty {
+                    let count = selectedIDs.count
                     Button(role: .destructive) {
                         promptDeleteSelected()
                     } label: {
                         Label(
-                            selected.count > 1 ? "Delete \(selected.count)" : "Delete",
+                            count > 1 ? "Delete \(count)" : "Delete",
                             systemImage: "trash"
                         )
                     }
                     .keyboardShortcut(.delete, modifiers: .command)
-                    .help(selected.count > 1 ? "Delete \(selected.count) recordings" : "Delete recording")
+                    .help(count > 1 ? "Delete \(count) recordings" : "Delete recording")
                 }
             }
         }
@@ -383,8 +405,9 @@ struct LibraryWindow: View {
 
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(result.shareURL.absoluteString, forType: .string)
+                toast.success("Uploaded & link copied!", icon: "link.badge.plus")
             } catch {
-                NSLog("[Voom] Share failed: %@", "\(error)")
+                toast.error("Share failed: \(error.localizedDescription)")
             }
         }
     }
@@ -393,6 +416,7 @@ struct LibraryWindow: View {
         guard let url = recording.shareURL else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
+        toast.success("Link copied!")
     }
 
     private func renewShareLink(_ recording: Recording) {
@@ -403,8 +427,9 @@ struct LibraryWindow: View {
                 var updated = recording
                 updated.shareExpiresAt = newExpiry
                 store.update(updated)
+                toast.success("Link renewed!", icon: "arrow.clockwise")
             } catch {
-                NSLog("[Voom] Renew failed: %@", "\(error)")
+                toast.error("Renew failed: \(error.localizedDescription)")
             }
         }
     }
@@ -419,8 +444,9 @@ struct LibraryWindow: View {
                 updated.shareCode = nil
                 updated.shareExpiresAt = nil
                 store.update(updated)
+                toast.success("Link removed", icon: "link.badge.plus")
             } catch {
-                NSLog("[Voom] Remove share failed: %@", "\(error)")
+                toast.error("Unshare failed: \(error.localizedDescription)")
             }
         }
     }

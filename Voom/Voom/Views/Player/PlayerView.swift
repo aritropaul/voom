@@ -12,6 +12,7 @@ struct PlayerView: View {
     @State private var showCaptions = false
     @State private var playerWrapperRef: _PlayerWrapper?
     @State private var uploadTracker = ShareUploadTracker.shared
+    @State private var toast = ToastManager.shared
 
     private var recording: Recording? {
         store.recording(for: recordingID)
@@ -146,6 +147,7 @@ struct PlayerView: View {
                         guard let url = recording.shareURL else { return }
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                        toast.success("Link copied!")
                     } label: {
                         Image(systemName: "link")
                             .font(.system(size: 11))
@@ -155,6 +157,18 @@ struct PlayerView: View {
                     }
                     .buttonStyle(.plain)
                     .help(recording.shareExpiryDescription ?? "Copy share link")
+
+                    Button {
+                        Task { await removeShareLink(recording) }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(VoomTheme.accentRed)
+                            .frame(width: 28, height: 28)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Unshare")
                 } else {
                     Button {
                         Task { await shareViaLink(recording) }
@@ -357,8 +371,24 @@ struct PlayerView: View {
 
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(result.shareURL.absoluteString, forType: .string)
+            toast.success("Uploaded & link copied!", icon: "link.badge.plus")
         } catch {
-            NSLog("[Voom] Share failed: %@", "\(error)")
+            toast.error("Share failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func removeShareLink(_ recording: Recording) async {
+        guard let code = recording.shareCode else { return }
+        do {
+            try await ShareService.shared.deleteShare(shareCode: code)
+            var updated = recording
+            updated.shareURL = nil
+            updated.shareCode = nil
+            updated.shareExpiresAt = nil
+            store.update(updated)
+            toast.success("Link removed", icon: "link.badge.plus")
+        } catch {
+            toast.error("Unshare failed: \(error.localizedDescription)")
         }
     }
 
