@@ -95,10 +95,11 @@ final class CountdownOverlay {
         panel.orderFrontRegardless()
         self.panel = panel
 
+        nonisolated(unsafe) let panelRef = panel
         await NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.25
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().alphaValue = 1.0
+            panelRef.animator().alphaValue = 1.0
         })
 
         // Start smooth progress timer — fills from 0→1 over 3 seconds at 60fps
@@ -129,7 +130,7 @@ final class CountdownOverlay {
         await NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.2
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            panel.animator().alphaValue = 0
+            panelRef.animator().alphaValue = 0
         })
 
         panel.close()
