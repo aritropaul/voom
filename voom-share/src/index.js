@@ -1329,6 +1329,15 @@ function passwordPageHTML(shareCode, title) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHTML(title)} — Voom</title>
+<meta property="og:title" content="${escapeHTML(title)}">
+<meta property="og:type" content="video.other">
+<meta property="og:image" content="/og/${shareCode}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:description" content="Shared via Voom">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escapeHTML(title)}">
+<meta name="twitter:image" content="/og/${shareCode}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;color:#e5e5e5;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;-webkit-font-smoothing:antialiased}
