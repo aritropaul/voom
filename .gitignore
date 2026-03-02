@@ -14,5 +14,9 @@ Voom/Voom.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/
 # Node
 voom-share/node_modules/
 
+# Build artifacts
+build/
+dist/
+
 # Claude
 .claude/

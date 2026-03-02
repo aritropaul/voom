@@ -14,6 +14,17 @@ struct VoomApp: App {
     var body: some Scene {
         let _ = captureOpenWindow()
 
+        Window("Welcome to Voom", id: "onboarding") {
+            OnboardingView()
+                .environment(appDelegate.appState)
+                .preferredColorScheme(.dark)
+                .onAppear {
+                    NSApp.setActivationPolicy(.regular)
+                }
+        }
+        .windowResizability(.contentSize)
+        .windowStyle(.hiddenTitleBar)
+
         Window("Voom Library", id: "library") {
             LibraryWindow()
                 .environment(appDelegate.appState)

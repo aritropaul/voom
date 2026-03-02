@@ -86,6 +86,12 @@ export default {
       return handleVideoStream(request, env, videoMatch[1]);
     }
 
+    // OG image
+    const ogMatch = path.match(/^\/og\/([a-z0-9]+)$/);
+    if (ogMatch && request.method === 'GET') {
+      return handleOGImage(env, ogMatch[1]);
+    }
+
     if (path === '/') {
       return new Response('Voom Share', { status: 200 });
     }
@@ -292,6 +298,41 @@ async function cleanupExpired(env) {
   }
 }
 
+// --- OG Image ---
+
+async function handleOGImage(env, shareCode) {
+  const video = await env.DB.prepare(
+    "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
+  )
+    .bind(shareCode)
+    .first();
+
+  if (!video) return new Response('Not found', { status: 404 });
+
+  const duration = formatDuration(video.duration);
+  const date = formatDate(video.created_at);
+  const title = video.title.length > 60 ? video.title.substring(0, 57) + '...' : video.title;
+  const res = video.width > 0 ? `${video.width}×${video.height}` : '';
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#000"/>
+  <rect x="100" y="140" width="1000" height="350" rx="16" fill="#111" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <circle cx="600" cy="290" r="40" fill="rgba(255,255,255,0.06)"/>
+  <polygon points="590,270 590,310 620,290" fill="rgba(255,255,255,0.3)"/>
+  <text x="600" y="400" text-anchor="middle" fill="#e5e5e5" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="22" font-weight="500">${escapeHTML(title)}</text>
+  <text x="600" y="440" text-anchor="middle" fill="#888" font-family="monospace" font-size="13" letter-spacing="1">${duration}  ·  ${date}${res ? '  ·  ' + res : ''}</text>
+  <text x="600" y="570" text-anchor="middle" fill="#444" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="14" font-weight="500" letter-spacing="2">VOOM</text>
+</svg>`;
+
+  return new Response(svg, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'public, max-age=86400',
+    },
+  });
+}
+
 // --- HTML Templates ---
 
 function formatDuration(seconds) {
@@ -344,6 +385,12 @@ function sharePageHTML(video, segments, shareCode) {
 <meta property="og:video:type" content="video/mp4">
 <meta property="og:video:width" content="${video.width}">
 <meta property="og:video:height" content="${video.height}">
+<meta property="og:image" content="/og/${shareCode}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${escapeHTML(video.title)}">
+<meta name="twitter:image" content="/og/${shareCode}">
 <style>
 :root{--bg:#000;--text-main:#e5e5e5;--text-muted:#888;--accent:#fff;--space-xs:12px;--space-s:24px;--space-m:48px;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--font-mono:"SF Mono",Monaco,ui-monospace,monospace}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}

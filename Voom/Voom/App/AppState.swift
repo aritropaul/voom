@@ -35,6 +35,10 @@ final class AppState {
     var recordingDuration: TimeInterval = 0
     var currentRecordingURL: URL?
     var selectedRecordingID: UUID?
+    var hasCompletedOnboarding: Bool {
+        get { UserDefaults.standard.bool(forKey: "HasCompletedOnboarding") }
+        set { UserDefaults.standard.set(newValue, forKey: "HasCompletedOnboarding") }
+    }
 
     var isRecording: Bool { recordingState == .recording }
     var canStartRecording: Bool { recordingState == .idle }

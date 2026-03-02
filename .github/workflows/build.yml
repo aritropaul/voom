@@ -1,0 +1,22 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project Voom/Voom.xcodeproj -scheme Voom
+
+      - name: Build
+        run: xcodebuild -project Voom/Voom.xcodeproj -scheme Voom -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build

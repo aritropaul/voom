@@ -216,8 +216,9 @@ actor ScreenRecorder {
             RecordingStore.shared.add(recording)
         }
 
-        // Auto-transcribe in background if audio is available
-        if hasSystemAudio || hasMicAudio {
+        // Auto-transcribe in background if audio is available and setting is enabled
+        let autoTranscribe = UserDefaults.standard.object(forKey: "AutoTranscribe") == nil ? true : UserDefaults.standard.bool(forKey: "AutoTranscribe")
+        if autoTranscribe && (hasSystemAudio || hasMicAudio) {
             let capturedURL = url
             let capturedID = recordingID
             Task.detached {

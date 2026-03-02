@@ -74,6 +74,13 @@ struct ControlPanelView: View {
                     Task { await stopRecording() }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleRecordingFromHotkey)) { _ in
+                if isRecordingActive {
+                    Task { await stopRecording() }
+                } else if appState.canStartRecording {
+                    Task { await startRecording() }
+                }
+            }
     }
 
     // MARK: - Bar Content

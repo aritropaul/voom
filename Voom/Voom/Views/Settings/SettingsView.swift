@@ -1,8 +1,11 @@
 import SwiftUI
+import Carbon.HIToolbox
 
 struct SettingsView: View {
     @AppStorage("ShareWorkerBaseURL") private var workerBaseURL = ""
     @AppStorage("ShareAPISecret") private var apiSecret = ""
+    @AppStorage("AutoTranscribe") private var autoTranscribe = true
+    @AppStorage("GlobalHotkeyEnabled") private var globalHotkeyEnabled = true
     @State private var testStatus: TestStatus = .idle
 
     private enum TestStatus: Equatable {
@@ -14,12 +17,52 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
+            generalSettings
+                .tabItem {
+                    Label("General", systemImage: "gear")
+                }
             sharingSettings
                 .tabItem {
                     Label("Sharing", systemImage: "link")
                 }
         }
-        .frame(width: 480, height: 280)
+        .frame(width: 480, height: 320)
+    }
+
+    // MARK: - General Tab
+
+    @ViewBuilder
+    private var generalSettings: some View {
+        Form {
+            Section {
+                Toggle("Automatically transcribe recordings", isOn: $autoTranscribe)
+            } header: {
+                Text("Transcription")
+            } footer: {
+                Text("When enabled, recordings with audio are transcribed on-device using WhisperKit after recording stops.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Global keyboard shortcut", isOn: $globalHotkeyEnabled)
+            } header: {
+                Text("Keyboard")
+            } footer: {
+                Text("⌘⇧R to start/stop recording from anywhere.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+        .onChange(of: globalHotkeyEnabled) { _, enabled in
+            if enabled {
+                GlobalHotkey.shared.register()
+            } else {
+                GlobalHotkey.shared.unregister()
+            }
+        }
     }
 
     // MARK: - Sharing Tab

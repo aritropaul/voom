@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -project Voom/Voom.xcodeproj -scheme Voom
+
+      - name: Build Release
+        run: xcodebuild -project Voom/Voom.xcodeproj -scheme Voom -configuration Release -destination 'platform=macOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          mkdir -p dist
+          create-dmg \
+            --volname "Voom" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "Voom.app" 150 190 \
+            --hide-extension "Voom.app" \
+            --app-drop-link 450 190 \
+            --no-internet-enable \
+            "dist/Voom.dmg" \
+            "build/Build/Products/Release/Voom.app"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Voom.dmg
+          generate_release_notes: true

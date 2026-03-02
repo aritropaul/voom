@@ -22,6 +22,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             logger.error("[Voom] Status item button is nil!")
         }
+
+        // Register global hotkey (Cmd+Shift+R)
+        let hotkeyEnabled = UserDefaults.standard.object(forKey: "GlobalHotkeyEnabled") == nil ? true : UserDefaults.standard.bool(forKey: "GlobalHotkeyEnabled")
+        if hotkeyEnabled {
+            GlobalHotkey.shared.register()
+        }
+
+        // Show onboarding on first launch
+        if !appState.hasCompletedOnboarding {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                WindowActions.openWindow?(id: "onboarding")
+            }
+        }
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
