@@ -41,7 +41,12 @@ final class RecordingStore {
 
     func load() {
         guard let data = try? Data(contentsOf: storageURL) else { return }
-        recordings = (try? JSONDecoder().decode([Recording].self, from: data)) ?? []
+        do {
+            recordings = try JSONDecoder().decode([Recording].self, from: data)
+        } catch {
+            NSLog("[Voom] Failed to decode recordings: %@", "\(error)")
+            // Don't overwrite — keep recordings empty but don't save
+        }
     }
 
     func save() {

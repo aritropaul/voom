@@ -249,46 +249,37 @@ struct LibraryWindow: View {
 
     @ViewBuilder
     private var sidebarContent: some View {
-        if filteredRecordings.isEmpty {
-            sidebarEmptyState
-        } else {
-            sidebarList
-        }
-    }
-
-    @ViewBuilder
-    private var sidebarEmptyState: some View {
-        VStack(spacing: 0) {
-            Spacer()
-            if searchText.isEmpty {
-                VoomEmptyState(
-                    icon: "video.slash",
-                    title: "No Recordings",
-                    subtitle: "Record your first video from the menu bar."
-                )
-            } else {
-                VoomEmptyState(
-                    icon: "magnifyingglass",
-                    title: "No Results",
-                    subtitle: "No recordings match \"\(searchText)\"."
-                )
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private var sidebarList: some View {
         List(selection: $selectedIDs) {
             sidebarFoldersSection
             sidebarTagsSection
-            Section {
-                statsBar
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+            if filteredRecordings.isEmpty {
+                Section {
+                    if searchText.isEmpty {
+                        VoomEmptyState(
+                            icon: "video.slash",
+                            title: selectedFolderID != nil ? "Empty Folder" : "No Recordings",
+                            subtitle: selectedFolderID != nil ? "This folder has no recordings yet." : "Record your first video from the menu bar."
+                        )
+                        .frame(maxWidth: .infinity)
+                        .listRowSeparator(.hidden)
+                    } else {
+                        VoomEmptyState(
+                            icon: "magnifyingglass",
+                            title: "No Results",
+                            subtitle: "No recordings match \"\(searchText)\"."
+                        )
+                        .frame(maxWidth: .infinity)
+                        .listRowSeparator(.hidden)
+                    }
+                }
+            } else {
+                Section {
+                    statsBar
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
+                }
+                sidebarRecordingsSection
             }
-            sidebarRecordingsSection
         }
         .listStyle(.sidebar)
         .navigationTitle("Recordings")
