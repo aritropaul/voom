@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.1 — 2026-03-02 (SHAME)
+
+### Fixes
+- DMG now includes Applications shortcut for drag-to-install.
+
 ## 2.1.0 — 2026-03-02 (DEFAULT)
 
 ### Changes
