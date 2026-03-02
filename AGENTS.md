@@ -26,7 +26,7 @@
 
 ## Code Signing
 - Must use Apple Development certificate (not self-signed).
-- `CODE_SIGN_IDENTITY = "Apple Development"`, `CODE_SIGN_STYLE = Automatic`, `DEVELOPMENT_TEAM = 2J3WW2KWBU`.
+- `CODE_SIGN_IDENTITY = "Apple Development"`, `CODE_SIGN_STYLE = Automatic`.
 - Never leave stale builds in `build/` — macOS Launch Services may pick those over DerivedData builds.
 
 ## Secrets
