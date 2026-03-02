@@ -31,6 +31,7 @@ dist/
 # Secrets & environment
 .env
 .env.*
+!.env.example
 *.pem
 
 # Claude
