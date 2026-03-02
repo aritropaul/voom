@@ -520,7 +520,9 @@ function sharePageHTML(video, segments, shareCode, viewCount) {
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
 body{background:var(--bg);color:var(--text-main);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
 
-.container{max-width:800px;margin:0 auto;padding:80px var(--space-s) var(--space-m);display:flex;flex-direction:column;gap:var(--space-m);align-items:center}
+.page-icon{display:flex;justify-content:center;padding:var(--space-m) 0 0}
+.page-icon img{border-radius:10px}
+.container{max-width:800px;margin:0 auto;padding:max(24px,calc(50vh - 340px)) var(--space-s) var(--space-m);display:flex;flex-direction:column;gap:var(--space-m);align-items:center}
 .container>*{width:100%}
 
 /* Player */
@@ -585,8 +587,6 @@ video{display:block;width:100%;background:#000}
 .metadata{display:flex;flex-direction:column;gap:var(--space-xs)}
 .meta-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-s)}
 .stats{display:flex;gap:var(--space-s);font-family:var(--font-mono);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;flex-wrap:wrap}
-.title-row{display:flex;align-items:center;gap:10px}
-.voom-icon{border-radius:6px;flex-shrink:0}
 h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
 .summary{font-size:13px;line-height:1.6;color:var(--text-muted);margin-top:6px}
 .copy-link-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap;text-transform:uppercase;letter-spacing:1px}
@@ -630,6 +630,7 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
 </style>
 </head>
 <body>
+<div class="page-icon"><img src="/icon-64.png" width="40" height="40" alt="Voom"></div>
 <div class="container">
 
   <div class="player-section" id="player-section">
@@ -691,10 +692,7 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
         Copy link
       </button>
     </div>
-    <div class="title-row">
-      <img src="/icon-64.png" width="32" height="32" alt="Voom" class="voom-icon">
-      <h1>${escapeHTML(video.title)}</h1>
-    </div>
+    <h1>${escapeHTML(video.title)}</h1>
     ${video.summary ? `<p class="summary">${escapeHTML(video.summary)}</p>` : ''}
   </div>
 
