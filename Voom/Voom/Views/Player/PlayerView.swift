@@ -13,6 +13,12 @@ struct PlayerView: View {
     @State private var playerWrapperRef: _PlayerWrapper?
     @State private var uploadTracker = ShareUploadTracker.shared
     @State private var toast = ToastManager.shared
+    @State private var isSummaryExpanded = true
+    @State private var playbackSpeed: Float = 1.0
+    @State private var editingTitle: String = ""
+    @State private var editingSummary: String = ""
+
+    private let speeds: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
     private var recording: Recording? {
         store.recording(for: recordingID)
@@ -45,6 +51,13 @@ struct PlayerView: View {
                         .padding(.top, VoomTheme.spacingLG)
                 }
 
+                // Summary section
+                if let recording, let summary = recording.summary, !summary.isEmpty {
+                    summarySection(summary: summary)
+                        .padding(.horizontal, VoomTheme.spacingXL)
+                        .padding(.top, VoomTheme.spacingLG)
+                }
+
                 // Transcript section
                 transcriptSection(scrollToVideo: {
                     withAnimation(.smooth(duration: 0.3)) {
@@ -57,8 +70,23 @@ struct PlayerView: View {
             }
         }
         }
-        .onAppear { setupPlayer() }
-        .onDisappear { teardownPlayer() }
+        .onAppear {
+            setupPlayer()
+            if let recording {
+                editingTitle = recording.title
+                editingSummary = recording.summary ?? ""
+            }
+        }
+        .onDisappear {
+            commitSummary()
+            teardownPlayer()
+        }
+        .onChange(of: recording?.title) { _, newTitle in
+            if let newTitle { editingTitle = newTitle }
+        }
+        .onChange(of: recording?.summary) { _, newSummary in
+            editingSummary = newSummary ?? ""
+        }
         .onChange(of: showCaptions) { _, show in
             if !show { playerWrapperRef?.updateCaption(nil) }
         }
@@ -136,6 +164,31 @@ struct PlayerView: View {
                     .help(showCaptions ? "Hide Captions" : "Show Captions")
                 }
 
+                // Playback speed
+                Menu {
+                    ForEach(speeds, id: \.self) { speed in
+                        Button {
+                            playbackSpeed = speed
+                            player?.rate = speed
+                        } label: {
+                            HStack {
+                                Text(speedLabel(speed))
+                                if speed == playbackSpeed {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Text(speedLabel(playbackSpeed))
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(playbackSpeed != 1.0 ? Color.accentColor : VoomTheme.textSecondary)
+                        .frame(height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Playback Speed")
+
                 // Share via Link
                 if uploadTracker.isUploading(recording.id) {
                     ProgressView(value: uploadTracker.progress(for: recording.id) ?? 0)
@@ -202,9 +255,11 @@ struct PlayerView: View {
     @ViewBuilder
     private func detailsSection(recording: Recording) -> some View {
         VStack(alignment: .leading, spacing: VoomTheme.spacingMD) {
-            Text(recording.title)
+            TextField("Title", text: $editingTitle)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(VoomTheme.textPrimary)
+                .textFieldStyle(.plain)
+                .onSubmit { commitTitle() }
 
             HStack(spacing: VoomTheme.spacingMD) {
                 detailChip(icon: "calendar", text: formatDate(recording.createdAt))
@@ -293,6 +348,9 @@ struct PlayerView: View {
                         onSeek: { time in
                             player?.seek(to: CMTime(seconds: time, preferredTimescale: 600))
                             scrollToVideo()
+                        },
+                        onUpdateSegment: { segmentID, newText in
+                            updateSegmentText(segmentID: segmentID, newText: newText)
                         }
                     )
                 } else if recording.isTranscribing {
@@ -329,6 +387,31 @@ struct PlayerView: View {
         )
     }
 
+    // MARK: - Editing
+
+    private func commitTitle() {
+        guard var rec = recording, !editingTitle.isEmpty, editingTitle != rec.title else { return }
+        rec.title = editingTitle
+        store.update(rec)
+    }
+
+    private func updateSegmentText(segmentID: UUID, newText: String) {
+        guard var rec = recording else { return }
+        if let idx = rec.transcriptSegments.firstIndex(where: { $0.id == segmentID }) {
+            rec.transcriptSegments[idx].text = newText
+            store.update(rec)
+        }
+    }
+
+    private func commitSummary() {
+        guard var rec = recording else { return }
+        let trimmed = editingSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newSummary = trimmed.isEmpty ? nil : trimmed
+        guard newSummary != rec.summary else { return }
+        rec.summary = newSummary
+        store.update(rec)
+    }
+
     // MARK: - Player
 
     private func setupPlayer() {
@@ -342,6 +425,11 @@ struct PlayerView: View {
                 let t = time.seconds
                 currentTime = t
                 isPlaying = avPlayer.rate > 0
+
+                // Re-apply playback speed if AVPlayer reset it on play
+                if avPlayer.rate > 0 && avPlayer.rate != playbackSpeed {
+                    avPlayer.rate = playbackSpeed
+                }
 
                 if showCaptions, let segments = store.recording(for: recordingID)?.transcriptSegments {
                     let caption = segments.first { t >= $0.startTime && t < $0.endTime }?.text
@@ -399,15 +487,79 @@ struct PlayerView: View {
 
         do {
             let voomSegments = try await TranscriptionService.shared.transcribe(audioURL: recording.fileURL)
-            updated.transcriptSegments = voomSegments.map {
+            let entries = voomSegments.map {
                 TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text)
             }
+            updated.transcriptSegments = entries
             updated.isTranscribed = !voomSegments.isEmpty
+
+            let generatedTitle = await TextAnalysisService.shared.generateTitle(from: entries)
+            let generatedSummary = await TextAnalysisService.shared.generateSummary(from: entries)
+            if !generatedTitle.isEmpty {
+                updated.title = generatedTitle
+            }
+            updated.summary = generatedSummary.isEmpty ? nil : generatedSummary
         } catch {
             NSLog("[Voom] Manual transcription failed: %@", "\(error)")
         }
         updated.isTranscribing = false
         store.update(updated)
+    }
+
+    // MARK: - Summary Section
+
+    @ViewBuilder
+    private func summarySection(summary: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.smooth(duration: 0.2)) {
+                    isSummaryExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    VoomSectionHeader(icon: "text.alignleft", title: "Summary")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(VoomTheme.textTertiary)
+                        .rotationEffect(.degrees(isSummaryExpanded ? 90 : 0))
+                }
+                .padding(.horizontal, VoomTheme.spacingLG)
+                .padding(.vertical, VoomTheme.spacingMD)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isSummaryExpanded {
+                TextEditor(text: $editingSummary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(VoomTheme.textSecondary)
+                    .lineSpacing(4)
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, VoomTheme.spacingLG - 5)
+                    .padding(.bottom, VoomTheme.spacingLG)
+                    .frame(minHeight: 60)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
+                .fill(VoomTheme.backgroundSecondary)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
+                .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+        )
+    }
+
+    // MARK: - Speed Label
+
+    private func speedLabel(_ speed: Float) -> String {
+        if speed == Float(Int(speed)) {
+            return "\(Int(speed))x"
+        }
+        return "\(String(format: "%.2g", speed))x"
     }
 
     // MARK: - Formatters
@@ -443,8 +595,11 @@ private struct TranscriptListView: View {
     let segments: [TranscriptEntry]
     let currentTime: TimeInterval
     let onSeek: (TimeInterval) -> Void
+    var onUpdateSegment: ((UUID, String) -> Void)?
     @State private var searchText = ""
     @State private var hoveredSegmentID: UUID?
+    @State private var editingSegmentID: UUID?
+    @State private var editingSegmentText: String = ""
 
     private var filteredSegments: [TranscriptEntry] {
         if searchText.isEmpty { return segments }
@@ -478,17 +633,40 @@ private struct TranscriptListView: View {
                 SegmentRow(
                     segment: segment,
                     isActive: isActive(segment),
-                    isHovered: hoveredSegmentID == segment.id
+                    isHovered: hoveredSegmentID == segment.id,
+                    isEditing: editingSegmentID == segment.id,
+                    editingText: editingSegmentID == segment.id ? $editingSegmentText : nil
                 )
                 .id(segment.id)
-                .onTapGesture { onSeek(segment.startTime) }
+                .onTapGesture(count: 2) {
+                    editingSegmentID = segment.id
+                    editingSegmentText = segment.text
+                }
+                .onTapGesture(count: 1) {
+                    if editingSegmentID == segment.id {
+                        return
+                    }
+                    onSeek(segment.startTime)
+                }
                 .onHover { hovering in
                     hoveredSegmentID = hovering ? segment.id : nil
                 }
             }
         }
+        .onSubmit {
+            commitSegmentEdit()
+        }
         .padding(.horizontal, VoomTheme.spacingSM)
         .padding(.bottom, VoomTheme.spacingMD)
+    }
+
+    private func commitSegmentEdit() {
+        guard let id = editingSegmentID else { return }
+        let trimmed = editingSegmentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            onUpdateSegment?(id, trimmed)
+        }
+        editingSegmentID = nil
     }
 
     private func isActive(_ segment: TranscriptEntry) -> Bool {
@@ -500,6 +678,8 @@ private struct SegmentRow: View {
     let segment: TranscriptEntry
     let isActive: Bool
     let isHovered: Bool
+    var isEditing: Bool = false
+    var editingText: Binding<String>?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -514,12 +694,20 @@ private struct SegmentRow: View {
                 .frame(width: 2)
                 .padding(.vertical, 1)
 
-            Text(segment.text)
-                .font(.system(size: 12))
-                .foregroundStyle(isActive ? VoomTheme.textPrimary : VoomTheme.textSecondary)
-                .lineSpacing(2)
-                .lineLimit(5)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if isEditing, let editingText {
+                TextField("", text: editingText)
+                    .font(.system(size: 12))
+                    .foregroundStyle(VoomTheme.textPrimary)
+                    .textFieldStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(segment.text)
+                    .font(.system(size: 12))
+                    .foregroundStyle(isActive ? VoomTheme.textPrimary : VoomTheme.textSecondary)
+                    .lineSpacing(2)
+                    .lineLimit(5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 10)

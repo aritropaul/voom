@@ -348,6 +348,14 @@ struct LibraryWindow: View {
             }
         }
 
+        if recording.isTranscribed && !recording.transcriptSegments.isEmpty {
+            Button {
+                regenerateTitleAndSummary(recording)
+            } label: {
+                Label("Regenerate Title & Summary", systemImage: "sparkles")
+            }
+        }
+
         Divider()
 
         Button {
@@ -388,6 +396,25 @@ struct LibraryWindow: View {
             showDeleteConfirmation = true
         } else if !selectedIDs.isEmpty {
             deleteSelected()
+        }
+    }
+
+    private func regenerateTitleAndSummary(_ recording: Recording) {
+        Task {
+            let segments = recording.transcriptSegments
+            let title = await TextAnalysisService.shared.generateTitle(from: segments)
+            let summary = await TextAnalysisService.shared.generateSummary(from: segments)
+            var updated = recording
+            if !title.isEmpty {
+                updated.title = title
+            }
+            updated.summary = summary.isEmpty ? nil : summary
+            store.update(updated)
+            if !title.isEmpty || !summary.isEmpty {
+                toast.success("Title & summary regenerated", icon: "sparkles")
+            } else {
+                toast.error("Apple Intelligence unavailable on this device.")
+            }
         }
     }
 

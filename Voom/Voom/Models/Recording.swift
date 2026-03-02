@@ -30,6 +30,7 @@ struct Recording: Codable, Identifiable, Hashable {
     var isTranscribed: Bool
     var isTranscribing: Bool
     var transcriptSegments: [TranscriptEntry]
+    var summary: String?
 
     // Sharing
     var shareURL: URL?
@@ -80,6 +81,7 @@ struct Recording: Codable, Identifiable, Hashable {
         self.isTranscribed = false
         self.isTranscribing = false
         self.transcriptSegments = []
+        self.summary = nil
         self.shareURL = nil
         self.shareCode = nil
         self.shareExpiresAt = nil

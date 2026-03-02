@@ -25,7 +25,7 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Sharing", systemImage: "link")
                 }
-        }
+}
         .frame(width: 480, height: 320)
     }
 

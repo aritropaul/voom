@@ -232,11 +232,18 @@ actor ScreenRecorder {
                     NSLog("[Voom] Auto-transcription starting for %@", capturedURL.lastPathComponent)
                     let segments = try await TranscriptionService.shared.transcribe(audioURL: capturedURL)
                     NSLog("[Voom] Auto-transcription got %d segments", segments.count)
+                    let entries = segments.map {
+                        TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text)
+                    }
+                    let generatedTitle = await TextAnalysisService.shared.generateTitle(from: entries)
+                    let generatedSummary = await TextAnalysisService.shared.generateSummary(from: entries)
                     await MainActor.run {
                         if var rec = RecordingStore.shared.recording(for: capturedID) {
-                            rec.transcriptSegments = segments.map {
-                                TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text)
+                            rec.transcriptSegments = entries
+                            if !generatedTitle.isEmpty {
+                                rec.title = generatedTitle
                             }
+                            rec.summary = generatedSummary.isEmpty ? nil : generatedSummary
                             rec.isTranscribed = !segments.isEmpty
                             rec.isTranscribing = false
                             RecordingStore.shared.update(rec)

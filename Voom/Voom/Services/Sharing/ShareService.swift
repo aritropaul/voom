@@ -63,31 +63,6 @@ final class ShareUploadTracker {
     }
 }
 
-// MARK: - Upload Progress Delegate
-
-final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate, Sendable {
-    let recordingID: UUID
-
-    init(recordingID: UUID) {
-        self.recordingID = recordingID
-    }
-
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        didSendBodyData bytesSent: Int64,
-        totalBytesSent: Int64,
-        totalBytesExpectedToSend: Int64
-    ) {
-        guard totalBytesExpectedToSend > 0 else { return }
-        let progress = Double(totalBytesSent) / Double(totalBytesExpectedToSend)
-        let id = recordingID
-        Task { @MainActor in
-            ShareUploadTracker.shared.updateProgress(for: id, progress: progress)
-        }
-    }
-}
-
 // MARK: - Share Service
 
 enum ShareError: LocalizedError {
@@ -159,9 +134,19 @@ actor ShareService {
                 recordingID: recording.id
             )
 
-            // Step 3: Post metadata and transcript
+            // Step 3: Upload thumbnail for OG image
+            if let thumbURL = recording.thumbnailURL {
+                try? await uploadThumbnail(
+                    thumbURL: thumbURL,
+                    shareCode: uploadResponse.shareCode
+                )
+            }
+
+            // Step 4: Post metadata, transcript, title, and summary
             try await postMetadata(
                 shareCode: uploadResponse.shareCode,
+                title: recording.title,
+                summary: recording.summary,
                 segments: recording.transcriptSegments
             )
 
@@ -201,6 +186,10 @@ actor ShareService {
         applyAuth(&request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
+        // Treat 404 as success — video is already gone
+        if let http = response as? HTTPURLResponse, http.statusCode == 404 {
+            return
+        }
         try validateResponse(response, data: data)
     }
 
@@ -228,31 +217,92 @@ actor ShareService {
         return try JSONDecoder().decode(UploadResponse.self, from: data)
     }
 
-    private func uploadVideo(fileURL: URL, uploadURL: String, recordingID: UUID) async throws {
-        guard let url = URL(string: uploadURL) else { throw ShareError.invalidResponse }
+    private static let chunkSize = 10 * 1024 * 1024 // 10 MB
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "PUT"
-        request.setValue("video/mp4", forHTTPHeaderField: "Content-Type")
-        applyAuth(&request)
-
-        let delegate = UploadProgressDelegate(recordingID: recordingID)
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 300
-        config.timeoutIntervalForResource = 3600
-        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
-
-        let (_, response) = try await session.upload(for: request, fromFile: fileURL)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            throw ShareError.uploadFailed("Server returned status \((response as? HTTPURLResponse)?.statusCode ?? 0)")
-        }
-
-        session.invalidateAndCancel()
+    private struct MultipartStartResponse: Decodable {
+        let uploadId: String
     }
 
-    private func postMetadata(shareCode: String, segments: [TranscriptEntry]) async throws {
+    private struct MultipartPartResponse: Decodable {
+        let partNumber: Int
+        let etag: String
+    }
+
+    private func uploadVideo(fileURL: URL, uploadURL: String, recordingID: UUID) async throws {
+        // Extract shareCode from uploadURL (format: .../api/upload-data/{shareCode})
+        guard let shareCode = uploadURL.split(separator: "/").last.map(String.init) else {
+            throw ShareError.invalidResponse
+        }
+
+        let fileData = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+        let totalSize = fileData.count
+
+        // Start multipart upload
+        var startReq = URLRequest(url: apiURL("/api/upload-multipart/\(shareCode)"))
+        startReq.httpMethod = "POST"
+        applyAuth(&startReq)
+
+        let (startData, startResp) = try await URLSession.shared.data(for: startReq)
+        try validateResponse(startResp, data: startData)
+        let startResult = try JSONDecoder().decode(MultipartStartResponse.self, from: startData)
+        let uploadId = startResult.uploadId
+
+        // Upload parts
+        var parts: [[String: Any]] = []
+        var offset = 0
+        var partNumber = 1
+
+        while offset < totalSize {
+            let end = min(offset + Self.chunkSize, totalSize)
+            let chunk = fileData[offset..<end]
+
+            var partReq = URLRequest(url: apiURL("/api/upload-part/\(shareCode)/\(uploadId)/\(partNumber)"))
+            partReq.httpMethod = "PUT"
+            partReq.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+            partReq.timeoutInterval = 300
+            applyAuth(&partReq)
+
+            let (partData, partResp) = try await URLSession.shared.upload(for: partReq, from: Data(chunk))
+            try validateResponse(partResp, data: partData)
+            let partResult = try JSONDecoder().decode(MultipartPartResponse.self, from: partData)
+
+            parts.append(["partNumber": partResult.partNumber, "etag": partResult.etag])
+
+            offset = end
+
+            // Update progress
+            let progress = Double(offset) / Double(totalSize)
+            let id = recordingID
+            await MainActor.run {
+                ShareUploadTracker.shared.updateProgress(for: id, progress: progress)
+            }
+
+            partNumber += 1
+        }
+
+        // Complete multipart upload
+        var completeReq = URLRequest(url: apiURL("/api/upload-complete/\(shareCode)/\(uploadId)"))
+        completeReq.httpMethod = "POST"
+        completeReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(&completeReq)
+        completeReq.httpBody = try JSONSerialization.data(withJSONObject: ["parts": parts])
+
+        let (completeData, completeResp) = try await URLSession.shared.data(for: completeReq)
+        try validateResponse(completeResp, data: completeData)
+    }
+
+    private func uploadThumbnail(thumbURL: URL, shareCode: String) async throws {
+        var request = URLRequest(url: apiURL("/api/upload-thumbnail/\(shareCode)"))
+        request.httpMethod = "PUT"
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        applyAuth(&request)
+
+        let thumbData = try Data(contentsOf: thumbURL)
+        let (data, response) = try await URLSession.shared.upload(for: request, from: thumbData)
+        try validateResponse(response, data: data)
+    }
+
+    private func postMetadata(shareCode: String, title: String, summary: String?, segments: [TranscriptEntry]) async throws {
         var request = URLRequest(url: apiURL("/api/metadata/\(shareCode)"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -261,7 +311,13 @@ actor ShareService {
         let segmentDicts = segments.map { seg -> [String: Any] in
             ["startTime": seg.startTime, "endTime": seg.endTime, "text": seg.text]
         }
-        let body: [String: Any] = ["segments": segmentDicts]
+        var body: [String: Any] = [
+            "segments": segmentDicts,
+            "title": title,
+        ]
+        if let summary, !summary.isEmpty {
+            body["summary"] = summary
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)

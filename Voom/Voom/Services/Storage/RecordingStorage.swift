@@ -55,6 +55,29 @@ final class RecordingStore {
     func recording(for id: UUID) -> Recording? {
         recordings.first { $0.id == id }
     }
+
+    func backfillTitlesAndSummaries() {
+        let candidates = recordings.filter { $0.isTranscribed && !$0.transcriptSegments.isEmpty && $0.summary == nil }
+        guard !candidates.isEmpty else { return }
+        Task.detached {
+            for candidate in candidates {
+                let segments = candidate.transcriptSegments
+                let title = await TextAnalysisService.shared.generateTitle(from: segments)
+                let summary = await TextAnalysisService.shared.generateSummary(from: segments)
+                await MainActor.run {
+                    if var rec = RecordingStore.shared.recording(for: candidate.id) {
+                        if !title.isEmpty {
+                            rec.title = title
+                        }
+                        rec.summary = summary.isEmpty ? nil : summary
+                        RecordingStore.shared.update(rec)
+                    }
+                }
+            }
+            NSLog("[Voom] Backfilled titles/summaries for %d recordings", candidates.count)
+        }
+    }
+
 }
 
 actor RecordingStorage {

@@ -34,6 +34,7 @@
 		A10009071 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009070 /* OnboardingView.swift */; };
 		A10009081 /* GlobalHotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009080 /* GlobalHotkey.swift */; };
 		A10009091 /* ToastOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009090 /* ToastOverlay.swift */; };
+		A10009101 /* TextAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009100 /* TextAnalysisService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -66,6 +67,7 @@
 		A10009070 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		A10009080 /* GlobalHotkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkey.swift; sourceTree = "<group>"; };
 		A10009090 /* ToastOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastOverlay.swift; sourceTree = "<group>"; };
+		A10009100 /* TextAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextAnalysisService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -186,6 +188,7 @@
 				A10005014 /* Transcription */,
 				A10005015 /* Storage */,
 				A10005016 /* Sharing */,
+				A10005021 /* TextAnalysis */,
 				A10009080 /* GlobalHotkey.swift */,
 			);
 			path = Services;
@@ -231,6 +234,14 @@
 				A10009050 /* ShareService.swift */,
 			);
 			path = Sharing;
+			sourceTree = "<group>";
+		};
+		A10005021 /* TextAnalysis */ = {
+			isa = PBXGroup;
+			children = (
+				A10009100 /* TextAnalysisService.swift */,
+			);
+			path = TextAnalysis;
 			sourceTree = "<group>";
 		};
 		A10005017 /* Settings */ = {
@@ -375,6 +386,7 @@
 				A10009071 /* OnboardingView.swift in Sources */,
 				A10009081 /* GlobalHotkey.swift in Sources */,
 				A10009091 /* ToastOverlay.swift in Sources */,
+				A10009101 /* TextAnalysisService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

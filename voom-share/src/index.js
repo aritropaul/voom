@@ -56,6 +56,26 @@ export default {
         return handleUploadData(request, env, uploadDataMatch[1]);
       }
 
+      const thumbnailMatch = path.match(/^\/api\/upload-thumbnail\/([a-z0-9]+)$/);
+      if (thumbnailMatch && request.method === 'PUT') {
+        return handleUploadThumbnail(request, env, thumbnailMatch[1]);
+      }
+
+      const multipartStartMatch = path.match(/^\/api\/upload-multipart\/([a-z0-9]+)$/);
+      if (multipartStartMatch && request.method === 'POST') {
+        return handleMultipartStart(request, env, multipartStartMatch[1]);
+      }
+
+      const multipartPartMatch = path.match(/^\/api\/upload-part\/([a-z0-9]+)\/(.+?)\/(\d+)$/);
+      if (multipartPartMatch && request.method === 'PUT') {
+        return handleMultipartPart(request, env, multipartPartMatch[1], multipartPartMatch[2], parseInt(multipartPartMatch[3], 10));
+      }
+
+      const multipartCompleteMatch = path.match(/^\/api\/upload-complete\/([a-z0-9]+)\/(.+)$/);
+      if (multipartCompleteMatch && request.method === 'POST') {
+        return handleMultipartComplete(request, env, multipartCompleteMatch[1], multipartCompleteMatch[2]);
+      }
+
       const metadataMatch = path.match(/^\/api\/metadata\/([a-z0-9]+)$/);
       if (metadataMatch && request.method === 'POST') {
         return handleMetadata(request, env, metadataMatch[1]);
@@ -145,12 +165,64 @@ async function handleUploadData(request, env, shareCode) {
   return jsonResponse({ ok: true });
 }
 
+async function handleUploadThumbnail(request, env, shareCode) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const contentType = request.headers.get('Content-Type') || 'image/jpeg';
+
+  await env.VIDEOS_BUCKET.put(`thumbnails/${shareCode}.jpg`, request.body, {
+    httpMetadata: { contentType },
+  });
+
+  return jsonResponse({ ok: true });
+}
+
+async function handleMultipartStart(request, env, shareCode) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const key = `videos/${shareCode}.mp4`;
+  const multipartUpload = await env.VIDEOS_BUCKET.createMultipartUpload(key, {
+    httpMetadata: { contentType: 'video/mp4' },
+  });
+
+  return jsonResponse({ uploadId: multipartUpload.uploadId });
+}
+
+async function handleMultipartPart(request, env, shareCode, uploadId, partNumber) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const key = `videos/${shareCode}.mp4`;
+  const multipartUpload = env.VIDEOS_BUCKET.resumeMultipartUpload(key, uploadId);
+
+  const part = await multipartUpload.uploadPart(partNumber, request.body);
+
+  return jsonResponse({ partNumber: part.partNumber, etag: part.etag });
+}
+
+async function handleMultipartComplete(request, env, shareCode, uploadId) {
+  const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
+  if (!video) return errorResponse('Video not found', 404);
+
+  const key = `videos/${shareCode}.mp4`;
+  const multipartUpload = env.VIDEOS_BUCKET.resumeMultipartUpload(key, uploadId);
+
+  const body = await request.json();
+  const parts = body.parts; // [{ partNumber, etag }, ...]
+
+  await multipartUpload.complete(parts);
+
+  return jsonResponse({ ok: true });
+}
+
 async function handleMetadata(request, env, shareCode) {
   const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
   if (!video) return errorResponse('Video not found', 404);
 
   const body = await request.json();
-  const { segments } = body;
+  const { segments, title, summary } = body;
 
   if (segments && segments.length > 0) {
     const stmt = env.DB.prepare(
@@ -160,7 +232,14 @@ async function handleMetadata(request, env, shareCode) {
     await env.DB.batch(batch);
   }
 
-  await env.DB.prepare('UPDATE videos SET upload_completed = 1 WHERE share_code = ?').bind(shareCode).run();
+  // Update title, summary, and mark upload complete
+  if (title || summary) {
+    await env.DB.prepare(
+      'UPDATE videos SET upload_completed = 1, title = COALESCE(?, title), summary = ? WHERE share_code = ?'
+    ).bind(title || null, summary || null, shareCode).run();
+  } else {
+    await env.DB.prepare('UPDATE videos SET upload_completed = 1 WHERE share_code = ?').bind(shareCode).run();
+  }
 
   return jsonResponse({ ok: true });
 }
@@ -182,6 +261,7 @@ async function handleDelete(env, shareCode) {
   if (!video) return errorResponse('Video not found', 404);
 
   await env.VIDEOS_BUCKET.delete(`videos/${shareCode}.mp4`);
+  await env.VIDEOS_BUCKET.delete(`thumbnails/${shareCode}.jpg`);
   await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
   await env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(video.id).run();
 
@@ -294,6 +374,7 @@ async function cleanupExpired(env) {
 
   for (const video of expired.results || []) {
     await env.VIDEOS_BUCKET.delete(`videos/${video.share_code}.mp4`);
+    await env.VIDEOS_BUCKET.delete(`thumbnails/${video.share_code}.jpg`);
     await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
     await env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(video.id).run();
   }
@@ -310,6 +391,19 @@ async function handleOGImage(env, shareCode) {
 
   if (!video) return new Response('Not found', { status: 404 });
 
+  // Serve uploaded thumbnail if available
+  const thumb = await env.VIDEOS_BUCKET.get(`thumbnails/${shareCode}.jpg`);
+  if (thumb) {
+    return new Response(thumb.body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
+  }
+
+  // Fallback SVG
   const duration = formatDuration(video.duration);
   const date = formatDate(video.created_at);
   const title = video.title.length > 60 ? video.title.substring(0, 57) + '...' : video.title;
@@ -394,8 +488,10 @@ function sharePageHTML(video, segments, shareCode, viewCount) {
 <meta property="og:image" content="/og/${shareCode}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<meta property="og:description" content="${video.summary ? escapeHTML(video.summary) : ''}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escapeHTML(video.title)}">
+<meta name="twitter:description" content="${video.summary ? escapeHTML(video.summary) : ''}">
 <meta name="twitter:image" content="/og/${shareCode}">
 <style>
 :root{--bg:#000;--text-main:#e5e5e5;--text-muted:#888;--accent:#fff;--space-xs:12px;--space-s:24px;--space-m:48px;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--font-mono:"SF Mono",Monaco,ui-monospace,monospace}
@@ -467,6 +563,7 @@ video{display:block;width:100%;background:#000}
 .meta-row{display:flex;align-items:center;justify-content:space-between;gap:var(--space-s)}
 .stats{display:flex;gap:var(--space-s);font-family:var(--font-mono);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;flex-wrap:wrap}
 h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
+.summary{font-size:13px;line-height:1.6;color:var(--text-muted);margin-top:6px}
 .copy-link-btn{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:5px 12px;color:var(--text-muted);font-family:var(--font-mono);font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap;text-transform:uppercase;letter-spacing:1px}
 .copy-link-btn:hover{background:rgba(255,255,255,.1);color:var(--text-main)}
 
@@ -570,6 +667,7 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
       </button>
     </div>
     <h1>${escapeHTML(video.title)}</h1>
+    ${video.summary ? `<p class="summary">${escapeHTML(video.summary)}</p>` : ''}
   </div>
 
   ${segments.length > 0 ? `
