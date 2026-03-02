@@ -1,14 +1,21 @@
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 *.swp
 
 # Xcode
 Voom/Voom.xcodeproj/xcuserdata/
 Voom/Voom.xcodeproj/project.xcworkspace/xcuserdata/
+Voom/Voom.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 DerivedData/
+*.xcscmblueprint
+*.xccheckout
 
 # Swift Package Manager
 .build/
+.swiftpm/
 Voom/Voom.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/
 
 # Node
@@ -17,6 +24,14 @@ voom-share/node_modules/
 # Build artifacts
 build/
 dist/
+*.dmg
+*.app.dSYM.zip
+*.ipa
+
+# Secrets & environment
+.env
+.env.*
+*.pem
 
 # Claude
 .claude/
