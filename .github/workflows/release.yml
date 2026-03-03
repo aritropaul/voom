@@ -23,7 +23,9 @@ jobs:
           if [ -z "$TAG" ]; then
             echo "No tag found" && exit 1
           fi
+          VERSION="${TAG#v}"
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version_number=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.2.app
@@ -50,9 +52,63 @@ jobs:
             "dist/Voom.dmg" \
             "build/Build/Products/Release/Voom.app"
 
+      - name: Sign DMG and generate appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          SIGN_UPDATE=$(find build/SourcePackages/artifacts -name "sign_update" -not -path "*/old_dsa*" | head -1)
+          if [ -z "$SIGN_UPDATE" ]; then
+            echo "sign_update not found, trying checkout path"
+            SIGN_UPDATE=$(find build/SourcePackages/checkouts/Sparkle -maxdepth 1 -name "sign_update" | head -1)
+          fi
+          echo "Using sign_update at: $SIGN_UPDATE"
+
+          # Write private key to temp file
+          echo -n "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_key
+
+          # Sign the DMG
+          SIGN_OUTPUT=$("$SIGN_UPDATE" --ed-key-file /tmp/sparkle_key dist/Voom.dmg)
+          rm /tmp/sparkle_key
+          echo "Sign output: $SIGN_OUTPUT"
+
+          # Extract signature and length
+          ED_SIGNATURE=$(echo "$SIGN_OUTPUT" | grep -o 'sparkle:edSignature="[^"]*"' | cut -d'"' -f2)
+          LENGTH=$(echo "$SIGN_OUTPUT" | grep -o 'length="[^"]*"' | cut -d'"' -f2)
+
+          VERSION="${{ steps.tag.outputs.version_number }}"
+          TAG="${{ steps.tag.outputs.version }}"
+          PUB_DATE=$(date -u '+%a, %d %b %Y %H:%M:%S +0000')
+
+          cat > dist/appcast.xml << APPCAST_EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+              <channel>
+                  <title>Voom Updates</title>
+                  <link>https://github.com/aritropaul/voom/releases</link>
+                  <description>Most recent updates to Voom</description>
+                  <language>en</language>
+                  <item>
+                      <title>Voom ${VERSION}</title>
+                      <pubDate>${PUB_DATE}</pubDate>
+                      <sparkle:version>${VERSION}</sparkle:version>
+                      <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+                      <enclosure url="https://github.com/aritropaul/voom/releases/download/${TAG}/Voom.dmg"
+                                 sparkle:edSignature="${ED_SIGNATURE}"
+                                 length="${LENGTH}"
+                                 type="application/octet-stream" />
+                  </item>
+              </channel>
+          </rss>
+          APPCAST_EOF
+
+          echo "Appcast generated with signature for $VERSION"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.version }}
-          files: dist/Voom.dmg
+          files: |
+            dist/Voom.dmg
+            dist/appcast.xml
           generate_release_notes: true
