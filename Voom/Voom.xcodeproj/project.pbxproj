@@ -57,6 +57,9 @@
 		EB030D819B4963073A112855 /* StitchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B99777057266A65C2DA21A6 /* StitchSheet.swift */; };
 		B3E119C1C2816FBCD6EE077F /* TagManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5995C11C4373DCD98BC11A7 /* TagManager.swift */; };
 		BB1E82A02048325BF6FDB3C1 /* TagFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38B9F4C385C5B8C908DDAAC /* TagFilterView.swift */; };
+		8B3D5F7A9C1E2D4F6B8A0C3E /* CloudflareDeployService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2C4E6F8B0D1E3F5A7C9B2D /* CloudflareDeployService.swift */; };
+		D5E7F9A1B3C5D7E9F1A3B5C7 /* SelfHostSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D6E8F0A2B4C6D8E0F2A4B6 /* SelfHostSetupView.swift */; };
+		F7A9B1C3D5E7F9A1B3C5D7E9 /* WorkerBundle in Resources */ = {isa = PBXBuildFile; fileRef = E6F8A0B2C4D6E8F0A2B4C6D8 /* WorkerBundle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -111,6 +114,9 @@
 		9B99777057266A65C2DA21A6 /* StitchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchSheet.swift; sourceTree = "<group>"; };
 		E5995C11C4373DCD98BC11A7 /* TagManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManager.swift; sourceTree = "<group>"; };
 		E38B9F4C385C5B8C908DDAAC /* TagFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagFilterView.swift; sourceTree = "<group>"; };
+		7A2C4E6F8B0D1E3F5A7C9B2D /* CloudflareDeployService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudflareDeployService.swift; sourceTree = "<group>"; };
+		C4D6E8F0A2B4C6D8E0F2A4B6 /* SelfHostSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfHostSetupView.swift; sourceTree = "<group>"; };
+		E6F8A0B2C4D6E8F0A2B4C6D8 /* WorkerBundle */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WorkerBundle; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -295,6 +301,7 @@
 			children = (
 				A10009050 /* ShareService.swift */,
 				9C49C88AC1A93C0F59F95E4A /* ViewNotificationService.swift */,
+				7A2C4E6F8B0D1E3F5A7C9B2D /* CloudflareDeployService.swift */,
 			);
 			path = Sharing;
 			sourceTree = "<group>";
@@ -329,6 +336,7 @@
 			children = (
 				A10009060 /* SettingsView.swift */,
 				C3E5A7B9D1F3A5C7E9B1D3F5 /* InlineSettingsView.swift */,
+				C4D6E8F0A2B4C6D8E0F2A4B6 /* SelfHostSetupView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -355,6 +363,7 @@
 				A10002014 /* Assets.xcassets */,
 				A10002015 /* Info.plist */,
 				A10002016 /* Voom.entitlements */,
+				E6F8A0B2C4D6E8F0A2B4C6D8 /* WorkerBundle */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -434,6 +443,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10001014 /* Assets.xcassets in Resources */,
+				F7A9B1C3D5E7F9A1B3C5D7E9 /* WorkerBundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -491,6 +501,8 @@
 				EB030D819B4963073A112855 /* StitchSheet.swift in Sources */,
 				B3E119C1C2816FBCD6EE077F /* TagManager.swift in Sources */,
 				BB1E82A02048325BF6FDB3C1 /* TagFilterView.swift in Sources */,
+				8B3D5F7A9C1E2D4F6B8A0C3E /* CloudflareDeployService.swift in Sources */,
+				D5E7F9A1B3C5D7E9F1A3B5C7 /* SelfHostSetupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

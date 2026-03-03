@@ -15,6 +15,7 @@ struct InlineSettingsView: View {
     @AppStorage("RecordingDirectory") private var recordingDirectory = ""
     @AppStorage("LaunchAtLogin") private var launchAtLogin = false
     @State private var testStatus: TestStatus = .idle
+    @State private var showingSelfHostSetup = false
 
     private enum TestStatus: Equatable {
         case idle, testing, success, failed(String)
@@ -98,6 +99,9 @@ struct InlineSettingsView: View {
             // Sharing
             settingsCard(icon: "link", title: "Cloud Sharing") {
                 sharingContent
+            }
+            .sheet(isPresented: $showingSelfHostSetup) {
+                SelfHostSetupView()
             }
             .staggeredAppear(2)
 
@@ -251,6 +255,30 @@ struct InlineSettingsView: View {
         Text("Connect to your Cloudflare Worker for shareable links.")
             .font(VoomTheme.fontCaption())
             .foregroundStyle(VoomTheme.textTertiary)
+
+        Divider().foregroundStyle(VoomTheme.borderSubtle)
+
+        if workerBaseURL.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Self-Host")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(VoomTheme.textPrimary)
+                Text("Deploy the sharing worker to your own Cloudflare account.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(VoomTheme.textTertiary)
+                Button("Set Up Self-Hosting...") {
+                    showingSelfHostSetup = true
+                }
+                .controlSize(.small)
+            }
+        } else {
+            Button("Re-deploy Worker...") {
+                showingSelfHostSetup = true
+            }
+            .font(VoomTheme.fontCaption())
+            .buttonStyle(.plain)
+            .foregroundStyle(VoomTheme.textTertiary)
+        }
     }
 
     // MARK: - About

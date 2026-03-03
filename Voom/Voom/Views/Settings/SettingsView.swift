@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage("GlobalHotkeyEnabled") private var globalHotkeyEnabled = true
     @AppStorage("ViewNotificationsEnabled") private var viewNotificationsEnabled = true
     @State private var testStatus: TestStatus = .idle
+    @State private var showingSelfHostSetup = false
 
     private enum TestStatus: Equatable {
         case idle
@@ -130,9 +131,22 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            Section {
+                Button("Set Up Self-Hosting...") {
+                    showingSelfHostSetup = true
+                }
+            } footer: {
+                Text("Deploy the sharing worker to your own Cloudflare account.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .padding()
+        .sheet(isPresented: $showingSelfHostSetup) {
+            SelfHostSetupView()
+        }
     }
 
     // MARK: - Test
