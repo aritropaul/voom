@@ -30,11 +30,68 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
+      - name: Import signing certificate
+        env:
+          DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/developer_id.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(uuidgen)
+
+          echo -n "$DEVELOPER_ID_CERT_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import Apple intermediate certs
+          curl -sL "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer" -o "$RUNNER_TEMP/DeveloperIDG2CA.cer"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$KEYCHAIN_PATH" -T /usr/bin/codesign
+
+          security import "$CERT_PATH" -P "$DEVELOPER_ID_CERT_PASSWORD" -k "$KEYCHAIN_PATH" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          # Verify
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Voom/Voom.xcodeproj -scheme Voom
 
       - name: Build Release
-        run: xcodebuild -project Voom/Voom.xcodeproj -scheme Voom -configuration Release -destination 'platform=macOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+        run: |
+          xcodebuild -project Voom/Voom.xcodeproj -scheme Voom \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
+            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/app-signing.keychain-db" \
+            build
+
+      - name: Notarize app
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP_PATH="build/Build/Products/Release/Voom.app"
+
+          # Create a zip for notarization
+          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/Voom-notarize.zip"
+
+          # Submit for notarization
+          xcrun notarytool submit "$RUNNER_TEMP/Voom-notarize.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait --timeout 600
+
+          # Staple the ticket to the app
+          xcrun stapler staple "$APP_PATH"
 
       - name: Create DMG
         run: |
@@ -51,6 +108,20 @@ jobs:
             --no-internet-enable \
             "dist/Voom.dmg" \
             "build/Build/Products/Release/Voom.app"
+
+          # Sign the DMG itself
+          codesign --force --sign "Developer ID Application" \
+            --keychain "$RUNNER_TEMP/app-signing.keychain-db" \
+            "dist/Voom.dmg"
+
+          # Notarize the DMG
+          xcrun notarytool submit "dist/Voom.dmg" \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --password "${{ secrets.APPLE_ID_PASSWORD }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --wait --timeout 600
+
+          xcrun stapler staple "dist/Voom.dmg"
 
       - name: Sign DMG and generate appcast
         env:
@@ -103,6 +174,10 @@ jobs:
           APPCAST_EOF
 
           echo "Appcast generated with signature for $VERSION"
+
+      - name: Cleanup keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" 2>/dev/null || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
