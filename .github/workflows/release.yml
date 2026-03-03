@@ -69,7 +69,8 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
-            OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/app-signing.keychain-db" \
+            ENABLE_HARDENED_RUNTIME=YES \
+            OTHER_CODE_SIGN_FLAGS="--options=runtime --keychain $RUNNER_TEMP/app-signing.keychain-db" \
             build
 
       - name: Notarize app
@@ -84,11 +85,23 @@ jobs:
           ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/Voom-notarize.zip"
 
           # Submit for notarization
-          xcrun notarytool submit "$RUNNER_TEMP/Voom-notarize.zip" \
+          SUBMIT_OUT=$(xcrun notarytool submit "$RUNNER_TEMP/Voom-notarize.zip" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait --timeout 600
+            --wait --timeout 600 2>&1) || true
+          echo "$SUBMIT_OUT"
+
+          SUBMISSION_ID=$(echo "$SUBMIT_OUT" | grep "id:" | head -1 | awk '{print $2}')
+
+          if echo "$SUBMIT_OUT" | grep -q "status: Invalid"; then
+            echo "Notarization failed. Fetching log..."
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_ID_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" || true
+            exit 1
+          fi
 
           # Staple the ticket to the app
           xcrun stapler staple "$APP_PATH"
