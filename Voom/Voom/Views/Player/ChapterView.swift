@@ -4,43 +4,45 @@ struct ChapterView: View {
     @Binding var chapters: [Chapter]
     let currentTime: TimeInterval
     let onSeek: (TimeInterval) -> Void
+    var transcriptSegments: [TranscriptEntry] = []
 
     @State private var newChapterTitle = ""
     @State private var editingChapterID: UUID?
     @State private var editingTitle = ""
+    @State private var isGenerating = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
+            HStack(spacing: 6) {
                 VoomSectionHeader(
                     icon: "bookmark",
                     title: "Chapters",
                     count: chapters.isEmpty ? nil : chapters.count
                 )
                 Spacer()
-                Button {
-                    addChapter()
-                } label: {
-                    Label("Add", systemImage: "plus")
-                        .font(.system(size: 11, weight: .medium))
+                if !transcriptSegments.isEmpty {
+                    ToolPillButton(
+                        icon: isGenerating ? "hourglass" : "sparkles",
+                        label: "Auto-Generate",
+                        isActive: false
+                    ) {
+                        Task { await autoGenerateChapters() }
+                    }
+                    .disabled(isGenerating)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.mini)
+                ToolPillButton(icon: "plus", label: "Add") {
+                    addChapter()
+                }
             }
             .padding(.horizontal, VoomTheme.spacingLG)
             .padding(.vertical, VoomTheme.spacingMD)
 
             if chapters.isEmpty {
-                HStack(spacing: VoomTheme.spacingSM) {
-                    Image(systemName: "bookmark")
-                        .font(.system(size: 14))
-                        .foregroundStyle(VoomTheme.textTertiary)
-                    Text("No chapters. Add a chapter at the current playback time.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(VoomTheme.textTertiary)
-                }
-                .padding(.horizontal, VoomTheme.spacingLG)
-                .padding(.bottom, VoomTheme.spacingLG)
+                Text("No chapters yet.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(VoomTheme.textTertiary)
+                    .padding(.horizontal, VoomTheme.spacingLG)
+                    .padding(.bottom, VoomTheme.spacingLG)
             } else {
                 VStack(spacing: 2) {
                     ForEach(sortedChapters) { chapter in
@@ -53,7 +55,7 @@ struct ChapterView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .fill(VoomTheme.backgroundSecondary)
+                .fill(VoomTheme.backgroundCard)
         )
         .overlay(
             RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
@@ -71,12 +73,12 @@ struct ChapterView: View {
         HStack(spacing: 10) {
             Text(formatTimestamp(chapter.timestamp))
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(isActive ? Color.accentColor : VoomTheme.textTertiary)
+                .foregroundStyle(isActive ? Color.white : VoomTheme.textTertiary)
                 .frame(width: 38, alignment: .trailing)
 
             Image(systemName: "bookmark.fill")
                 .font(.system(size: 8))
-                .foregroundStyle(isActive ? Color.accentColor : VoomTheme.accentOrange)
+                .foregroundStyle(isActive ? Color.white : VoomTheme.accentOrange)
 
             if editingChapterID == chapter.id {
                 TextField("Title", text: $editingTitle)
@@ -106,7 +108,7 @@ struct ChapterView: View {
         .padding(.horizontal, 10)
         .background(
             RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
-                .fill(isActive ? Color.accentColor.opacity(0.08) : Color.clear)
+                .fill(isActive ? Color.white.opacity(0.08) : Color.clear)
         )
         .contentShape(Rectangle())
         .onTapGesture { onSeek(chapter.timestamp) }
@@ -127,6 +129,16 @@ struct ChapterView: View {
     private func addChapter() {
         let chapter = Chapter(timestamp: currentTime, title: "Chapter \(chapters.count + 1)")
         chapters.append(chapter)
+    }
+
+    private func autoGenerateChapters() async {
+        guard !transcriptSegments.isEmpty else { return }
+        isGenerating = true
+        let generated = await TextAnalysisService.shared.generateChapters(from: transcriptSegments)
+        if !generated.isEmpty {
+            chapters = generated
+        }
+        isGenerating = false
     }
 
     private func commitChapterEdit(_ chapter: Chapter) {

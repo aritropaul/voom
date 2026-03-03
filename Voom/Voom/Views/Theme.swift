@@ -5,9 +5,10 @@ import SwiftUI
 enum VoomTheme {
     // MARK: Colors
 
-    static let backgroundPrimary   = Color(nsColor: NSColor(white: 0.07, alpha: 1))
-    static let backgroundSecondary = Color(nsColor: NSColor(white: 0.10, alpha: 1))
-    static let backgroundTertiary  = Color(nsColor: NSColor(white: 0.13, alpha: 1))
+    static let backgroundPrimary   = Color(nsColor: NSColor(white: 0.10, alpha: 1))
+    static let backgroundSecondary = Color(nsColor: NSColor(white: 0.08, alpha: 1))
+    static let backgroundTertiary  = Color(nsColor: NSColor(white: 0.17, alpha: 1))
+    static let backgroundCard      = Color(nsColor: NSColor(white: 0.14, alpha: 1))
     static let backgroundHover     = Color.white.opacity(0.04)
     static let backgroundSelected  = Color.white.opacity(0.08)
 
@@ -118,26 +119,185 @@ struct VoomSectionHeader: View {
     }
 }
 
+// MARK: - Action Bar Button
+
+struct ActionBarButton: View {
+    let icon: String
+    var label: String? = nil
+    var tint: Color? = nil
+    var isActive: Bool = false
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    private var foregroundColor: Color {
+        if isActive { return Color.white }
+        if let tint { return tint }
+        return isHovered ? VoomTheme.textPrimary : VoomTheme.textSecondary
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .medium))
+                if let label {
+                    Text(label)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, label != nil ? 10 : 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isHovered ? VoomTheme.backgroundTertiary : VoomTheme.backgroundCard)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .onHover { isHovered = $0 }
+    }
+}
+
+// MARK: - Tool Pill Button
+
+struct ToolPillButton: View {
+    let icon: String
+    let label: String
+    var isActive: Bool = false
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .medium))
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(isActive ? Color.white : (isHovered ? VoomTheme.textPrimary : VoomTheme.textSecondary))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isActive ? Color.white.opacity(0.12) : (isHovered ? VoomTheme.backgroundTertiary : VoomTheme.backgroundCard))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(isActive ? Color.white.opacity(0.3) : VoomTheme.borderSubtle, lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .onHover { isHovered = $0 }
+    }
+}
+
 // MARK: - Card Modifier
 
 struct VoomCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(
-                RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
-                    .fill(VoomTheme.backgroundSecondary)
+                RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
+                    .fill(VoomTheme.backgroundCard)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
                     .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
             )
-            .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
     }
 }
 
 extension View {
     func voomCard() -> some View {
         modifier(VoomCardModifier())
+    }
+}
+
+// MARK: - Flow Layout
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = arrange(proposal: proposal, subviews: subviews)
+        return result.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(proposal: proposal, subviews: subviews)
+        for (index, subview) in subviews.enumerated() {
+            let point = CGPoint(
+                x: bounds.minX + result.positions[index].x,
+                y: bounds.minY + result.positions[index].y
+            )
+            subview.place(at: point, anchor: .topLeading, proposal: .unspecified)
+        }
+    }
+
+    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (positions: [CGPoint], size: CGSize) {
+        let maxWidth = proposal.width ?? .infinity
+        var positions: [CGPoint] = []
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var totalHeight: CGFloat = 0
+        var totalWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                y += rowHeight + spacing
+                x = 0
+                rowHeight = 0
+            }
+            positions.append(CGPoint(x: x, y: y))
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+            totalWidth = max(totalWidth, x - spacing)
+            totalHeight = y + rowHeight
+        }
+        return (positions, CGSize(width: totalWidth, height: totalHeight))
+    }
+}
+
+// MARK: - Staggered Appear Modifier
+
+struct StaggeredAppear: ViewModifier {
+    let index: Int
+    @State private var visible = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible ? 0 : 12)
+            .animation(
+                .spring(response: 0.45, dampingFraction: 0.85).delay(Double(index) * 0.06),
+                value: visible
+            )
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                    visible = true
+                }
+            }
+    }
+}
+
+extension View {
+    func staggeredAppear(_ index: Int) -> some View {
+        modifier(StaggeredAppear(index: index))
     }
 }
 

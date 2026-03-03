@@ -3,6 +3,7 @@ import AVFoundation
 import SwiftUI
 @preconcurrency import ScreenCaptureKit
 import UserNotifications
+import Sparkle
 import os
 
 private let logger = Logger(subsystem: "com.voom.app", category: "AppDelegate")
@@ -12,9 +13,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
     let store = RecordingStore.shared
     private var statusItem: NSStatusItem?
+    static private(set) var shared: AppDelegate!
+    let updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.notice("[Voom] AppDelegate.applicationDidFinishLaunching called")
+        AppDelegate.shared = self
+        updaterController.updater.automaticallyChecksForUpdates = false
         // Disable macOS window restoration so onboarding doesn't reappear
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -94,6 +99,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         locationItem.target = self
         menu.addItem(locationItem)
 
+        let updateItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
+
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
@@ -127,6 +136,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .appendingPathComponent("Movies")
             .appendingPathComponent("Voom")
         NSWorkspace.shared.open(dir)
+    }
+
+    @objc private func checkForUpdates() {
+        updaterController.checkForUpdates(nil)
     }
 
     @objc private func quitApp() {

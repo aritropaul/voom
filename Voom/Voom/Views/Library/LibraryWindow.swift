@@ -13,6 +13,7 @@ struct LibraryWindow: View {
     @State private var showCreateFolder = false
     @State private var showStitchSheet = false
     @State private var selectedTagIDs: Set<UUID> = []
+    @State private var showSettings = false
 
     private var filteredRecordings: [Recording] {
         var result = store.recordings.sorted { $0.createdAt > $1.createdAt }
@@ -46,6 +47,13 @@ struct LibraryWindow: View {
 
     private var singleSelection: UUID? {
         selectedIDs.count == 1 ? selectedIDs.first : nil
+    }
+
+    private var detailTitle: String {
+        if let id = singleSelection, let rec = store.recording(for: id) {
+            return rec.title
+        }
+        return ""
     }
 
     // MARK: - Date Grouping
@@ -102,13 +110,24 @@ struct LibraryWindow: View {
     var body: some View {
         NavigationSplitView {
             sidebarContent
-                .navigationSplitViewColumnWidth(min: 280, ideal: 320)
+                .background(VoomTheme.backgroundSecondary)
+                .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
-            detailContent
+            Group {
+                if showSettings {
+                    InlineSettingsView()
+                } else {
+                    detailContent
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(VoomTheme.backgroundPrimary)
+            .animation(.easeInOut(duration: 0.25), value: showSettings)
+            .animation(.easeInOut(duration: 0.25), value: singleSelection)
         }
-        .searchable(text: $searchText, prompt: "Search recordings...")
         .frame(minWidth: 900, minHeight: 540)
-        .navigationTitle("Voom")
+        .navigationTitle(showSettings ? "Settings" : detailTitle)
+        .toolbarBackground(.hidden, for: .windowToolbar)
         .toolbar { toolbarItems }
         .alert(
             "Delete \(selectedRecordings.count) Recordings?",
@@ -130,6 +149,12 @@ struct LibraryWindow: View {
             if let newID {
                 selectedIDs = [newID]
                 appState.selectedRecordingID = nil
+                showSettings = false
+            }
+        }
+        .onChange(of: selectedIDs) { _, newIDs in
+            if !newIDs.isEmpty {
+                showSettings = false
             }
         }
         .sheet(isPresented: $showCreateFolder) {
@@ -249,103 +274,214 @@ struct LibraryWindow: View {
 
     @ViewBuilder
     private var sidebarContent: some View {
-        List(selection: $selectedIDs) {
-            sidebarFoldersSection
-            sidebarTagsSection
-            if filteredRecordings.isEmpty {
-                Section {
-                    if searchText.isEmpty {
-                        VoomEmptyState(
-                            icon: "video.slash",
-                            title: selectedFolderID != nil ? "Empty Folder" : "No Recordings",
-                            subtitle: selectedFolderID != nil ? "This folder has no recordings yet." : "Record your first video from the menu bar."
-                        )
-                        .frame(maxWidth: .infinity)
-                        .listRowSeparator(.hidden)
-                    } else {
-                        VoomEmptyState(
-                            icon: "magnifyingglass",
-                            title: "No Results",
-                            subtitle: "No recordings match \"\(searchText)\"."
-                        )
-                        .frame(maxWidth: .infinity)
-                        .listRowSeparator(.hidden)
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                sidebarSearchField
+
+                sidebarFoldersSection
+                    .padding(.top, 4)
+
+                sidebarTagsSection
+
+                Divider()
+                    .foregroundStyle(VoomTheme.borderSubtle)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
+
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        if filteredRecordings.isEmpty {
+                            if searchText.isEmpty {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "video.slash")
+                                        .font(.system(size: 12, weight: .light))
+                                        .foregroundStyle(VoomTheme.textQuaternary)
+                                    Text(selectedFolderID != nil ? "Empty folder" : "No recordings yet")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(VoomTheme.textTertiary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, VoomTheme.spacingLG)
+                            } else {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.system(size: 12, weight: .light))
+                                        .foregroundStyle(VoomTheme.textQuaternary)
+                                    Text("No results for \"\(searchText)\"")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(VoomTheme.textTertiary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, VoomTheme.spacingLG)
+                            }
+                        } else {
+                            if !searchText.isEmpty {
+                                Text("\(filteredRecordings.count) results")
+                                    .font(VoomTheme.fontCaption())
+                                    .foregroundStyle(VoomTheme.textTertiary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 4)
+                            }
+                            sidebarRecordingsSection
+                        }
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 60)
                 }
-            } else {
-                Section {
-                    statsBar
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-                }
-                sidebarRecordingsSection
+                .onDeleteCommand { promptDeleteSelected() }
             }
+
+            sidebarSettingsRow
         }
-        .listStyle(.sidebar)
-        .navigationTitle("Recordings")
-        .onDeleteCommand { promptDeleteSelected() }
+    }
+
+    @ViewBuilder
+    private var sidebarSearchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(VoomTheme.textTertiary)
+            TextField("Search...", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+        )
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+    }
+
+    @ViewBuilder
+    private var sidebarSettingsRow: some View {
+        Button {
+            showSettings.toggle()
+            if showSettings { selectedIDs.removeAll() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "gear")
+                    .font(.system(size: 12))
+                    .foregroundStyle(VoomTheme.textTertiary)
+                    .frame(width: 20, alignment: .center)
+                Text("Settings")
+                    .font(.system(size: 13, weight: showSettings ? .medium : .regular))
+                    .foregroundStyle(showSettings ? VoomTheme.textPrimary : VoomTheme.textSecondary)
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+        )
+        .padding(.horizontal, 10)
+        .padding(.bottom, 10)
     }
 
     @ViewBuilder
     private var sidebarFoldersSection: some View {
-        Section {
-            Button { selectedFolderID = nil } label: {
-                Label("All Recordings", systemImage: "tray.fill")
-                    .foregroundStyle(selectedFolderID == nil ? .primary : VoomTheme.textSecondary)
-            }
-            .buttonStyle(.plain)
-
-            ForEach(store.folders) { folder in
-                FolderRow(folder: folder, recordingCount: store.recordings(in: folder).count, isSelected: selectedFolderID == folder.id)
-                    .onTapGesture { selectedFolderID = folder.id }
-                    .contextMenu {
-                        Button("Rename") { /* handled via sheet */ }
-                        Button("Delete", role: .destructive) { store.deleteFolder(folder) }
-                    }
-            }
-
-            Button { showCreateFolder = true } label: {
-                Label("New Folder", systemImage: "folder.badge.plus")
-                    .font(.system(size: 12))
-                    .foregroundStyle(VoomTheme.textTertiary)
-            }
-            .buttonStyle(.plain)
-        } header: {
+        VStack(alignment: .leading, spacing: 2) {
             Text("Folders")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(VoomTheme.textTertiary)
-                .textCase(nil)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 2)
+
+            SidebarNavRow(
+                icon: "tray.fill",
+                iconColor: VoomTheme.textPrimary,
+                title: "All Recordings",
+                isSelected: selectedFolderID == nil && !showSettings
+            ) {
+                selectedFolderID = nil
+                showSettings = false
+            }
+
+            ForEach(store.folders) { folder in
+                SidebarNavRow(
+                    icon: "folder.fill",
+                    iconColor: Color(hex: folder.colorHex ?? "FF9F0A") ?? VoomTheme.accentOrange,
+                    title: folder.name,
+                    isSelected: selectedFolderID == folder.id && !showSettings,
+                    badge: store.recordings(in: folder).count
+                ) {
+                    selectedFolderID = folder.id
+                    showSettings = false
+                }
+                .contextMenu {
+                    Button("Rename") { /* handled via sheet */ }
+                    Button("Delete", role: .destructive) { store.deleteFolder(folder) }
+                }
+            }
+
+            SidebarNavRow(
+                icon: "plus",
+                iconColor: VoomTheme.textTertiary,
+                title: "New Folder",
+                isSelected: false
+            ) { showCreateFolder = true }
         }
+        .padding(.horizontal, 8)
     }
 
     @ViewBuilder
     private var sidebarTagsSection: some View {
         if !store.availableTags.isEmpty {
-            Section {
-                TagFilterView(availableTags: store.availableTags, selectedTagIDs: $selectedTagIDs)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 0, leading: 12, bottom: 0, trailing: 12))
-            }
+            TagFilterView(availableTags: store.availableTags, selectedTagIDs: $selectedTagIDs)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
         }
     }
 
     @ViewBuilder
     private var sidebarRecordingsSection: some View {
         ForEach(groupedRecordings) { group in
-            Section {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(group.key)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(VoomTheme.textTertiary)
+                    .padding(.horizontal, 4)
+                    .padding(.top, 8)
+                    .padding(.bottom, 2)
+
                 ForEach(group.recordings) { recording in
+                    let isSelected = selectedIDs.contains(recording.id)
                     RecordingRow(
                         recording: recording,
                         uploadProgress: uploadTracker.progress(for: recording.id)
                     )
-                    .tag(recording.id)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(isSelected ? Color.white.opacity(0.08) : Color.clear)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .onTapGesture {
+                        if NSEvent.modifierFlags.contains(.command) {
+                            if isSelected {
+                                selectedIDs.remove(recording.id)
+                            } else {
+                                selectedIDs.insert(recording.id)
+                            }
+                        } else {
+                            selectedIDs = [recording.id]
+                        }
+                    }
                     .contextMenu { recordingContextMenu(for: recording) }
                 }
-            } header: {
-                Text(group.key)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(VoomTheme.textTertiary)
-                    .textCase(nil)
             }
         }
     }
@@ -383,18 +519,42 @@ struct LibraryWindow: View {
             PlayerView(recordingID: singleID)
                 .id(singleID)
         } else if selectedIDs.count > 1 {
-            VoomEmptyState(
-                icon: "rectangle.stack",
-                title: "\(selectedIDs.count) Recordings Selected",
-                subtitle: "Use the toolbar to share or delete the selected recordings."
-            )
+            VStack(spacing: VoomTheme.spacingMD) {
+                Image(systemName: "rectangle.stack")
+                    .font(.system(size: 24, weight: .light))
+                    .foregroundStyle(VoomTheme.textQuaternary)
+                VStack(spacing: 4) {
+                    Text("\(selectedIDs.count) Recordings Selected")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(VoomTheme.textSecondary)
+                    Text("Use the toolbar to share or delete.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(VoomTheme.textTertiary)
+                }
+            }
+            .staggeredAppear(0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            VoomEmptyState(
-                icon: "play.rectangle",
-                title: "Select a Recording",
-                subtitle: "Choose a recording from the sidebar to preview and play."
-            )
+            VStack(spacing: VoomTheme.spacingMD) {
+                HStack(spacing: VoomTheme.spacingSM) {
+                    Image(systemName: "play.rectangle")
+                        .font(.system(size: 16, weight: .light))
+                    Image(systemName: "waveform")
+                        .font(.system(size: 16, weight: .light))
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 16, weight: .light))
+                }
+                .foregroundStyle(VoomTheme.textQuaternary)
+                VStack(spacing: 4) {
+                    Text("Select a Recording")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(VoomTheme.textSecondary)
+                    Text("Choose a recording from the sidebar.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(VoomTheme.textTertiary)
+                }
+            }
+            .staggeredAppear(0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -764,5 +924,57 @@ struct RecordingRow: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+// MARK: - Sidebar Navigation Row
+
+struct SidebarNavRow: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let isSelected: Bool
+    var badge: Int? = nil
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 20, alignment: .center)
+                Text(title)
+                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
+                    .foregroundStyle(isSelected ? VoomTheme.textPrimary : VoomTheme.textSecondary)
+                    .lineLimit(1)
+                Spacer()
+                if let badge, badge > 0 {
+                    Text("\(badge)")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(VoomTheme.textTertiary)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(backgroundColor)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var backgroundColor: Color {
+        if isSelected {
+            return Color.white.opacity(0.08)
+        } else if isHovered {
+            return Color.white.opacity(0.04)
+        }
+        return Color.clear
     }
 }

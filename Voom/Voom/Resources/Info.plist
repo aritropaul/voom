@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>SUFeedURL</key>
+	<string>https://github.com/aritropaul/voom/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>0tIuvb3kAW88OZGHpdNK6EUDP+KZXjmGRyevZPuZaXc=</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Voom needs camera access to record webcam overlay in your screen recordings.</string>
 	<key>NSMicrophoneUsageDescription</key>

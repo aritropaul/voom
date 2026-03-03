@@ -29,6 +29,36 @@ actor TextAnalysisService {
         ) ?? ""
     }
 
+    func generateChapters(from segments: [TranscriptEntry]) async -> [Chapter] {
+        guard !segments.isEmpty else { return [] }
+
+        let text = segments.enumerated().map { i, seg in
+            let m = Int(seg.startTime) / 60
+            let s = Int(seg.startTime) % 60
+            return "[\(String(format: "%d:%02d", m, s))] \(seg.text)"
+        }.joined(separator: "\n")
+        let truncated = String(text.prefix(8000))
+
+        let result = await generate(
+            system: "You generate chapter markers for video recordings. Given a timestamped transcript, identify 2-6 logical sections and return chapter markers. Each line must be exactly: TIMESTAMP|Title — where TIMESTAMP is in M:SS format. No other text.",
+            user: "Generate chapter markers for this transcript:\n\n\(truncated)"
+        ) ?? ""
+
+        var chapters: [Chapter] = []
+        for line in result.split(separator: "\n") {
+            let parts = line.split(separator: "|", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let timeParts = parts[0].trimmingCharacters(in: .whitespaces).split(separator: ":")
+            guard timeParts.count == 2,
+                  let m = Int(timeParts[0]),
+                  let s = Int(timeParts[1]) else { continue }
+            let timestamp = TimeInterval(m * 60 + s)
+            let title = String(parts[1]).trimmingCharacters(in: .whitespaces)
+            chapters.append(Chapter(timestamp: timestamp, title: title))
+        }
+        return chapters
+    }
+
     private func generate(system: String, user: String) async -> String? {
         guard #available(macOS 26.0, *) else { return nil }
 

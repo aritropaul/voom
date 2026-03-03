@@ -22,9 +22,6 @@ struct PlayerView: View {
     @State private var showFillerSheet = false
     @State private var showStitchSheet = false
     @State private var showSharePasswordPopover = false
-    @State private var sharePassword = ""
-    @State private var ctaURLString = ""
-    @State private var ctaText = ""
     @State private var isExportingGIF = false
     @State private var trimStart: TimeInterval = 0
     @State private var trimEnd: TimeInterval = 0
@@ -48,15 +45,18 @@ struct PlayerView: View {
                 .id("video-player")
                 .padding(.horizontal, VoomTheme.spacingXL)
                 .padding(.top, VoomTheme.spacingXL)
+                .staggeredAppear(0)
 
             actionBar
                 .padding(.horizontal, VoomTheme.spacingXL)
                 .padding(.top, VoomTheme.spacingSM)
+                .staggeredAppear(1)
 
             if let recording {
                 detailsSection(recording: recording)
                     .padding(.horizontal, VoomTheme.spacingXL)
                     .padding(.top, VoomTheme.spacingLG)
+                    .staggeredAppear(2)
             }
 
             editingSection
@@ -65,6 +65,7 @@ struct PlayerView: View {
                 summarySection(summary: summary)
                     .padding(.horizontal, VoomTheme.spacingXL)
                     .padding(.top, VoomTheme.spacingLG)
+                    .staggeredAppear(3)
             }
 
             if let recording {
@@ -81,16 +82,19 @@ struct PlayerView: View {
                     currentTime: currentTime,
                     onSeek: { time in
                         player?.seek(to: CMTime(seconds: time, preferredTimescale: 600))
-                    }
+                    },
+                    transcriptSegments: recording.transcriptSegments
                 )
                 .padding(.horizontal, VoomTheme.spacingXL)
                 .padding(.top, VoomTheme.spacingLG)
+                .staggeredAppear(4)
             }
 
             if let recording {
                 tagsSection(recording: recording)
                     .padding(.horizontal, VoomTheme.spacingXL)
                     .padding(.top, VoomTheme.spacingSM)
+                    .staggeredAppear(5)
             }
 
             transcriptSection(scrollToVideo: {
@@ -101,6 +105,7 @@ struct PlayerView: View {
                 .padding(.horizontal, VoomTheme.spacingXL)
                 .padding(.top, VoomTheme.spacingLG)
                 .padding(.bottom, VoomTheme.spacingXXL)
+                .staggeredAppear(6)
         }
     }
 
@@ -156,6 +161,12 @@ struct PlayerView: View {
         ScrollView {
             mainContent(outerProxy: outerProxy)
         }
+        .onTapGesture {
+            // Clicking outside text fields dismisses focus and commits edits
+            NSApp.keyWindow?.makeFirstResponder(nil)
+            commitTitle()
+            commitSummary()
+        }
         }
         .onAppear {
             setupPlayer()
@@ -210,7 +221,7 @@ struct PlayerView: View {
     @ViewBuilder
     private var actionBar: some View {
         if let recording {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Spacer()
 
                 if recording.isTranscribing {
@@ -223,32 +234,17 @@ struct PlayerView: View {
                     }
                     .transition(.opacity)
                 } else if !recording.isTranscribed {
-                    Button {
+                    ActionBarButton(icon: "text.bubble", label: "Transcribe") {
                         Task { await transcribe(recording) }
-                    } label: {
-                        Image(systemName: "text.bubble")
-                            .font(.system(size: 11))
-                            .foregroundStyle(VoomTheme.textSecondary)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .help("Transcribe")
                 }
 
                 // Captions toggle
                 if recording.isTranscribed {
-                    Button {
-                        showCaptions.toggle()
-                    } label: {
-                        Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
-                            .font(.system(size: 11))
-                            .foregroundStyle(showCaptions ? Color.accentColor : VoomTheme.textSecondary)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(showCaptions ? "Hide Captions" : "Show Captions")
+                    ActionBarButton(
+                        icon: showCaptions ? "captions.bubble.fill" : "captions.bubble",
+                        isActive: showCaptions
+                    ) { showCaptions.toggle() }
                 }
 
                 // Playback speed
@@ -269,69 +265,31 @@ struct PlayerView: View {
                 } label: {
                     Text(speedLabel(playbackSpeed))
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .foregroundStyle(playbackSpeed != 1.0 ? Color.accentColor : VoomTheme.textSecondary)
-                        .frame(height: 28)
+                        .foregroundStyle(playbackSpeed != 1.0 ? Color.white : VoomTheme.textSecondary)
+                        .fixedSize()
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(VoomTheme.backgroundCard)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+                        )
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .fixedSize()
                 .help("Playback Speed")
 
-                // Share via Link
+                // Upload progress indicator
                 if uploadTracker.isUploading(recording.id) {
                     ProgressView(value: uploadTracker.progress(for: recording.id) ?? 0)
                         .progressViewStyle(.circular)
                         .controlSize(.mini)
                         .frame(width: 28, height: 28)
-                } else if recording.isShared && !recording.isShareExpired {
-                    Button {
-                        guard let url = recording.shareURL else { return }
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(url.absoluteString, forType: .string)
-                        toast.success("Link copied!")
-                    } label: {
-                        Image(systemName: "link")
-                            .font(.system(size: 11))
-                            .foregroundStyle(VoomTheme.accentGreen)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(recording.shareExpiryDescription ?? "Copy share link")
-
-                    Button {
-                        Task { await removeShareLink(recording) }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(VoomTheme.accentRed)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Unshare")
-                } else {
-                    Button {
-                        Task { await shareViaLink(recording) }
-                    } label: {
-                        Image(systemName: "link.badge.plus")
-                            .font(.system(size: 11))
-                            .foregroundStyle(VoomTheme.textSecondary)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help("Share via Link")
                 }
-
-                ShareLink(item: recording.fileURL) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 11))
-                        .foregroundStyle(VoomTheme.textSecondary)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("Share")
             }
             .animation(.smooth(duration: 0.25), value: recording.isTranscribing)
         }
@@ -342,13 +300,14 @@ struct PlayerView: View {
     @ViewBuilder
     private func detailsSection(recording: Recording) -> some View {
         VStack(alignment: .leading, spacing: VoomTheme.spacingMD) {
-            TextField("Title", text: $editingTitle)
+            TextField("Title", text: $editingTitle, axis: .vertical)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(VoomTheme.textPrimary)
                 .textFieldStyle(.plain)
+                .lineLimit(1...3)
                 .onSubmit { commitTitle() }
 
-            HStack(spacing: VoomTheme.spacingMD) {
+            FlowLayout(spacing: VoomTheme.spacingMD) {
                 detailChip(icon: "calendar", text: formatDate(recording.createdAt))
                 if recording.duration > 0 {
                     detailChip(icon: "clock", text: formatDuration(recording.duration))
@@ -361,7 +320,7 @@ struct PlayerView: View {
                 }
             }
 
-            HStack(spacing: VoomTheme.spacingSM) {
+            FlowLayout(spacing: VoomTheme.spacingSM) {
                 if recording.hasWebcam {
                     VoomBadge("Camera", color: VoomTheme.textSecondary, icon: "camera.fill")
                 }
@@ -382,7 +341,7 @@ struct PlayerView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .fill(VoomTheme.backgroundSecondary)
+                .fill(VoomTheme.backgroundCard)
         )
         .overlay(
             RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
@@ -466,7 +425,7 @@ struct PlayerView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .fill(VoomTheme.backgroundSecondary)
+                .fill(VoomTheme.backgroundCard)
         )
         .overlay(
             RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
@@ -632,7 +591,7 @@ struct PlayerView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .fill(VoomTheme.backgroundSecondary)
+                .fill(VoomTheme.backgroundCard)
         )
         .overlay(
             RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
@@ -644,133 +603,74 @@ struct PlayerView: View {
 
     @ViewBuilder
     private func editingToolsBar(recording: Recording) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Spacer()
 
-            Button {
+            ToolPillButton(
+                icon: "scissors",
+                label: "Trim",
+                isActive: showTrimView
+            ) {
                 showTrimView.toggle()
                 showCutView = false
-            } label: {
-                Label("Trim", systemImage: "scissors")
-                    .font(.system(size: 11))
-                    .foregroundStyle(showTrimView ? Color.accentColor : VoomTheme.textSecondary)
             }
-            .buttonStyle(.plain)
-            .help("Trim start/end")
 
-            Button {
+            ToolPillButton(
+                icon: "rectangle.split.3x1",
+                label: "Cut",
+                isActive: showCutView
+            ) {
                 showCutView.toggle()
                 showTrimView = false
-            } label: {
-                Label("Cut", systemImage: "rectangle.split.3x1")
-                    .font(.system(size: 11))
-                    .foregroundStyle(showCutView ? Color.accentColor : VoomTheme.textSecondary)
             }
-            .buttonStyle(.plain)
-            .help("Cut sections")
 
             if recording.isTranscribed {
-                Button {
+                ToolPillButton(
+                    icon: "wand.and.stars",
+                    label: "Remove Fillers"
+                ) {
                     showFillerSheet = true
-                } label: {
-                    Label("Remove Fillers", systemImage: "wand.and.stars")
-                        .font(.system(size: 11))
-                        .foregroundStyle(VoomTheme.textSecondary)
                 }
-                .buttonStyle(.plain)
-                .help("Detect and remove filler words")
                 .sheet(isPresented: $showFillerSheet) {
                     FillerWordSheet(recordingID: recording.id, isPresented: $showFillerSheet)
                 }
             }
 
-            Button {
-                isExportingGIF = true
-                Task {
-                    await exportGIF(recording)
-                    isExportingGIF = false
-                }
-            } label: {
-                if isExportingGIF {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .frame(width: 28, height: 28)
-                } else {
-                    Label("GIF", systemImage: "photo.on.rectangle.angled")
-                        .font(.system(size: 11))
-                        .foregroundStyle(VoomTheme.textSecondary)
+            if isExportingGIF {
+                ProgressView()
+                    .controlSize(.mini)
+                    .frame(width: 28, height: 28)
+            } else {
+                ToolPillButton(
+                    icon: "photo.on.rectangle.angled",
+                    label: "GIF"
+                ) {
+                    isExportingGIF = true
+                    Task {
+                        await exportGIF(recording)
+                        isExportingGIF = false
+                    }
                 }
             }
-            .buttonStyle(.plain)
-            .disabled(isExportingGIF)
-            .help("Export as GIF")
 
-            Divider()
-                .frame(height: 16)
-
-            // Share settings (password + CTA)
-            Button {
+            ToolPillButton(
+                icon: "square.and.arrow.up",
+                label: "Share",
+                isActive: recording.isShared && !recording.isShareExpired
+            ) {
                 showSharePasswordPopover.toggle()
-            } label: {
-                Image(systemName: "lock.shield")
-                    .font(.system(size: 11))
-                    .foregroundStyle(recording.sharePassword != nil ? Color.accentColor : VoomTheme.textSecondary)
             }
-            .buttonStyle(.plain)
-            .help("Share settings")
-            .popover(isPresented: $showSharePasswordPopover) {
-                shareSettingsPopover(recording: recording)
+            .sheet(isPresented: $showSharePasswordPopover) {
+                ShareSettingsSheet(
+                    recording: recording,
+                    isPresented: $showSharePasswordPopover
+                )
+                .environment(store)
             }
         }
     }
 
-    @ViewBuilder
-    private func shareSettingsPopover(recording: Recording) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Share Settings")
-                .font(.system(size: 13, weight: .semibold))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Password Protection")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(VoomTheme.textSecondary)
-                SecureField("Optional password", text: $sharePassword)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Call to Action")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(VoomTheme.textSecondary)
-                TextField("CTA URL", text: $ctaURLString)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-                TextField("Button text (e.g. Learn More)", text: $ctaText)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-            }
-
-            Button("Save") {
-                var updated = recording
-                updated.sharePassword = sharePassword.isEmpty ? nil : sharePassword
-                updated.ctaURL = URL(string: ctaURLString)
-                updated.ctaText = ctaText.isEmpty ? nil : ctaText
-                store.update(updated)
-                showSharePasswordPopover = false
-                toast.success("Share settings saved")
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-        }
-        .padding()
-        .frame(width: 260)
-        .onAppear {
-            sharePassword = recording.sharePassword ?? ""
-            ctaURLString = recording.ctaURL?.absoluteString ?? ""
-            ctaText = recording.ctaText ?? ""
-        }
-    }
+    // shareSettingsPopover removed — replaced by ShareSettingsSheet
 
     // MARK: - Tags Section
 
@@ -914,7 +814,12 @@ struct PlayerView: View {
         if speed == Float(Int(speed)) {
             return "\(Int(speed))x"
         }
-        return "\(String(format: "%.2g", speed))x"
+        if speed == 0.25 { return "0.25x" }
+        if speed == 0.5 { return "0.5x" }
+        if speed == 0.75 { return "0.75x" }
+        if speed == 1.25 { return "1.25x" }
+        if speed == 1.5 { return "1.5x" }
+        return String(format: "%.1f", speed) + "x"
     }
 
     // MARK: - Formatters
@@ -974,7 +879,7 @@ private struct TranscriptListView: View {
         .padding(.vertical, 7)
         .background(
             RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
-                .fill(VoomTheme.backgroundPrimary)
+                .fill(Color.white.opacity(0.05))
         )
         .overlay(
             RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
@@ -1000,6 +905,9 @@ private struct TranscriptListView: View {
                 .onTapGesture(count: 1) {
                     if editingSegmentID == segment.id {
                         return
+                    }
+                    if editingSegmentID != nil {
+                        commitSegmentEdit()
                     }
                     onSeek(segment.startTime)
                 }
@@ -1040,12 +948,12 @@ private struct SegmentRow: View {
         HStack(alignment: .top, spacing: 10) {
             Text(formatTimestamp(segment.startTime))
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(isActive ? Color.accentColor : VoomTheme.textTertiary)
+                .foregroundStyle(isActive ? Color.white : VoomTheme.textTertiary)
                 .frame(width: 38, alignment: .trailing)
                 .padding(.top, 2)
 
             RoundedRectangle(cornerRadius: 1)
-                .fill(isActive ? Color.accentColor : VoomTheme.borderMedium)
+                .fill(isActive ? Color.white : VoomTheme.borderMedium)
                 .frame(width: 2)
                 .padding(.vertical, 1)
 
@@ -1070,14 +978,14 @@ private struct SegmentRow: View {
             RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
                 .fill(
                     isActive
-                        ? Color.accentColor.opacity(0.08)
+                        ? Color.white.opacity(0.08)
                         : (isHovered ? VoomTheme.backgroundHover : Color.clear)
                 )
         )
         .overlay(
             isActive
                 ? RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(0.15), lineWidth: 0.5)
+                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5)
                 : nil
         )
         .animation(.smooth(duration: 0.15), value: isActive)

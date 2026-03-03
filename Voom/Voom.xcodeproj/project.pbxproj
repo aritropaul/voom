@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		3041DE022F55337E00D61F1F /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = A10009001 /* WhisperKit */; };
+		A10009010 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A10009011 /* Sparkle */; };
 		A10001001 /* VoomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002001 /* VoomApp.swift */; };
 		A10001002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002002 /* AppState.swift */; };
 		A10001004 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002004 /* LibraryWindow.swift */; };
@@ -31,6 +32,7 @@
 		A10009041 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009040 /* Theme.swift */; };
 		A10009051 /* ShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009050 /* ShareService.swift */; };
 		A10009061 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009060 /* SettingsView.swift */; };
+		D4F6B8C0E2A4D6F8B0C2E4A6 /* InlineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E5A7B9D1F3A5C7E9B1D3F5 /* InlineSettingsView.swift */; };
 		A10009071 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009070 /* OnboardingView.swift */; };
 		A10009081 /* GlobalHotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009080 /* GlobalHotkey.swift */; };
 		A10009091 /* ToastOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009090 /* ToastOverlay.swift */; };
@@ -49,6 +51,7 @@
 		5F958621AEBCB1F0EE222894 /* CutSpliceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFDEBDE922D4BAEF4661EF66 /* CutSpliceView.swift */; };
 		AB52FEA7E24C83286D60D0E0 /* ChapterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC24AAAF50FB392D2C36351C /* ChapterView.swift */; };
 		E14BCD5FB42BE4CD9C358BAA /* FillerWordSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71AB4284447814B1D09F3494 /* FillerWordSheet.swift */; };
+		B2D4F6A8C0E2D4F6A8B0C2E4 /* ShareSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C3D5E7F9B2A4C6E8D0F1A3 /* ShareSettingsSheet.swift */; };
 		36882B0EA506A4CD702A8DD7 /* FolderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F09AAD33B5DD0F4B37D50D7 /* FolderRow.swift */; };
 		3583B5CB28528F88B818C029 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B8F0625718DC1FB5B11915 /* CreateFolderSheet.swift */; };
 		EB030D819B4963073A112855 /* StitchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B99777057266A65C2DA21A6 /* StitchSheet.swift */; };
@@ -83,6 +86,7 @@
 		A10009040 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A10009050 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		A10009060 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		C3E5A7B9D1F3A5C7E9B1D3F5 /* InlineSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineSettingsView.swift; sourceTree = "<group>"; };
 		A10009070 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		A10009080 /* GlobalHotkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkey.swift; sourceTree = "<group>"; };
 		A10009090 /* ToastOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastOverlay.swift; sourceTree = "<group>"; };
@@ -101,6 +105,7 @@
 		FFDEBDE922D4BAEF4661EF66 /* CutSpliceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CutSpliceView.swift; sourceTree = "<group>"; };
 		EC24AAAF50FB392D2C36351C /* ChapterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterView.swift; sourceTree = "<group>"; };
 		71AB4284447814B1D09F3494 /* FillerWordSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordSheet.swift; sourceTree = "<group>"; };
+		A1C3D5E7F9B2A4C6E8D0F1A3 /* ShareSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSettingsSheet.swift; sourceTree = "<group>"; };
 		9F09AAD33B5DD0F4B37D50D7 /* FolderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderRow.swift; sourceTree = "<group>"; };
 		A5B8F0625718DC1FB5B11915 /* CreateFolderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFolderSheet.swift; sourceTree = "<group>"; };
 		9B99777057266A65C2DA21A6 /* StitchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchSheet.swift; sourceTree = "<group>"; };
@@ -114,6 +119,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3041DE022F55337E00D61F1F /* WhisperKit in Frameworks */,
+				A10009010 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -196,6 +202,7 @@
 				FFDEBDE922D4BAEF4661EF66 /* CutSpliceView.swift */,
 				EC24AAAF50FB392D2C36351C /* ChapterView.swift */,
 				71AB4284447814B1D09F3494 /* FillerWordSheet.swift */,
+				A1C3D5E7F9B2A4C6E8D0F1A3 /* ShareSettingsSheet.swift */,
 			);
 			path = Player;
 			sourceTree = "<group>";
@@ -321,6 +328,7 @@
 			isa = PBXGroup;
 			children = (
 				A10009060 /* SettingsView.swift */,
+				C3E5A7B9D1F3A5C7E9B1D3F5 /* InlineSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -377,6 +385,7 @@
 			name = Voom;
 			packageProductDependencies = (
 				A10009001 /* WhisperKit */,
+				A10009011 /* Sparkle */,
 			);
 			productName = Voom;
 			productReference = A10003000 /* Voom.app */;
@@ -408,6 +417,7 @@
 			mainGroup = A10005000;
 			packageReferences = (
 				A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+				A10009012 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			productRefGroup = A10005099 /* Products */;
 			projectDirPath = "";
@@ -456,6 +466,7 @@
 				A10009041 /* Theme.swift in Sources */,
 				A10009051 /* ShareService.swift in Sources */,
 				A10009061 /* SettingsView.swift in Sources */,
+				D4F6B8C0E2A4D6F8B0C2E4A6 /* InlineSettingsView.swift in Sources */,
 				A10009071 /* OnboardingView.swift in Sources */,
 				A10009081 /* GlobalHotkey.swift in Sources */,
 				A10009091 /* ToastOverlay.swift in Sources */,
@@ -474,6 +485,7 @@
 				5F958621AEBCB1F0EE222894 /* CutSpliceView.swift in Sources */,
 				AB52FEA7E24C83286D60D0E0 /* ChapterView.swift in Sources */,
 				E14BCD5FB42BE4CD9C358BAA /* FillerWordSheet.swift in Sources */,
+				B2D4F6A8C0E2D4F6A8B0C2E4 /* ShareSettingsSheet.swift in Sources */,
 				36882B0EA506A4CD702A8DD7 /* FolderRow.swift in Sources */,
 				3583B5CB28528F88B818C029 /* CreateFolderSheet.swift in Sources */,
 				EB030D819B4963073A112855 /* StitchSheet.swift in Sources */,
@@ -626,7 +638,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.voom.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -659,7 +671,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 2.3.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.voom.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -701,6 +713,14 @@
 				minimumVersion = 0.9.0;
 			};
 		};
+		A10009012 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -708,6 +728,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */;
 			productName = WhisperKit;
+		};
+		A10009011 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10009012 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
