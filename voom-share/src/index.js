@@ -76,6 +76,11 @@ export default {
         return handleMultipartComplete(request, env, multipartCompleteMatch[1], multipartCompleteMatch[2]);
       }
 
+      const multipartAbortMatch = path.match(/^\/api\/upload-abort\/([a-z0-9]+)\/(.+)$/);
+      if (multipartAbortMatch && request.method === 'POST') {
+        return handleMultipartAbort(request, env, multipartAbortMatch[1], multipartAbortMatch[2]);
+      }
+
       const metadataMatch = path.match(/^\/api\/metadata\/([a-z0-9]+)$/);
       if (metadataMatch && request.method === 'POST') {
         return handleMetadata(request, env, metadataMatch[1]);
@@ -252,6 +257,17 @@ async function handleMultipartPart(request, env, shareCode, uploadId, partNumber
   const part = await multipartUpload.uploadPart(partNumber, request.body);
 
   return jsonResponse({ partNumber: part.partNumber, etag: part.etag });
+}
+
+async function handleMultipartAbort(request, env, shareCode, uploadId) {
+  const key = `videos/${shareCode}.mp4`;
+  try {
+    const multipartUpload = env.VIDEOS_BUCKET.resumeMultipartUpload(key, uploadId);
+    await multipartUpload.abort();
+  } catch (e) {
+    // Ignore errors — upload may already be completed or expired
+  }
+  return jsonResponse({ ok: true });
 }
 
 async function handleMultipartComplete(request, env, shareCode, uploadId) {

@@ -9,7 +9,7 @@ bucket_name = "voom-videos"
 [[d1_databases]]
 binding = "DB"
 database_name = "voom-share-db"
-database_id = "YOUR_DATABASE_ID"
+database_id = "fe69b3d9-30c6-4340-b4dd-7934210291dc"
 
 [triggers]
 crons = ["0 3 * * *"]

@@ -269,48 +269,61 @@ actor ShareService {
         let startResult = try JSONDecoder().decode(MultipartStartResponse.self, from: startData)
         let uploadId = startResult.uploadId
 
-        // Upload parts
-        var parts: [[String: Any]] = []
-        var offset = 0
-        var partNumber = 1
+        do {
+            // Upload parts
+            var parts: [[String: Any]] = []
+            var offset = 0
+            var partNumber = 1
 
-        while offset < totalSize {
-            let end = min(offset + Self.chunkSize, totalSize)
-            let chunk = fileData[offset..<end]
+            while offset < totalSize {
+                let end = min(offset + Self.chunkSize, totalSize)
+                let chunk = fileData[offset..<end]
 
-            var partReq = URLRequest(url: apiURL("/api/upload-part/\(shareCode)/\(uploadId)/\(partNumber)"))
-            partReq.httpMethod = "PUT"
-            partReq.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
-            partReq.timeoutInterval = 300
-            applyAuth(&partReq)
+                var partReq = URLRequest(url: apiURL("/api/upload-part/\(shareCode)/\(uploadId)/\(partNumber)"))
+                partReq.httpMethod = "PUT"
+                partReq.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+                partReq.timeoutInterval = 300
+                applyAuth(&partReq)
 
-            let (partData, partResp) = try await URLSession.shared.upload(for: partReq, from: Data(chunk))
-            try validateResponse(partResp, data: partData)
-            let partResult = try JSONDecoder().decode(MultipartPartResponse.self, from: partData)
+                let (partData, partResp) = try await URLSession.shared.upload(for: partReq, from: Data(chunk))
+                try validateResponse(partResp, data: partData)
+                let partResult = try JSONDecoder().decode(MultipartPartResponse.self, from: partData)
 
-            parts.append(["partNumber": partResult.partNumber, "etag": partResult.etag])
+                parts.append(["partNumber": partResult.partNumber, "etag": partResult.etag])
 
-            offset = end
+                offset = end
 
-            // Update progress
-            let progress = Double(offset) / Double(totalSize)
-            let id = recordingID
-            await MainActor.run {
-                ShareUploadTracker.shared.updateProgress(for: id, progress: progress)
+                // Update progress
+                let progress = Double(offset) / Double(totalSize)
+                let id = recordingID
+                await MainActor.run {
+                    ShareUploadTracker.shared.updateProgress(for: id, progress: progress)
+                }
+
+                partNumber += 1
             }
 
-            partNumber += 1
+            // Complete multipart upload
+            var completeReq = URLRequest(url: apiURL("/api/upload-complete/\(shareCode)/\(uploadId)"))
+            completeReq.httpMethod = "POST"
+            completeReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            applyAuth(&completeReq)
+            completeReq.httpBody = try JSONSerialization.data(withJSONObject: ["parts": parts])
+
+            let (completeData, completeResp) = try await URLSession.shared.data(for: completeReq)
+            try validateResponse(completeResp, data: completeData)
+        } catch {
+            // Abort the multipart upload so it doesn't stay as "Ongoing" in R2
+            try? await abortMultipartUpload(shareCode: shareCode, uploadId: uploadId)
+            throw error
         }
+    }
 
-        // Complete multipart upload
-        var completeReq = URLRequest(url: apiURL("/api/upload-complete/\(shareCode)/\(uploadId)"))
-        completeReq.httpMethod = "POST"
-        completeReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        applyAuth(&completeReq)
-        completeReq.httpBody = try JSONSerialization.data(withJSONObject: ["parts": parts])
-
-        let (completeData, completeResp) = try await URLSession.shared.data(for: completeReq)
-        try validateResponse(completeResp, data: completeData)
+    private func abortMultipartUpload(shareCode: String, uploadId: String) async throws {
+        var request = URLRequest(url: apiURL("/api/upload-abort/\(shareCode)/\(uploadId)"))
+        request.httpMethod = "POST"
+        applyAuth(&request)
+        _ = try? await URLSession.shared.data(for: request)
     }
 
     private func uploadThumbnail(thumbURL: URL, shareCode: String) async throws {
