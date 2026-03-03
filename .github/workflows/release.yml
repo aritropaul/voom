@@ -27,12 +27,12 @@ jobs:
           echo "version=$TAG" >> "$GITHUB_OUTPUT"
           echo "version_number=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Set MARKETING_VERSION from tag
+      - name: Set version from tag
         run: |
           VERSION="${{ steps.tag.outputs.version_number }}"
           sed -i '' "s/MARKETING_VERSION = [^;]*/MARKETING_VERSION = $VERSION/" Voom/Voom.xcodeproj/project.pbxproj
-          echo "Set MARKETING_VERSION to $VERSION"
-          grep MARKETING_VERSION Voom/Voom.xcodeproj/project.pbxproj
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*/CURRENT_PROJECT_VERSION = $VERSION/" Voom/Voom.xcodeproj/project.pbxproj
+          echo "Set MARKETING_VERSION and CURRENT_PROJECT_VERSION to $VERSION"
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.2.app
