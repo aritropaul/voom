@@ -70,8 +70,51 @@ jobs:
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
             ENABLE_HARDENED_RUNTIME=YES \
-            OTHER_CODE_SIGN_FLAGS="--options=runtime --keychain $RUNNER_TEMP/app-signing.keychain-db" \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime --keychain $RUNNER_TEMP/app-signing.keychain-db" \
             build
+
+      - name: Re-sign embedded frameworks
+        run: |
+          APP_PATH="build/Build/Products/Release/Voom.app"
+          IDENTITY="Developer ID Application"
+          KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+
+          # Re-sign all Sparkle binaries with timestamp and hardened runtime
+          find "$APP_PATH/Contents/Frameworks" -type f -perm +111 -not -name "*.plist" -not -name "*.py" | while read binary; do
+            echo "Signing: $binary"
+            codesign --force --sign "$IDENTITY" --timestamp --options runtime \
+              --keychain "$KEYCHAIN" "$binary"
+          done
+
+          # Re-sign XPC services
+          find "$APP_PATH/Contents/Frameworks" -name "*.xpc" -type d | while read xpc; do
+            echo "Signing XPC: $xpc"
+            codesign --force --sign "$IDENTITY" --timestamp --options runtime \
+              --keychain "$KEYCHAIN" --deep "$xpc"
+          done
+
+          # Re-sign Sparkle Updater.app
+          find "$APP_PATH/Contents/Frameworks" -name "*.app" -type d | while read app; do
+            echo "Signing embedded app: $app"
+            codesign --force --sign "$IDENTITY" --timestamp --options runtime \
+              --keychain "$KEYCHAIN" --deep "$app"
+          done
+
+          # Re-sign the framework itself
+          find "$APP_PATH/Contents/Frameworks" -name "*.framework" -type d | while read fw; do
+            echo "Signing framework: $fw"
+            codesign --force --sign "$IDENTITY" --timestamp --options runtime \
+              --keychain "$KEYCHAIN" "$fw"
+          done
+
+          # Re-sign the main app with entitlements
+          codesign --force --sign "$IDENTITY" --timestamp --options runtime \
+            --entitlements "Voom/Voom/Resources/Voom.entitlements" \
+            --keychain "$KEYCHAIN" "$APP_PATH"
+
+          # Verify
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
       - name: Notarize app
         env:
