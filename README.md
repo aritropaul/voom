@@ -47,7 +47,7 @@ Voom/                   macOS app (Swift, SwiftUI, ScreenCaptureKit)
 voom-share/             Cloudflare Worker (R2 + D1 + Workers)
 ```
 
-The app is entirely local-first. Cloud sharing is opt-in per recording and runs on your own Cloudflare account (~$0.35/month for 2-3 videos/day).
+The app is entirely local-first. Cloud sharing is opt-in per recording and runs on your own Cloudflare account — completely free under Cloudflare's free tier.
 
 ## Setup
 
@@ -56,6 +56,12 @@ The app is entirely local-first. Cloud sharing is opt-in per recording and runs 
 Open `Voom/Voom.xcodeproj` in Xcode and build. Requires macOS 15+.
 
 ### Cloud Sharing (optional)
+
+**Option A: In-app setup wizard (recommended)**
+
+Open Settings → Cloud Sharing → Self-Host. Paste your Cloudflare API token and account ID. The app creates the R2 bucket, D1 database, runs migrations, deploys the worker, and configures everything automatically.
+
+**Option B: Manual CLI deploy**
 
 ```bash
 cd voom-share
@@ -70,7 +76,20 @@ npx wrangler secret put API_SECRET
 npx wrangler deploy
 ```
 
-Then in the app: right-click menu bar icon → Settings → paste your Worker URL and API secret.
+Then in the app: Settings → Cloud Sharing → paste your Worker URL and API secret.
+
+### Cloudflare Free Tier
+
+Cloud sharing runs entirely within Cloudflare's free tier:
+
+| Service | What Voom uses it for | Free tier |
+|---------|----------------------|-----------|
+| Workers | API + share page | 100,000 requests/day |
+| R2 | Video file storage | 10 GB + zero egress |
+| D1 | Metadata, transcripts, comments | 5 GB + 5M reads/day |
+| Cron Triggers | Daily expiry cleanup | Included |
+
+No credit card required. You'd only need a paid plan ($5/mo) if you exceed these limits.
 
 ## Share Page
 
@@ -87,7 +106,7 @@ Each shared recording gets a minimal dark page with:
 
 | | Voom | Loom |
 |---|---|---|
-| **Price** | Free, forever | $15/user/month (Business) |
+| **Price** | Free, forever (including cloud sharing) | $15/user/month (Business) |
 | **App size** | ~5 MB | ~200 MB |
 | **Privacy** | Recordings stay on your Mac. Cloud sharing is opt-in to your own infra | All recordings uploaded to Loom servers |
 | **Transcription** | On-device via WhisperKit — nothing leaves your machine | Cloud-based |

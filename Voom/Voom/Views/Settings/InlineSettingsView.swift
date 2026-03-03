@@ -110,6 +110,12 @@ struct InlineSettingsView: View {
                 aboutContent
             }
             .staggeredAppear(3)
+
+            // Support
+            settingsCard(icon: "envelope", title: "Support") {
+                supportContent
+            }
+            .staggeredAppear(4)
         }
         .padding(.horizontal, VoomTheme.spacingXL)
         .padding(.bottom, VoomTheme.spacingXL)
@@ -311,6 +317,55 @@ struct InlineSettingsView: View {
             }
         }
         .controlSize(.small)
+    }
+
+    // MARK: - Support
+
+    @ViewBuilder
+    private var supportContent: some View {
+        settingsRow(title: "Email Support", subtitle: "Bug reports, feature requests, or just say hi.") {
+            Button("Contact") {
+                if let url = URL(string: "mailto:voom@aritro.xyz?subject=\(supportSubject)&body=\(supportBody)") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            .controlSize(.small)
+        }
+    }
+
+    private var supportSubject: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        return "Voom \(version) Support".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+    }
+
+    private var supportBody: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        let osString = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+        let ram = ProcessInfo.processInfo.physicalMemory / (1024 * 1024 * 1024)
+
+        var sysinfo = utsname()
+        uname(&sysinfo)
+        let arch = withUnsafePointer(to: &sysinfo.machine) {
+            $0.withMemoryRebound(to: CChar.self, capacity: 1) { String(cString: $0) }
+        }
+
+        var chipSize: size_t = 0
+        sysctlbyname("machdep.cpu.brand_string", nil, &chipSize, nil, 0)
+        var chipBuffer = [CChar](repeating: 0, count: chipSize)
+        sysctlbyname("machdep.cpu.brand_string", &chipBuffer, &chipSize, nil, 0)
+        let chip = String(cString: chipBuffer)
+
+        let body = """
+
+
+        ---
+        Voom \(version) (\(build))
+        macOS \(osString)
+        \(chip.isEmpty ? arch : chip) (\(arch)), \(ram) GB RAM
+        """
+        return body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
     }
 
     // MARK: - Helpers
