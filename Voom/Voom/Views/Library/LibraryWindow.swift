@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LibraryWindow: View {
+    private let detailHeaderHeight: CGFloat = 64
     @Environment(AppState.self) private var appState
     @Environment(RecordingStore.self) private var store
     @State private var selectedIDs: Set<UUID> = []
@@ -14,6 +15,9 @@ struct LibraryWindow: View {
     @State private var showStitchSheet = false
     @State private var selectedTagIDs: Set<UUID> = []
     @State private var showSettings = false
+    @State private var detailIsScrolled = false
+    @State private var hoveredRecordingID: UUID?
+    @State private var isSettingsHovered = false
 
     private var filteredRecordings: [Recording] {
         var result = store.recordings.sorted { $0.createdAt > $1.createdAt }
@@ -54,6 +58,24 @@ struct LibraryWindow: View {
             return rec.title
         }
         return ""
+    }
+
+    private var headerTitleText: String {
+        if showSettings {
+            return "Settings"
+        }
+        if selectedIDs.count > 1 {
+            return "Selected"
+        }
+        return detailTitle
+    }
+
+    private var headerCount: Int? {
+        selectedIDs.count > 1 ? selectedIDs.count : nil
+    }
+
+    private var showsDetailHeader: Bool {
+        showSettings || !selectedIDs.isEmpty
     }
 
     // MARK: - Date Grouping
@@ -113,22 +135,42 @@ struct LibraryWindow: View {
                 .background(VoomTheme.backgroundSecondary)
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
-            Group {
-                if showSettings {
-                    InlineSettingsView()
-                } else {
-                    detailContent
+            ZStack(alignment: .top) {
+                Group {
+                    if showSettings {
+                        InlineSettingsView(onScrollStateChange: { detailIsScrolled = $0 })
+                    } else {
+                        detailContent
+                    }
+                }
+                .padding(.top, showsDetailHeader ? detailHeaderHeight : 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                if showsDetailHeader {
+                    detailHeaderBar
+                        .frame(height: detailHeaderHeight, alignment: .bottom)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(VoomTheme.backgroundPrimary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background { VoomTheme.backgroundPrimary.ignoresSafeArea() }
+            .ignoresSafeArea(edges: .top)
             .animation(.easeInOut(duration: 0.25), value: showSettings)
             .animation(.easeInOut(duration: 0.25), value: singleSelection)
         }
         .frame(minWidth: 900, minHeight: 540)
-        .navigationTitle(showSettings ? "Settings" : detailTitle)
-        .toolbarBackground(.hidden, for: .windowToolbar)
-        .toolbar { toolbarItems }
+        .toolbar(removing: .title)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .onAppear {
+            DispatchQueue.main.async {
+                for window in NSApp.windows where window.title.contains("Library") {
+                    if let toolbar = window.toolbar {
+                        for item in toolbar.items where item.itemIdentifier.rawValue.lowercased().contains("sidebar") {
+                            toolbar.removeItem(at: toolbar.items.firstIndex(of: item)!)
+                        }
+                    }
+                }
+            }
+        }
         .alert(
             "Delete \(selectedRecordings.count) Recordings?",
             isPresented: $showDeleteConfirmation
@@ -169,25 +211,43 @@ struct LibraryWindow: View {
         }
     }
 
-    // MARK: - Toolbar
+    @ViewBuilder
+    private var detailHeaderBar: some View {
+        HStack(spacing: VoomTheme.spacingLG) {
+            HStack(spacing: 6) {
+                Text(headerTitleText)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(VoomTheme.textPrimary)
+                    .lineLimit(1)
+                if let count = headerCount {
+                    Text("\(count)")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(VoomTheme.textTertiary)
+                }
+            }
 
-    @ToolbarContentBuilder
-    private var toolbarItems: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            shareLinkToolbarContent
+            Spacer(minLength: 0)
+
+            HStack(spacing: 12) {
+                shareLinkToolbarContent
+                shareFileToolbarContent
+                stitchToolbarContent
+                revealToolbarContent
+                deleteToolbarContent
+            }
         }
-        ToolbarItem(placement: .primaryAction) {
-            shareFileToolbarContent
+        .padding(.horizontal, VoomTheme.spacingXL)
+        .padding(.top, 6)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { VoomTheme.backgroundPrimary.ignoresSafeArea(edges: .top) }
+        .overlay(alignment: .bottom) {
+            if detailIsScrolled {
+                VoomTheme.borderSubtle.frame(height: 0.5)
+                    .padding(.horizontal, VoomTheme.spacingXL)
+            }
         }
-        ToolbarItem(placement: .primaryAction) {
-            stitchToolbarContent
-        }
-        ToolbarItem(placement: .primaryAction) {
-            revealToolbarContent
-        }
-        ToolbarItem(placement: .destructiveAction) {
-            deleteToolbarContent
-        }
+        .animation(.easeInOut(duration: 0.2), value: detailIsScrolled)
     }
 
     @ViewBuilder
@@ -200,17 +260,20 @@ struct LibraryWindow: View {
                     .help("Uploading...")
             } else if rec.isShared && !rec.isShareExpired {
                 Button { copyShareLink(rec) } label: {
-                    Label("Copy Link", systemImage: "link")
+                    Image(systemName: "link")
                 }
+                .buttonStyle(HeaderIconButtonStyle())
                 .help(rec.shareExpiryDescription ?? "Copy share link")
-                Button(role: .destructive) { removeShareLink(rec) } label: {
-                    Label("Unshare", systemImage: "xmark.circle.fill")
+                Button { removeShareLink(rec) } label: {
+                    Image(systemName: "xmark.circle.fill")
                 }
+                .buttonStyle(HeaderIconButtonStyle())
                 .help("Remove shared link")
             } else {
                 Button { shareViaLink(rec) } label: {
-                    Label("Share via Link", systemImage: "link.badge.plus")
+                    Image(systemName: "link.badge.plus")
                 }
+                .buttonStyle(HeaderIconButtonStyle())
                 .help("Upload and get a shareable link")
             }
         }
@@ -222,15 +285,17 @@ struct LibraryWindow: View {
             let urls = selectedRecordings.map(\.fileURL)
             if urls.count == 1, let url = urls.first {
                 ShareLink(item: url) {
-                    Label("Share File", systemImage: "square.and.arrow.up")
+                    Image(systemName: "square.and.arrow.up")
                 }
+                .buttonStyle(HeaderIconButtonStyle())
                 .help("Share file")
             } else if urls.count > 1 {
                 ShareLink(items: urls) { url in
                     SharePreview(url.lastPathComponent, image: Image(systemName: "video.fill"))
                 } label: {
-                    Label("Share \(urls.count)", systemImage: "square.and.arrow.up")
+                    Image(systemName: "square.and.arrow.up")
                 }
+                .buttonStyle(HeaderIconButtonStyle())
                 .help("Share \(urls.count) recordings")
             }
         }
@@ -240,8 +305,9 @@ struct LibraryWindow: View {
     private var stitchToolbarContent: some View {
         if selectedIDs.count >= 2 {
             Button { showStitchSheet = true } label: {
-                Label("Stitch", systemImage: "film.stack")
+                Image(systemName: "film.stack")
             }
+            .buttonStyle(HeaderIconButtonStyle())
             .help("Stitch selected recordings together")
         }
     }
@@ -252,8 +318,9 @@ struct LibraryWindow: View {
             Button {
                 NSWorkspace.shared.selectFile(rec.fileURL.path, inFileViewerRootedAtPath: "")
             } label: {
-                Label("Reveal in Finder", systemImage: "folder")
+                Image(systemName: "folder")
             }
+            .buttonStyle(HeaderIconButtonStyle())
             .help("Reveal in Finder")
         }
     }
@@ -262,9 +329,10 @@ struct LibraryWindow: View {
     private var deleteToolbarContent: some View {
         if !selectedIDs.isEmpty {
             let count = selectedIDs.count
-            Button(role: .destructive) { promptDeleteSelected() } label: {
-                Label(count > 1 ? "Delete \(count)" : "Delete", systemImage: "trash")
+            Button { promptDeleteSelected() } label: {
+                Image(systemName: "trash")
             }
+            .buttonStyle(HeaderIconButtonStyle())
             .keyboardShortcut(.delete, modifiers: .command)
             .help(count > 1 ? "Delete \(count) recordings" : "Delete recording")
         }
@@ -368,12 +436,12 @@ struct LibraryWindow: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "gear")
-                    .font(.system(size: 12))
-                    .foregroundStyle(VoomTheme.textTertiary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(isSettingsHovered ? .white : VoomTheme.textTertiary)
                     .frame(width: 20, alignment: .center)
                 Text("Settings")
-                    .font(.system(size: 13, weight: showSettings ? .medium : .regular))
-                    .foregroundStyle(showSettings ? VoomTheme.textPrimary : VoomTheme.textSecondary)
+                    .font(.system(size: 12, weight: showSettings || isSettingsHovered ? .medium : .regular))
+                    .foregroundStyle(showSettings || isSettingsHovered ? .white : VoomTheme.textSecondary)
                 Spacer()
             }
             .padding(.horizontal, 12)
@@ -381,11 +449,20 @@ struct LibraryWindow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(isSettingsHovered ? Color.white.opacity(0.06) : Color.clear)
+                )
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                .strokeBorder(isSettingsHovered ? Color.white.opacity(0.1) : Color.white.opacity(0.06), lineWidth: 0.5)
         )
+        .animation(.easeInOut(duration: 0.15), value: isSettingsHovered)
+        .onHover { isSettingsHovered = $0 }
         .padding(.horizontal, 10)
         .padding(.bottom, 10)
     }
@@ -458,6 +535,7 @@ struct LibraryWindow: View {
 
                 ForEach(group.recordings) { recording in
                     let isSelected = selectedIDs.contains(recording.id)
+                    let isHovered = hoveredRecordingID == recording.id
                     RecordingRow(
                         recording: recording,
                         uploadProgress: uploadTracker.progress(for: recording.id)
@@ -466,9 +544,12 @@ struct LibraryWindow: View {
                     .padding(.vertical, 2)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(isSelected ? Color.white.opacity(0.08) : Color.clear)
+                            .fill(isSelected ? Color.white.opacity(0.08) : isHovered ? Color.white.opacity(0.04) : Color.clear)
                     )
                     .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .onHover { hovering in
+                        hoveredRecordingID = hovering ? recording.id : nil
+                    }
                     .onTapGesture {
                         if NSEvent.modifierFlags.contains(.command) {
                             if isSelected {
@@ -516,7 +597,13 @@ struct LibraryWindow: View {
     @ViewBuilder
     private var detailContent: some View {
         if let singleID = singleSelection {
-            PlayerView(recordingID: singleID)
+            PlayerView(
+                recordingID: singleID,
+                topContentInset: 0,
+                topChromeHeight: 0,
+                showsVideoBorder: false,
+                onScrollStateChange: { detailIsScrolled = $0 }
+            )
                 .id(singleID)
         } else if selectedIDs.count > 1 {
             VStack(spacing: VoomTheme.spacingMD) {
@@ -808,7 +895,7 @@ struct RecordingRow: View {
             thumbnailView
             VStack(alignment: .leading, spacing: 4) {
                 Text(recording.title)
-                    .font(.system(.body, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(VoomTheme.textPrimary)
                     .lineLimit(1)
 
@@ -943,11 +1030,11 @@ struct SidebarNavRow: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 12))
+                    .font(.system(size: 11))
                     .foregroundStyle(iconColor)
                     .frame(width: 20, alignment: .center)
                 Text(title)
-                    .font(.system(size: 13, weight: isSelected ? .medium : .regular))
+                    .font(.system(size: 12, weight: isSelected ? .medium : .regular))
                     .foregroundStyle(isSelected ? VoomTheme.textPrimary : VoomTheme.textSecondary)
                     .lineLimit(1)
                 Spacer()
@@ -976,5 +1063,23 @@ struct SidebarNavRow: View {
             return Color.white.opacity(0.04)
         }
         return Color.clear
+    }
+}
+
+// MARK: - Header Icon Button Style
+
+struct HeaderIconButtonStyle: ButtonStyle {
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(isHovered || configuration.isPressed ? .white : .secondary)
+            .padding(6)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(configuration.isPressed ? Color.white.opacity(0.08) : isHovered ? Color.white.opacity(0.06) : Color.clear)
+            )
+            .onHover { isHovered = $0 }
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 }

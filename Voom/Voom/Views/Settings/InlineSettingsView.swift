@@ -3,6 +3,10 @@ import ServiceManagement
 import Sparkle
 
 struct InlineSettingsView: View {
+    let topContentInset: CGFloat
+    let topChromeHeight: CGFloat
+    let headerContent: AnyView?
+    let onScrollStateChange: ((Bool) -> Void)?
     @AppStorage("ShareWorkerBaseURL") private var workerBaseURL = ""
     @AppStorage("ShareAPISecret") private var apiSecret = ""
     @AppStorage("AutoTranscribe") private var autoTranscribe = true
@@ -16,83 +20,112 @@ struct InlineSettingsView: View {
         case idle, testing, success, failed(String)
     }
 
+    init(
+        topContentInset: CGFloat = 0,
+        topChromeHeight: CGFloat = 0,
+        headerContent: AnyView? = nil,
+        onScrollStateChange: ((Bool) -> Void)? = nil
+    ) {
+        self.topContentInset = topContentInset
+        self.topChromeHeight = topChromeHeight
+        self.headerContent = headerContent
+        self.onScrollStateChange = onScrollStateChange
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: VoomTheme.spacingXL) {
-                // General
-                settingsCard(icon: "gear", title: "General") {
-                    generalContent
-                }
-                .staggeredAppear(0)
+        let usesEmbeddedHeader = headerContent != nil
 
-                // Recording
-                settingsCard(icon: "record.circle", title: "Recording") {
-                    recordingContent
-                }
-                .staggeredAppear(1)
-
-                // Sharing
-                settingsCard(icon: "link", title: "Cloud Sharing") {
-                    sharingContent
-                }
-                .staggeredAppear(2)
-
-                // About
-                settingsCard(icon: "info.circle", title: "About") {
-                    aboutContent
-                }
-                .staggeredAppear(3)
+        ZStack(alignment: .top) {
+            ScrollView {
+                settingsContent
+                    .padding(.top, usesEmbeddedHeader ? 0 : topContentInset)
             }
-            .padding(VoomTheme.spacingXL)
-        }
-        .frame(maxWidth: 640)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(VoomTheme.backgroundPrimary)
-        .animation(.smooth(duration: 0.3), value: testStatus)
-        .onChange(of: globalHotkeyEnabled) { _, enabled in
-            if enabled { GlobalHotkey.shared.register() } else { GlobalHotkey.shared.unregister() }
-        }
-        .onChange(of: viewNotificationsEnabled) { _, enabled in
-            Task {
-                if enabled {
-                    await ViewNotificationService.shared.requestNotificationPermission()
-                    await ViewNotificationService.shared.startPolling()
-                } else {
-                    await ViewNotificationService.shared.stopPolling()
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let headerContent {
+                    headerContent
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(VoomTheme.backgroundPrimary)
+            .animation(.smooth(duration: 0.3), value: testStatus)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top > (usesEmbeddedHeader ? 0 : topContentInset) + VoomTheme.spacingXL - 0.5
+            } action: { _, isScrolled in
+                onScrollStateChange?(isScrolled)
+            }
+            .onAppear { onScrollStateChange?(false) }
+            .onDisappear { onScrollStateChange?(false) }
+            .onChange(of: globalHotkeyEnabled) { _, enabled in
+                if enabled { GlobalHotkey.shared.register() } else { GlobalHotkey.shared.unregister() }
+            }
+            .onChange(of: viewNotificationsEnabled) { _, enabled in
+                Task {
+                    if enabled {
+                        await ViewNotificationService.shared.requestNotificationPermission()
+                        await ViewNotificationService.shared.startPolling()
+                    } else {
+                        await ViewNotificationService.shared.stopPolling()
+                    }
+                }
+            }
+            .onChange(of: launchAtLogin) { _, enabled in
+                try? SMAppService.mainApp.register()
+            }
+
+            if topChromeHeight > 0 && !usesEmbeddedHeader {
+                VoomTheme.backgroundPrimary
+                    .frame(height: topChromeHeight)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+            }
         }
-        .onChange(of: launchAtLogin) { _, enabled in
-            try? SMAppService.mainApp.register()
+    }
+
+    private var settingsContent: some View {
+        VStack(alignment: .leading, spacing: VoomTheme.spacingXL) {
+            // General
+            settingsCard(icon: "gear", title: "General") {
+                generalContent
+            }
+            .staggeredAppear(0)
+
+            // Recording
+            settingsCard(icon: "record.circle", title: "Recording") {
+                recordingContent
+            }
+            .staggeredAppear(1)
+
+            // Sharing
+            settingsCard(icon: "link", title: "Cloud Sharing") {
+                sharingContent
+            }
+            .staggeredAppear(2)
+
+            // About
+            settingsCard(icon: "info.circle", title: "About") {
+                aboutContent
+            }
+            .staggeredAppear(3)
         }
+        .padding(.horizontal, VoomTheme.spacingXL)
+        .padding(.bottom, VoomTheme.spacingXL)
+        .padding(.top, VoomTheme.spacingXL)
     }
 
     // MARK: - Card Builder
 
     @ViewBuilder
     private func settingsCard<Content: View>(icon: String, title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: VoomTheme.spacingMD) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(VoomTheme.textTertiary)
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(VoomTheme.textPrimary)
-            }
+        VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
+            VoomSectionHeader(icon: icon, title: title)
 
-            content()
+            VStack(alignment: .leading, spacing: VoomTheme.spacingMD) {
+                content()
+            }
+            .padding(VoomTheme.spacingLG)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .voomCard()
         }
-        .padding(VoomTheme.spacingLG)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .fill(VoomTheme.backgroundCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
-        )
     }
 
     // MARK: - General
@@ -147,7 +180,7 @@ struct InlineSettingsView: View {
 
         VStack(alignment: .leading, spacing: 6) {
             Text("Recording Directory")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(VoomTheme.textPrimary)
 
             HStack {
@@ -175,7 +208,7 @@ struct InlineSettingsView: View {
     private var sharingContent: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Worker URL")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(VoomTheme.textPrimary)
             TextField("https://voom-share.example.workers.dev", text: $workerBaseURL)
                 .textFieldStyle(.roundedBorder)
@@ -184,7 +217,7 @@ struct InlineSettingsView: View {
 
         VStack(alignment: .leading, spacing: 6) {
             Text("API Secret")
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(VoomTheme.textPrimary)
             SecureField("Paste your API secret", text: $apiSecret)
                 .textFieldStyle(.roundedBorder)
@@ -234,7 +267,7 @@ struct InlineSettingsView: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text("Voom")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(VoomTheme.textPrimary)
                 if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
                     Text("Version \(version)")
@@ -259,10 +292,10 @@ struct InlineSettingsView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(VoomTheme.textPrimary)
                 Text(subtitle)
-                    .font(VoomTheme.fontCaption())
+                    .font(.system(size: 10))
                     .foregroundStyle(VoomTheme.textTertiary)
             }
             Spacer()

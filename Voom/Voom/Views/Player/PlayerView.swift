@@ -4,6 +4,11 @@ import AVKit
 
 struct PlayerView: View {
     let recordingID: UUID
+    let topContentInset: CGFloat
+    let topChromeHeight: CGFloat
+    let showsVideoBorder: Bool
+    let headerContent: AnyView?
+    let onScrollStateChange: ((Bool) -> Void)?
     @Environment(RecordingStore.self) private var store
     @State private var player: AVPlayer?
     @State private var currentTime: TimeInterval = 0
@@ -28,6 +33,22 @@ struct PlayerView: View {
     @State private var cutRegions: [CutRegion] = []
 
     private let speeds: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+
+    init(
+        recordingID: UUID,
+        topContentInset: CGFloat = 56,
+        topChromeHeight: CGFloat = 56,
+        showsVideoBorder: Bool = true,
+        headerContent: AnyView? = nil,
+        onScrollStateChange: ((Bool) -> Void)? = nil
+    ) {
+        self.recordingID = recordingID
+        self.topContentInset = topContentInset
+        self.topChromeHeight = topChromeHeight
+        self.showsVideoBorder = showsVideoBorder
+        self.headerContent = headerContent
+        self.onScrollStateChange = onScrollStateChange
+    }
 
     private var recording: Recording? {
         store.recording(for: recordingID)
@@ -157,18 +178,42 @@ struct PlayerView: View {
     }
 
     var body: some View {
-        ScrollViewReader { outerProxy in
-        ScrollView {
-            mainContent(outerProxy: outerProxy)
-        }
-        .onTapGesture {
-            // Clicking outside text fields dismisses focus and commits edits
-            NSApp.keyWindow?.makeFirstResponder(nil)
-            commitTitle()
-            commitSummary()
-        }
+        let usesEmbeddedHeader = headerContent != nil
+
+        ZStack(alignment: .top) {
+            ScrollViewReader { outerProxy in
+                ScrollView {
+                    mainContent(outerProxy: outerProxy)
+                        .padding(.top, usesEmbeddedHeader ? 0 : topContentInset)
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if let headerContent {
+                        headerContent
+                    }
+                }
+                .background(VoomTheme.backgroundPrimary)
+                .onScrollGeometryChange(for: Bool.self) { geometry in
+                    geometry.contentOffset.y + geometry.contentInsets.top > (usesEmbeddedHeader ? 0 : topContentInset) + VoomTheme.spacingXL - 0.5
+                } action: { _, isScrolled in
+                    onScrollStateChange?(isScrolled)
+                }
+                .onTapGesture {
+                    // Clicking outside text fields dismisses focus and commits edits
+                    NSApp.keyWindow?.makeFirstResponder(nil)
+                    commitTitle()
+                    commitSummary()
+                }
+            }
+
+            if topChromeHeight > 0 && !usesEmbeddedHeader {
+                VoomTheme.backgroundPrimary
+                    .frame(height: topChromeHeight)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+            }
         }
         .onAppear {
+            onScrollStateChange?(false)
             setupPlayer()
             if let recording {
                 editingTitle = recording.title
@@ -176,6 +221,7 @@ struct PlayerView: View {
             }
         }
         .onDisappear {
+            onScrollStateChange?(false)
             commitSummary()
             teardownPlayer()
         }
@@ -208,10 +254,12 @@ struct PlayerView: View {
         }
         .aspectRatio(videoAspectRatio, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
-        )
+        .overlay {
+            if showsVideoBorder {
+                RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
+                    .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+            }
+        }
         .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
         .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
     }
@@ -301,7 +349,7 @@ struct PlayerView: View {
     private func detailsSection(recording: Recording) -> some View {
         VStack(alignment: .leading, spacing: VoomTheme.spacingMD) {
             TextField("Title", text: $editingTitle, axis: .vertical)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(VoomTheme.textPrimary)
                 .textFieldStyle(.plain)
                 .lineLimit(1...3)
@@ -339,14 +387,7 @@ struct PlayerView: View {
         }
         .padding(VoomTheme.spacingLG)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .fill(VoomTheme.backgroundCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
-        )
+        .voomCard()
     }
 
     private func detailChip(icon: String, text: String) -> some View {
@@ -364,7 +405,7 @@ struct PlayerView: View {
 
     @ViewBuilder
     private func transcriptSection(scrollToVideo: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
             if let recording {
                 HStack {
                     VoomSectionHeader(
@@ -378,59 +419,52 @@ struct PlayerView: View {
                             Task { await transcribe(recording) }
                         } label: {
                             Label("Transcribe", systemImage: "text.bubble")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.system(size: 11, weight: .medium))
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                     }
                 }
-                .padding(.horizontal, VoomTheme.spacingLG)
-                .padding(.vertical, VoomTheme.spacingMD)
 
-                if !recording.transcriptSegments.isEmpty {
-                    TranscriptListView(
-                        segments: recording.transcriptSegments.sorted { $0.startTime < $1.startTime },
-                        currentTime: currentTime,
-                        onSeek: { time in
-                            player?.seek(to: CMTime(seconds: time, preferredTimescale: 600))
-                            scrollToVideo()
-                        },
-                        onUpdateSegment: { segmentID, newText in
-                            updateSegmentText(segmentID: segmentID, newText: newText)
+                VStack(alignment: .leading, spacing: 0) {
+                    if !recording.transcriptSegments.isEmpty {
+                        TranscriptListView(
+                            segments: recording.transcriptSegments.sorted { $0.startTime < $1.startTime },
+                            currentTime: currentTime,
+                            onSeek: { time in
+                                player?.seek(to: CMTime(seconds: time, preferredTimescale: 600))
+                                scrollToVideo()
+                            },
+                            onUpdateSegment: { segmentID, newText in
+                                updateSegmentText(segmentID: segmentID, newText: newText)
+                            }
+                        )
+                    } else if recording.isTranscribing {
+                        HStack(spacing: VoomTheme.spacingSM) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Transcribing audio...")
+                                .font(.system(size: 13))
+                                .foregroundStyle(VoomTheme.textSecondary)
                         }
-                    )
-                } else if recording.isTranscribing {
-                    HStack(spacing: VoomTheme.spacingSM) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Transcribing audio...")
-                            .font(.system(size: 13))
-                            .foregroundStyle(VoomTheme.textSecondary)
+                        .padding(.horizontal, VoomTheme.spacingLG)
+                        .padding(.vertical, VoomTheme.spacingLG)
+                    } else {
+                        HStack(spacing: VoomTheme.spacingSM) {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 14))
+                                .foregroundStyle(VoomTheme.textTertiary)
+                            Text("No transcript yet. Transcribe to see text alongside the video.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(VoomTheme.textTertiary)
+                        }
+                        .padding(.horizontal, VoomTheme.spacingLG)
+                        .padding(.vertical, VoomTheme.spacingLG)
                     }
-                    .padding(.horizontal, VoomTheme.spacingLG)
-                    .padding(.bottom, VoomTheme.spacingLG)
-                } else {
-                    HStack(spacing: VoomTheme.spacingSM) {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 14))
-                            .foregroundStyle(VoomTheme.textTertiary)
-                        Text("No transcript yet. Transcribe to see text alongside the video.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(VoomTheme.textTertiary)
-                    }
-                    .padding(.horizontal, VoomTheme.spacingLG)
-                    .padding(.bottom, VoomTheme.spacingLG)
                 }
+                .voomCard()
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .fill(VoomTheme.backgroundCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
-        )
     }
 
     // MARK: - Editing
@@ -556,7 +590,7 @@ struct PlayerView: View {
 
     @ViewBuilder
     private func summarySection(summary: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
             Button {
                 withAnimation(.smooth(duration: 0.2)) {
                     isSummaryExpanded.toggle()
@@ -570,8 +604,6 @@ struct PlayerView: View {
                         .foregroundStyle(VoomTheme.textTertiary)
                         .rotationEffect(.degrees(isSummaryExpanded ? 90 : 0))
                 }
-                .padding(.horizontal, VoomTheme.spacingLG)
-                .padding(.vertical, VoomTheme.spacingMD)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -583,20 +615,13 @@ struct PlayerView: View {
                     .lineSpacing(4)
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, VoomTheme.spacingLG - 5)
-                    .padding(.bottom, VoomTheme.spacingLG)
+                    .padding(.vertical, VoomTheme.spacingMD)
                     .frame(minHeight: 60)
                     .fixedSize(horizontal: false, vertical: true)
+                    .voomCard()
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .fill(VoomTheme.backgroundCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
-        )
     }
 
     // MARK: - Editing Tools Bar
@@ -886,6 +911,7 @@ private struct TranscriptListView: View {
                 .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
         )
         .padding(.horizontal, VoomTheme.spacingLG)
+        .padding(.top, VoomTheme.spacingLG)
         .padding(.bottom, VoomTheme.spacingSM)
 
         VStack(spacing: 2) {

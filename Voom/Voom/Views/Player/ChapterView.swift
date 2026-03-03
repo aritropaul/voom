@@ -12,7 +12,7 @@ struct ChapterView: View {
     @State private var isGenerating = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
             HStack(spacing: 6) {
                 VoomSectionHeader(
                     icon: "bookmark",
@@ -34,33 +34,26 @@ struct ChapterView: View {
                     addChapter()
                 }
             }
-            .padding(.horizontal, VoomTheme.spacingLG)
-            .padding(.vertical, VoomTheme.spacingMD)
 
-            if chapters.isEmpty {
-                Text("No chapters yet.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(VoomTheme.textTertiary)
-                    .padding(.horizontal, VoomTheme.spacingLG)
-                    .padding(.bottom, VoomTheme.spacingLG)
-            } else {
-                VStack(spacing: 2) {
-                    ForEach(sortedChapters) { chapter in
-                        chapterRow(chapter)
+            VStack(alignment: .leading, spacing: 0) {
+                if chapters.isEmpty {
+                    Text("No chapters yet.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(VoomTheme.textTertiary)
+                        .padding(.horizontal, VoomTheme.spacingLG)
+                        .padding(.vertical, VoomTheme.spacingLG)
+                } else {
+                    VStack(spacing: 2) {
+                        ForEach(sortedChapters) { chapter in
+                            chapterRow(chapter)
+                        }
                     }
+                    .padding(.horizontal, VoomTheme.spacingSM)
+                    .padding(.vertical, VoomTheme.spacingMD)
                 }
-                .padding(.horizontal, VoomTheme.spacingSM)
-                .padding(.bottom, VoomTheme.spacingMD)
             }
+            .voomCard()
         }
-        .background(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .fill(VoomTheme.backgroundCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
-        )
     }
 
     private var sortedChapters: [Chapter] {

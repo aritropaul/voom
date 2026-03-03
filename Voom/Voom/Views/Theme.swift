@@ -33,8 +33,8 @@ enum VoomTheme {
 
     // MARK: Typography
 
-    static func fontTitle() -> Font { .system(size: 18, weight: .semibold) }
-    static func fontHeadline() -> Font { .system(size: 14, weight: .semibold) }
+    static func fontTitle() -> Font { .system(size: 15, weight: .semibold) }
+    static func fontHeadline() -> Font { .system(size: 12, weight: .semibold) }
     static func fontBody() -> Font { .system(size: 13) }
     static func fontCaption() -> Font { .system(size: 11) }
     static func fontMono() -> Font { .system(size: 10, design: .monospaced) }
@@ -98,23 +98,17 @@ struct VoomSectionHeader: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(VoomTheme.textTertiary)
             Text(title)
                 .font(VoomTheme.fontHeadline())
                 .foregroundStyle(VoomTheme.textPrimary)
-            Spacer()
             if let count {
                 Text("\(count)")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(VoomTheme.textTertiary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        Capsule()
-                            .fill(VoomTheme.backgroundTertiary)
-                    )
             }
+            Spacer()
         }
     }
 }
