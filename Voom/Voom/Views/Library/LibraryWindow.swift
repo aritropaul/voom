@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct LibraryWindow: View {
-    private let detailHeaderHeight: CGFloat = 64
     @Environment(AppState.self) private var appState
     @Environment(RecordingStore.self) private var store
     @State private var selectedIDs: Set<UUID> = []
@@ -143,12 +142,12 @@ struct LibraryWindow: View {
                         detailContent
                     }
                 }
-                .padding(.top, showsDetailHeader ? detailHeaderHeight : 0)
+                .padding(.top, showsDetailHeader ? 64 : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 if showsDetailHeader {
                     detailHeaderBar
-                        .frame(height: detailHeaderHeight, alignment: .bottom)
+                        .frame(height: 64, alignment: .bottom)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -163,11 +162,9 @@ struct LibraryWindow: View {
         .onAppear {
             DispatchQueue.main.async {
                 for window in NSApp.windows where window.title.contains("Library") {
-                    if let toolbar = window.toolbar {
-                        for item in toolbar.items where item.itemIdentifier.rawValue.lowercased().contains("sidebar") {
-                            toolbar.removeItem(at: toolbar.items.firstIndex(of: item)!)
-                        }
-                    }
+                    window.isMovableByWindowBackground = false
+                    window.titlebarAppearsTransparent = true
+                    window.toolbar = nil
                 }
             }
         }
