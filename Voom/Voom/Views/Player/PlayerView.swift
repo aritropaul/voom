@@ -28,6 +28,9 @@ struct PlayerView: View {
     @State private var showStitchSheet = false
     @State private var showSharePasswordPopover = false
     @State private var isExportingGIF = false
+    @State private var showAddTag = false
+    @State private var newTagName = ""
+    @State private var newTagColor = "5E5CE6"
     @State private var trimStart: TimeInterval = 0
     @State private var trimEnd: TimeInterval = 0
     @State private var cutRegions: [CutRegion] = []
@@ -109,13 +112,6 @@ struct PlayerView: View {
                 .padding(.horizontal, VoomTheme.spacingXL)
                 .padding(.top, VoomTheme.spacingLG)
                 .staggeredAppear(4)
-            }
-
-            if let recording {
-                tagsSection(recording: recording)
-                    .padding(.horizontal, VoomTheme.spacingXL)
-                    .padding(.top, VoomTheme.spacingSM)
-                    .staggeredAppear(5)
             }
 
             transcriptSection(scrollToVideo: {
@@ -382,6 +378,20 @@ struct PlayerView: View {
                     VoomBadge("Transcribed", color: VoomTheme.accentGreen, icon: "checkmark")
                 } else if recording.isTranscribing {
                     VoomBadge("Transcribing", color: VoomTheme.accentOrange, icon: "arrow.triangle.2.circlepath")
+                }
+
+                // Assigned tag badges
+                ForEach(recording.tags ?? []) { tag in
+                    VoomBadge(tag.name, color: Color(hex: tag.colorHex) ?? .gray, icon: "tag.fill")
+                }
+
+                // Add tag button
+                Button { showAddTag.toggle() } label: {
+                    VoomBadge("Tag", color: VoomTheme.textTertiary, icon: "plus")
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showAddTag, arrowEdge: .bottom) {
+                    tagPopoverContent(recording: recording)
                 }
             }
         }
@@ -692,68 +702,136 @@ struct PlayerView: View {
                 )
                 .environment(store)
             }
+
+            Spacer()
         }
     }
 
     // shareSettingsPopover removed — replaced by ShareSettingsSheet
 
-    // MARK: - Tags Section
+    // MARK: - Tag Popover
+
+    private static let tagColors = [
+        ("5E5CE6", "Indigo"),
+        ("BF5AF2", "Purple"),
+        ("FF375F", "Pink"),
+        ("64D2FF", "Teal"),
+        ("30D158", "Green"),
+        ("FF9F0A", "Orange"),
+        ("FFD60A", "Yellow"),
+        ("AC8E68", "Brown"),
+    ]
 
     @ViewBuilder
-    private func tagsSection(recording: Recording) -> some View {
+    private func tagPopoverContent(recording: Recording) -> some View {
         let tags = recording.tags ?? []
-        let availableTags = store.availableTags
+        let allTags = store.availableTags
 
-        if !availableTags.isEmpty || !tags.isEmpty {
-            HStack(spacing: 6) {
-                ForEach(tags) { tag in
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(Color(hex: tag.colorHex) ?? .gray)
-                            .frame(width: 8, height: 8)
-                        Text(tag.name)
-                            .font(.system(size: 11))
-                            .foregroundStyle(VoomTheme.textSecondary)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule().fill(VoomTheme.backgroundSecondary)
-                    )
-                    .overlay(Capsule().strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5))
-                    .onTapGesture {
-                        // Remove tag
-                        var updated = recording
-                        updated.tags = (updated.tags ?? []).filter { $0.id != tag.id }
-                        store.update(updated)
-                    }
-                }
-
-                Menu {
-                    ForEach(availableTags.filter { tag in
-                        !(recording.tags ?? []).contains(where: { $0.id == tag.id })
-                    }) { tag in
-                        Button {
+        VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
+            // Assigned tags (removable)
+            if !tags.isEmpty {
+                FlowLayout(spacing: 6) {
+                    ForEach(tags) { tag in
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color(hex: tag.colorHex) ?? .gray)
+                                .frame(width: 8, height: 8)
+                            Text(tag.name)
+                                .font(.system(size: 11))
+                                .foregroundStyle(VoomTheme.textPrimary)
+                            Image(systemName: "xmark")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundStyle(VoomTheme.textTertiary)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule().fill((Color(hex: tag.colorHex) ?? .gray).opacity(0.15))
+                        )
+                        .overlay(Capsule().strokeBorder((Color(hex: tag.colorHex) ?? .gray).opacity(0.3), lineWidth: 0.5))
+                        .onTapGesture {
                             var updated = recording
-                            var currentTags = updated.tags ?? []
-                            currentTags.append(tag)
-                            updated.tags = currentTags
+                            updated.tags = tags.filter { $0.id != tag.id }
                             store.update(updated)
-                        } label: {
-                            Label(tag.name, systemImage: "tag")
                         }
                     }
+                }
+
+                Divider()
+            }
+
+            // Available tags to assign
+            let unassigned = allTags.filter { tag in !tags.contains(where: { $0.id == tag.id }) }
+            if !unassigned.isEmpty {
+                ForEach(unassigned) { tag in
+                    Button {
+                        var updated = recording
+                        var current = updated.tags ?? []
+                        current.append(tag)
+                        updated.tags = current
+                        store.update(updated)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color(hex: tag.colorHex) ?? .gray)
+                                .frame(width: 8, height: 8)
+                            Text(tag.name)
+                                .font(.system(size: 12))
+                                .foregroundStyle(VoomTheme.textSecondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Divider()
+            }
+
+            // Create new tag
+            HStack(spacing: 6) {
+                TextField("New tag", text: $newTagName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .frame(maxWidth: 120)
+                    .onSubmit { createAndAssignTag(recording: recording) }
+
+                HStack(spacing: 3) {
+                    ForEach(Self.tagColors, id: \.0) { hex, _ in
+                        Circle()
+                            .fill(Color(hex: hex) ?? .blue)
+                            .frame(width: 12, height: 12)
+                            .overlay(
+                                Circle().strokeBorder(.white, lineWidth: newTagColor == hex ? 1.5 : 0)
+                            )
+                            .onTapGesture { newTagColor = hex }
+                    }
+                }
+
+                Button {
+                    createAndAssignTag(recording: recording)
                 } label: {
-                    Image(systemName: "plus.circle")
-                        .font(.system(size: 11))
-                        .foregroundStyle(VoomTheme.textTertiary)
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(newTagName.trimmingCharacters(in: .whitespaces).isEmpty ? VoomTheme.textQuaternary : VoomTheme.textPrimary)
                 }
                 .buttonStyle(.plain)
-                .help("Add tag")
-
-                Spacer()
+                .disabled(newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
+        .padding(VoomTheme.spacingMD)
+        .frame(width: 280)
+    }
+
+    private func createAndAssignTag(recording: Recording) {
+        let name = newTagName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        let tag = RecordingTag(name: name, colorHex: newTagColor)
+        store.addTag(tag)
+        var updated = recording
+        var current = updated.tags ?? []
+        current.append(tag)
+        updated.tags = current
+        store.update(updated)
+        newTagName = ""
     }
 
     // MARK: - GIF Export

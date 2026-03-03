@@ -346,8 +346,6 @@ struct LibraryWindow: View {
                 sidebarFoldersSection
                     .padding(.top, 4)
 
-                sidebarTagsSection
-
                 Divider()
                     .foregroundStyle(VoomTheme.borderSubtle)
                     .padding(.horizontal, 12)
@@ -720,6 +718,29 @@ struct LibraryWindow: View {
                         var updated = recording
                         updated.folderID = folder.id
                         store.update(updated)
+                    }
+                }
+            }
+        }
+
+        // Tags
+        if !store.availableTags.isEmpty {
+            let recordingTags = Set((recording.tags ?? []).map(\.id))
+            Menu("Tags") {
+                ForEach(store.availableTags) { tag in
+                    let isAssigned = recordingTags.contains(tag.id)
+                    Button {
+                        var updated = recording
+                        var tags = updated.tags ?? []
+                        if isAssigned {
+                            tags.removeAll { $0.id == tag.id }
+                        } else {
+                            tags.append(tag)
+                        }
+                        updated.tags = tags
+                        store.update(updated)
+                    } label: {
+                        Label(tag.name, systemImage: isAssigned ? "checkmark.circle.fill" : "circle")
                     }
                 }
             }
