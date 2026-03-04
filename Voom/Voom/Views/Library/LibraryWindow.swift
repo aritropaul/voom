@@ -153,11 +153,12 @@ struct LibraryWindow: View {
     var body: some View {
         NavigationSplitView {
             sidebarContent
+                .scrollContentBackground(.hidden)
                 .background {
                     ZStack {
                         VoomTheme.backgroundSecondary.opacity(0.2)
                         Rectangle().fill(.thinMaterial)
-                    }
+                    }.ignoresSafeArea()
                 }
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
@@ -181,7 +182,7 @@ struct LibraryWindow: View {
             .background {
                 ZStack {
                     VoomTheme.backgroundPrimary.opacity(0.2)
-                    Rectangle().fill(.thinMaterial)
+                    Rectangle().fill(.regularMaterial)
                 }.ignoresSafeArea()
             }
             .ignoresSafeArea(edges: .top)
@@ -197,6 +198,8 @@ struct LibraryWindow: View {
                     window.isMovableByWindowBackground = false
                     window.titlebarAppearsTransparent = true
                     window.toolbar = nil
+                    window.isOpaque = false
+                    window.backgroundColor = .clear
                 }
             }
         }
@@ -283,12 +286,6 @@ struct LibraryWindow: View {
         .padding(.top, 6)
         .padding(.bottom, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            ZStack {
-                VoomTheme.backgroundPrimary.opacity(0.2)
-                Rectangle().fill(.thinMaterial)
-            }
-        }
         .overlay(alignment: .bottom) {
             if detailIsScrolled {
                 VoomTheme.borderSubtle.frame(height: 0.5)

@@ -206,9 +206,9 @@ struct VoomCardModifier: ViewModifier {
             .background {
                 ZStack {
                     RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                        .fill(VoomTheme.backgroundCard.opacity(0.4))
+                        .fill(Color.white.opacity(0.16))
                     RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                        .fill(.thinMaterial)
+                        .fill(.thickMaterial)
                 }
             }
             .overlay(
