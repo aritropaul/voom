@@ -125,6 +125,7 @@ Each shared recording gets a minimal dark page with:
 | **Storage limit** | Your disk + your R2 bucket | 25 videos (free) |
 | **Open source** | Yes (MIT) | No |
 | **Custom branding** | Fork it, it's yours | Enterprise plan only |
+| **Recording quality** | Full Retina resolution, HEVC hardware encoding | 720p–1080p, software encoding via ffmpeg |
 | **Electron** | No — native Swift/SwiftUI | Yes |
 | **Dependencies** | WhisperKit | Electron, ffmpeg, many more |
 | **Offline recording** | Yes | No |
