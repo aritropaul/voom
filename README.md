@@ -40,6 +40,20 @@
 - **View notifications** — get macOS notifications when someone watches your recording
 - **30-day expiry** — links auto-expire, daily cron cleans up storage
 
+## Voom vs Loom
+
+| | Voom | Loom |
+|---|---|---|
+| **Price** | Free, forever (including cloud sharing) | $15/user/month (Business) |
+| **Privacy** | Recordings stay on your Mac. Cloud sharing is opt-in to your own infra | All recordings uploaded to Loom servers |
+| **Recording quality** | Full Retina resolution, HEVC hardware encoding | 720p–1080p, software encoding via ffmpeg |
+| **Transcription** | On-device via WhisperKit — nothing leaves your machine | Cloud-based |
+| **Editing** | Trim, cut/splice, stitch, filler word removal | Trim only (paid) |
+| **Recording limit** | Unlimited, any length | 5 min (free), 45 min (business) |
+| **Open source** | Yes (MIT) | No |
+| **Native** | Swift/SwiftUI (~5 MB) | Electron (~200 MB) |
+| **Platform** | macOS | macOS, Windows, Chrome, iOS, Android |
+
 ## Architecture
 
 ```
@@ -101,35 +115,6 @@ Each shared recording gets a minimal dark page with:
 - Timestamped comments
 - Optional password protection
 - Optional CTA button overlay
-
-## Voom vs Loom
-
-| | Voom | Loom |
-|---|---|---|
-| **Price** | Free, forever (including cloud sharing) | $15/user/month (Business) |
-| **App size** | ~5 MB | ~200 MB |
-| **Privacy** | Recordings stay on your Mac. Cloud sharing is opt-in to your own infra | All recordings uploaded to Loom servers |
-| **Transcription** | On-device via WhisperKit — nothing leaves your machine | Cloud-based |
-| **Screen + cam + mic** | Yes | Yes |
-| **Camera-only mode** | Yes | Yes |
-| **Region selection** | Yes | Yes |
-| **Drawing tools** | Yes | Yes (paid) |
-| **Trim / cut / stitch** | Yes | Trim only (paid) |
-| **Filler word removal** | Yes | Yes (paid) |
-| **Share via link** | Yes (self-hosted on Cloudflare) | Yes (Loom-hosted) |
-| **Synced transcript** | Yes | Yes |
-| **Comments & reactions** | Yes | Yes |
-| **Password protection** | Yes | Yes (paid) |
-| **Link expiry** | 30 days (configurable) | Never (paid), 5 min (free) |
-| **Recording limit** | Unlimited, any length | 5 min (free), 45 min (business) |
-| **Storage limit** | Your disk + your R2 bucket | 25 videos (free) |
-| **Open source** | Yes (MIT) | No |
-| **Custom branding** | Fork it, it's yours | Enterprise plan only |
-| **Recording quality** | Full Retina resolution, HEVC hardware encoding | 720p–1080p, software encoding via ffmpeg |
-| **Electron** | No — native Swift/SwiftUI | Yes |
-| **Dependencies** | WhisperKit | Electron, ffmpeg, many more |
-| **Offline recording** | Yes | No |
-| **Platform** | macOS | macOS, Windows, Chrome, iOS, Android |
 
 ## Stack
 
