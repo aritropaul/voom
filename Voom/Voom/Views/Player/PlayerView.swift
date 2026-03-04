@@ -205,7 +205,7 @@ struct PlayerView: View {
                         headerContent
                     }
                 }
-                .background(VoomTheme.backgroundPrimary)
+                .background(.clear)
                 .onScrollGeometryChange(for: Bool.self) { geometry in
                     geometry.contentOffset.y + geometry.contentInsets.top > (usesEmbeddedHeader ? 0 : topContentInset) + VoomTheme.spacingXL - 0.5
                 } action: { _, isScrolled in

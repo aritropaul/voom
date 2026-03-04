@@ -153,7 +153,12 @@ struct LibraryWindow: View {
     var body: some View {
         NavigationSplitView {
             sidebarContent
-                .background(VoomTheme.backgroundSecondary)
+                .background {
+                    ZStack {
+                        VoomTheme.backgroundSecondary.opacity(0.2)
+                        Rectangle().fill(.thinMaterial)
+                    }
+                }
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
             ZStack(alignment: .top) {
@@ -173,7 +178,12 @@ struct LibraryWindow: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background { VoomTheme.backgroundPrimary.ignoresSafeArea() }
+            .background {
+                ZStack {
+                    VoomTheme.backgroundPrimary.opacity(0.2)
+                    Rectangle().fill(.thinMaterial)
+                }.ignoresSafeArea()
+            }
             .ignoresSafeArea(edges: .top)
             .animation(.easeInOut(duration: 0.25), value: showSettings)
             .animation(.easeInOut(duration: 0.25), value: singleSelection)
@@ -273,7 +283,12 @@ struct LibraryWindow: View {
         .padding(.top, 6)
         .padding(.bottom, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background { VoomTheme.backgroundPrimary.ignoresSafeArea(edges: .top) }
+        .background {
+            ZStack {
+                VoomTheme.backgroundPrimary.opacity(0.2)
+                Rectangle().fill(.thinMaterial)
+            }
+        }
         .overlay(alignment: .bottom) {
             if detailIsScrolled {
                 VoomTheme.borderSubtle.frame(height: 0.5)

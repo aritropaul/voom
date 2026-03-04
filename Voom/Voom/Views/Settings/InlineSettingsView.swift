@@ -47,7 +47,7 @@ struct InlineSettingsView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(VoomTheme.backgroundPrimary)
+            .background(.clear)
             .animation(.smooth(duration: 0.3), value: testStatus)
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentOffset.y + geometry.contentInsets.top > (usesEmbeddedHeader ? 0 : topContentInset) + VoomTheme.spacingXL - 0.5

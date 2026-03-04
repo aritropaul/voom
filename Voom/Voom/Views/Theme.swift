@@ -203,14 +203,19 @@ struct ToolPillButton: View {
 struct VoomCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(
-                RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
-                    .fill(VoomTheme.backgroundCard)
-            )
+            .background {
+                ZStack {
+                    RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
+                        .fill(VoomTheme.backgroundCard.opacity(0.4))
+                    RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
+                        .fill(.thinMaterial)
+                }
+            }
             .overlay(
                 RoundedRectangle(cornerRadius: VoomTheme.radiusLarge, style: .continuous)
                     .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
             )
+            .shadow(color: .black.opacity(0.15), radius: 6, x: 0, y: 2)
     }
 }
 
