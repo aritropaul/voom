@@ -147,6 +147,12 @@ export default {
       return handleOGImage(env, ogMatch[1]);
     }
 
+    // Embed player (for Slack/social unfurling)
+    const embedMatch = path.match(/^\/embed\/([a-z0-9]+)$/);
+    if (embedMatch && request.method === 'GET') {
+      return handleEmbed(request, env, embedMatch[1]);
+    }
+
     // Thumbnail (high-res poster)
     const thumbMatch = path.match(/^\/thumb\/([a-z0-9]+)$/);
     if (thumbMatch && request.method === 'GET') {
@@ -448,7 +454,8 @@ async function handleSharePage(request, env, shareCode) {
     .all();
 
   const viewCount = (video.view_count || 0) + 1;
-  const html = sharePageHTML(video, segments.results || [], shareCode, viewCount);
+  const baseUrl = new URL(request.url).origin;
+  const html = sharePageHTML(video, segments.results || [], shareCode, viewCount, baseUrl);
   return new Response(html, {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' },
@@ -634,6 +641,29 @@ async function handleCheckViews(request, env) {
 
 // --- OG Image ---
 
+async function handleEmbed(request, env, shareCode) {
+  const video = await env.DB.prepare(
+    "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
+  )
+    .bind(shareCode)
+    .first();
+  if (!video) return new Response('Not found', { status: 404 });
+
+  const baseUrl = new URL(request.url).origin;
+  const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<style>*{margin:0;padding:0}html,body{width:100%;height:100%;background:#000;overflow:hidden}video{width:100%;height:100%;object-fit:contain}</style>
+</head><body>
+<video controls autoplay playsinline poster="${baseUrl}/og/${shareCode}">
+<source src="${baseUrl}/v/${shareCode}" type="video/mp4">
+</video>
+</body></html>`;
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' },
+  });
+}
+
 async function handleOGImage(env, shareCode) {
   const video = await env.DB.prepare(
     "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
@@ -705,7 +735,7 @@ function escapeHTML(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function sharePageHTML(video, segments, shareCode, viewCount) {
+function sharePageHTML(video, segments, shareCode, viewCount, baseUrl) {
   const segmentsJSON = JSON.stringify(
     segments.map(s => ({ start: s.start_time, end: s.end_time, text: s.text }))
   );
@@ -733,18 +763,25 @@ function sharePageHTML(video, segments, shareCode, viewCount) {
 <title>${escapeHTML(video.title)} — Voom</title>
 <meta property="og:title" content="${escapeHTML(video.title)}">
 <meta property="og:type" content="video.other">
-<meta property="og:video" content="/v/${shareCode}">
-<meta property="og:video:type" content="video/mp4">
+<meta property="og:url" content="${baseUrl}/s/${shareCode}">
+<meta property="og:video" content="${baseUrl}/embed/${shareCode}">
+<meta property="og:video:secure_url" content="${baseUrl}/embed/${shareCode}">
+<meta property="og:video:type" content="text/html">
 <meta property="og:video:width" content="${video.width}">
 <meta property="og:video:height" content="${video.height}">
-<meta property="og:image" content="/og/${shareCode}">
+<meta property="og:image" content="${baseUrl}/og/${shareCode}">
+<meta property="og:image:secure_url" content="${baseUrl}/og/${shareCode}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:description" content="${video.summary ? escapeHTML(video.summary) : ''}">
-<meta name="twitter:card" content="summary_large_image">
+<meta property="og:site_name" content="Voom">
+<meta property="og:description" content="${video.summary ? escapeHTML(video.summary) : `${formatTimestamp(video.duration)} screen recording`}">
+<meta name="twitter:card" content="player">
 <meta name="twitter:title" content="${escapeHTML(video.title)}">
-<meta name="twitter:description" content="${video.summary ? escapeHTML(video.summary) : ''}">
-<meta name="twitter:image" content="/og/${shareCode}">
+<meta name="twitter:description" content="${video.summary ? escapeHTML(video.summary) : `${formatTimestamp(video.duration)} screen recording`}">
+<meta name="twitter:image" content="${baseUrl}/og/${shareCode}">
+<meta name="twitter:player" content="${baseUrl}/s/${shareCode}">
+<meta name="twitter:player:width" content="${video.width}">
+<meta name="twitter:player:height" content="${video.height}">
 <style>
 :root{--bg:#000;--text-main:#e5e5e5;--text-muted:#888;--accent:#fff;--space-xs:12px;--space-s:24px;--space-m:48px;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--font-mono:"SF Mono",Monaco,ui-monospace,monospace}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
