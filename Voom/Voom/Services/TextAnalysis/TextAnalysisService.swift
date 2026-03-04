@@ -1,5 +1,8 @@
 import Foundation
 @preconcurrency import FoundationModels
+import os
+
+private let logger = Logger(subsystem: "com.voom.app", category: "TextAnalysis")
 
 actor TextAnalysisService {
     static let shared = TextAnalysisService()
@@ -63,7 +66,7 @@ actor TextAnalysisService {
         guard #available(macOS 26.0, *) else { return nil }
 
         guard SystemLanguageModel.default.availability == .available else {
-            NSLog("[Voom] Apple Foundation Models not available")
+            logger.notice("[Voom] Apple Foundation Models not available")
             return nil
         }
 
@@ -73,7 +76,7 @@ actor TextAnalysisService {
             let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty ? nil : text
         } catch {
-            NSLog("[Voom] Apple Foundation Models failed: %@", "\(error)")
+            logger.error("[Voom] Apple Foundation Models failed: \(error)")
             return nil
         }
     }

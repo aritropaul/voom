@@ -53,7 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Show onboarding on first launch only
         if !appState.hasCompletedOnboarding {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.5))
                 WindowActions.openWindow?(id: "onboarding")
             }
         }
@@ -122,12 +123,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openLibrary() {
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         WindowActions.openWindow?(id: "library")
     }
 
     @objc private func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 

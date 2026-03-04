@@ -401,7 +401,7 @@ struct InlineSettingsView: View {
         panel.prompt = "Choose"
         panel.message = "Select a directory for recordings"
         if panel.runModal() == .OK, let url = panel.url {
-            recordingDirectory = url.path
+            recordingDirectory = url.path(percentEncoded: false)
         }
     }
 
@@ -419,12 +419,9 @@ struct InlineSettingsView: View {
         request.httpMethod = "GET"
         request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
 
-        URLSession.shared.dataTask(with: request) { _, response, error in
-            DispatchQueue.main.async {
-                if let error {
-                    testStatus = .failed(error.localizedDescription)
-                    return
-                }
+        Task {
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
                 guard let http = response as? HTTPURLResponse else {
                     testStatus = .failed("No response")
                     return
@@ -436,7 +433,9 @@ struct InlineSettingsView: View {
                 } else {
                     testStatus = .failed("HTTP \(http.statusCode)")
                 }
+            } catch {
+                testStatus = .failed(error.localizedDescription)
             }
-        }.resume()
+        }
     }
 }

@@ -79,7 +79,7 @@ final class ControlPanelManager {
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self?.panel?.close()
                 self?.panel = nil
                 self?.hostingView = nil
@@ -192,7 +192,7 @@ final class ControlPanelManager {
     }
 
     private func openLibrary() {
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         WindowActions.openWindow?(id: "library")
     }
 }

@@ -182,7 +182,7 @@ final class DisplayPicker {
         }
 
         // Activate the app and make a panel key so local key events (ESC) are received
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         panels.first?.panel.makeKeyAndOrderFront(nil)
 
         installMonitors()
@@ -269,7 +269,7 @@ final class DisplayPicker {
                 entry.panel.animator().alphaValue = 0
             }
         }, completionHandler: {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 for entry in panelsToFade {
                     entry.panel.close()
                 }

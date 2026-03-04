@@ -9,6 +9,7 @@ struct ShareSettingsSheet: View {
     @State private var sharePassword = ""
     @State private var ctaURLString = ""
     @State private var ctaText = ""
+    @State private var showUnshareConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -81,6 +82,14 @@ struct ShareSettingsSheet: View {
             ctaURLString = recording.ctaURL?.absoluteString ?? ""
             ctaText = recording.ctaText ?? ""
         }
+        .alert("Remove Share Link?", isPresented: $showUnshareConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove", role: .destructive) {
+                Task { await removeShareLink() }
+            }
+        } message: {
+            Text("This will remove the shared link. Anyone with the link will no longer be able to view the recording.")
+        }
     }
 
     // MARK: - Share Link
@@ -129,7 +138,7 @@ struct ShareSettingsSheet: View {
                 }
 
                 Button(role: .destructive) {
-                    Task { await removeShareLink() }
+                    showUnshareConfirmation = true
                 } label: {
                     Label("Remove Link", systemImage: "trash")
                         .font(.system(size: 11, weight: .medium))

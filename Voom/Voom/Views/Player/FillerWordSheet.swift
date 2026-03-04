@@ -1,5 +1,8 @@
 import SwiftUI
 import CoreMedia
+import os
+
+private let fillerLogger = Logger(subsystem: "com.voom.app", category: "FillerWord")
 
 struct FillerWordSheet: View {
     let recordingID: UUID
@@ -175,7 +178,7 @@ struct FillerWordSheet: View {
 
             isPresented = false
         } catch {
-            NSLog("[Voom] Filler removal failed: %@", "\(error)")
+            fillerLogger.error("[Voom] Filler removal failed: \(error)")
         }
 
         isProcessing = false

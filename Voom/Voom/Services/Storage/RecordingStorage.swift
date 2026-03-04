@@ -2,6 +2,9 @@ import Foundation
 @preconcurrency import AVFoundation
 import AppKit
 import CoreImage
+import os
+
+private let logger = Logger(subsystem: "com.voom.app", category: "Storage")
 
 @Observable @MainActor
 final class RecordingStore {
@@ -10,6 +13,8 @@ final class RecordingStore {
     var recordings: [Recording] = []
     var folders: [Folder] = []
     var availableTags: [RecordingTag] = []
+
+    private let saveQueue = DispatchQueue(label: "voom.store.save")
 
     private let storageURL: URL = {
         let dir = FileManager.default.homeDirectoryForCurrentUser
@@ -44,14 +49,17 @@ final class RecordingStore {
         do {
             recordings = try JSONDecoder().decode([Recording].self, from: data)
         } catch {
-            NSLog("[Voom] Failed to decode recordings: %@", "\(error)")
+            logger.error("[Voom] Failed to decode recordings: \(error)")
             // Don't overwrite — keep recordings empty but don't save
         }
     }
 
     func save() {
         guard let data = try? JSONEncoder().encode(recordings) else { return }
-        try? data.write(to: storageURL, options: .atomic)
+        let url = storageURL
+        saveQueue.async {
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     func add(_ recording: Recording) {
@@ -162,7 +170,50 @@ final class RecordingStore {
                     }
                 }
             }
-            NSLog("[Voom] Backfilled titles/summaries for %d recordings", candidates.count)
+            logger.notice("[Voom] Backfilled titles/summaries for \(candidates.count) recordings")
+        }
+    }
+
+    // MARK: - Auto-Transcription
+
+    func autoTranscribe(recordingID: UUID, fileURL: URL) {
+        let capturedID = recordingID
+        let capturedURL = fileURL
+        Task.detached {
+            await MainActor.run {
+                if var rec = RecordingStore.shared.recording(for: capturedID) {
+                    rec.isTranscribing = true
+                    RecordingStore.shared.update(rec)
+                }
+            }
+            do {
+                logger.notice("[Voom] Auto-transcription starting for \(capturedURL.lastPathComponent)")
+                let segments = try await TranscriptionService.shared.transcribe(audioURL: capturedURL)
+                logger.notice("[Voom] Auto-transcription got \(segments.count) segments")
+                let entries = segments.map {
+                    TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text)
+                }
+                let generatedTitle = await TextAnalysisService.shared.generateTitle(from: entries)
+                let generatedSummary = await TextAnalysisService.shared.generateSummary(from: entries)
+                await MainActor.run {
+                    if var rec = RecordingStore.shared.recording(for: capturedID) {
+                        rec.transcriptSegments = entries
+                        if !generatedTitle.isEmpty { rec.title = generatedTitle }
+                        rec.summary = generatedSummary.isEmpty ? nil : generatedSummary
+                        rec.isTranscribed = !segments.isEmpty
+                        rec.isTranscribing = false
+                        RecordingStore.shared.update(rec)
+                    }
+                }
+            } catch {
+                logger.error("[Voom] Auto-transcription failed: \(error)")
+                await MainActor.run {
+                    if var rec = RecordingStore.shared.recording(for: capturedID) {
+                        rec.isTranscribing = false
+                        RecordingStore.shared.update(rec)
+                    }
+                }
+            }
         }
     }
 }
@@ -187,10 +238,14 @@ actor RecordingStorage {
         return url
     }()
 
+    private static let recordingDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd-HHmmss"
+        return f
+    }()
+
     func newRecordingURL() -> URL {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd-HHmmss"
-        let filename = "Voom-\(formatter.string(from: Date())).mp4"
+        let filename = "Voom-\(Self.recordingDateFormatter.string(from: Date())).mp4"
         return baseDirectory.appendingPathComponent(filename)
     }
 
@@ -217,13 +272,13 @@ actor RecordingStorage {
                 return thumbURL
             }
         } catch {
-            print("Thumbnail generation failed: \(error)")
+            logger.error("[Voom] Thumbnail generation failed: \(error)")
         }
         return nil
     }
 
     func fileSize(at url: URL) -> Int64 {
-        (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+        (try? FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))[.size] as? Int64) ?? 0
     }
 
     func videoDuration(at url: URL) async -> TimeInterval {
@@ -251,7 +306,7 @@ actor RecordingStorage {
                 return (Int(size.width), Int(size.height))
             }
         } catch {
-            print("Failed to get video resolution: \(error)")
+            logger.error("[Voom] Failed to get video resolution: \(error)")
         }
         return (0, 0)
     }

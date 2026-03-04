@@ -21,7 +21,7 @@ struct VoomApp: App {
                 .onAppear {
                     // If onboarding already completed, macOS restored this window — close it
                     if appDelegate.appState.hasCompletedOnboarding {
-                        DispatchQueue.main.async {
+                        Task { @MainActor in
                             for window in NSApp.windows where !(window is NSPanel) && window.identifier?.rawValue.contains("onboarding") != false {
                                 window.close()
                             }
@@ -46,7 +46,8 @@ struct VoomApp: App {
                 }
                 .onDisappear {
                     // Switch back to accessory if no visible windows remain
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(0.1))
                         let hasVisibleWindows = NSApp.windows.contains {
                             $0.isVisible && !($0 is NSPanel)
                         }
@@ -70,7 +71,8 @@ struct VoomApp: App {
                         NSApp.setActivationPolicy(.regular)
                     }
                     .onDisappear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(0.1))
                             let hasVisibleWindows = NSApp.windows.contains {
                                 $0.isVisible && !($0 is NSPanel)
                             }

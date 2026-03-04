@@ -1,8 +1,11 @@
 import Foundation
 @preconcurrency import AVFoundation
+import os
 #if canImport(WhisperKit)
 @preconcurrency import WhisperKit
 #endif
+
+private let logger = Logger(subsystem: "com.voom.app", category: "Transcription")
 
 struct VoomTranscriptSegment: Sendable {
     let startTime: TimeInterval
@@ -22,7 +25,7 @@ actor TranscriptionService {
         guard !isModelLoaded else { return }
 
         #if canImport(WhisperKit)
-        NSLog("[Voom] Loading WhisperKit model...")
+        logger.notice("[Voom] Loading WhisperKit model...")
         let config = WhisperKitConfig(
             model: "distil-large-v3",
             verbose: true,
@@ -32,7 +35,7 @@ actor TranscriptionService {
         )
         whisperKit = try await WhisperKit(config)
         isModelLoaded = true
-        NSLog("[Voom] WhisperKit model loaded successfully")
+        logger.notice("[Voom] WhisperKit model loaded successfully")
         #else
         throw TranscriptionError.whisperKitNotAvailable
         #endif
@@ -48,18 +51,18 @@ actor TranscriptionService {
             throw TranscriptionError.modelNotLoaded
         }
 
-        NSLog("[Voom] Extracting audio from: %@", audioURL.lastPathComponent)
+        logger.notice("[Voom] Extracting audio from: \(audioURL.lastPathComponent)")
         let wavURL = try await extractAudio(from: audioURL)
-        let fileSize = (try? FileManager.default.attributesOfItem(atPath: wavURL.path)[.size] as? Int64) ?? 0
-        NSLog("[Voom] Audio extracted: %@, size: %lld bytes", wavURL.lastPathComponent, fileSize)
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: wavURL.path(percentEncoded: false))[.size] as? Int64) ?? 0
+        logger.notice("[Voom] Audio extracted: \(wavURL.lastPathComponent), size: \(fileSize) bytes")
 
         let result: [TranscriptionResult]
         do {
-            NSLog("[Voom] Starting transcription...")
+            logger.notice("[Voom] Starting transcription...")
             result = try await whisperKit.transcribe(audioPath: wavURL.path())
-            NSLog("[Voom] Transcription complete: %d result(s)", result.count)
+            logger.notice("[Voom] Transcription complete: \(result.count) result(s)")
         } catch {
-            NSLog("[Voom] Transcription error: %@", "\(error)")
+            logger.error("[Voom] Transcription error: \(error)")
             try? FileManager.default.removeItem(at: wavURL)
             throw error
         }
@@ -76,7 +79,7 @@ actor TranscriptionService {
                 )
             }
         }
-        NSLog("[Voom] Extracted %d transcript segments", segments.count)
+        logger.notice("[Voom] Extracted \(segments.count) transcript segments")
         return segments
         #else
         throw TranscriptionError.whisperKitNotAvailable
@@ -104,7 +107,7 @@ actor TranscriptionService {
             throw TranscriptionError.noAudioTrack
         }
         let duration = try await asset.load(.duration)
-        NSLog("[Voom] Source duration: %.1fs, audio tracks: %d", duration.seconds, audioTracks.count)
+        logger.notice("[Voom] Source duration: \(duration.seconds, format: .fixed(precision: 1))s, audio tracks: \(audioTracks.count)")
 
         // Step 1: Export audio to M4A using AVAssetExportSession
         let m4aURL = FileManager.default.temporaryDirectory
@@ -120,13 +123,13 @@ actor TranscriptionService {
         await exportSession.export()
 
         guard exportSession.status == .completed else {
-            NSLog("[Voom] M4A export failed: %@", exportSession.error?.localizedDescription ?? "unknown")
+            logger.error("[Voom] M4A export failed: \(exportSession.error?.localizedDescription ?? "unknown")")
             throw TranscriptionError.audioExtractionFailed
         }
 
         // Step 2: Convert M4A to 16kHz mono float32 WAV
         let audioFile = try AVAudioFile(forReading: m4aURL)
-        NSLog("[Voom] M4A: rate=%.0f, ch=%d, frames=%lld", audioFile.processingFormat.sampleRate, audioFile.processingFormat.channelCount, audioFile.length)
+        logger.notice("[Voom] M4A: rate=\(audioFile.processingFormat.sampleRate, format: .fixed(precision: 0)), ch=\(audioFile.processingFormat.channelCount), frames=\(audioFile.length)")
 
         let targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -170,10 +173,10 @@ actor TranscriptionService {
         }
 
         if let convError {
-            NSLog("[Voom] Conversion error: %@", convError.localizedDescription)
+            logger.error("[Voom] Conversion error: \(convError.localizedDescription)")
         }
 
-        NSLog("[Voom] Converted: %d frames -> %d frames (%.1fs)", frameCount, dstBuffer.frameLength, Double(dstBuffer.frameLength) / 16000.0)
+        logger.notice("[Voom] Converted: \(frameCount) frames -> \(dstBuffer.frameLength) frames (\(Double(dstBuffer.frameLength) / 16000.0, format: .fixed(precision: 1))s)")
 
         if dstBuffer.frameLength > 0 {
             try wavFile.write(from: dstBuffer)

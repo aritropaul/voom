@@ -1,4 +1,26 @@
 import SwiftUI
+import os
+
+private let logger = Logger(subsystem: "com.voom.app", category: "Library")
+
+private nonisolated(unsafe) let fileSizeFormatter: ByteCountFormatter = {
+    let f = ByteCountFormatter()
+    f.countStyle = .file
+    f.allowedUnits = [.useKB, .useMB, .useGB]
+    return f
+}()
+
+private nonisolated(unsafe) let relativeDateFormatter: RelativeDateTimeFormatter = {
+    let f = RelativeDateTimeFormatter()
+    f.unitsStyle = .abbreviated
+    return f
+}()
+
+private nonisolated(unsafe) let monthYearFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "MMMM yyyy"
+    return f
+}()
 
 struct LibraryWindow: View {
     @Environment(AppState.self) private var appState
@@ -7,6 +29,8 @@ struct LibraryWindow: View {
     @State private var searchText = ""
     @State private var didPickUpInitialSelection = false
     @State private var showDeleteConfirmation = false
+    @State private var showUnshareConfirmation = false
+    @State private var recordingToUnshare: Recording?
     @State private var uploadTracker = ShareUploadTracker.shared
     @State private var toast = ToastManager.shared
     @State private var selectedFolderID: UUID?
@@ -101,9 +125,7 @@ struct LibraryWindow: View {
                       date > monthAgo {
                 return "This Month"
             } else {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "MMMM yyyy"
-                return formatter.string(from: date)
+                return monthYearFormatter.string(from: date)
             }
         }
 
@@ -160,7 +182,7 @@ struct LibraryWindow: View {
         .toolbar(removing: .title)
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .onAppear {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 for window in NSApp.windows where window.title.contains("Library") {
                     window.isMovableByWindowBackground = false
                     window.titlebarAppearsTransparent = true
@@ -169,13 +191,27 @@ struct LibraryWindow: View {
             }
         }
         .alert(
-            "Delete \(selectedRecordings.count) Recordings?",
+            "Delete \(selectedRecordings.count) Recording\(selectedRecordings.count == 1 ? "" : "s")?",
             isPresented: $showDeleteConfirmation
         ) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { deleteSelected() }
         } message: {
-            Text("This will permanently delete the selected recordings and their files.")
+            Text("This will permanently delete the selected recording\(selectedRecordings.count == 1 ? "" : "s") and \(selectedRecordings.count == 1 ? "its" : "their") files.")
+        }
+        .alert(
+            "Remove Share Link?",
+            isPresented: $showUnshareConfirmation
+        ) {
+            Button("Cancel", role: .cancel) { recordingToUnshare = nil }
+            Button("Remove", role: .destructive) {
+                if let recording = recordingToUnshare {
+                    removeShareLink(recording)
+                    recordingToUnshare = nil
+                }
+            }
+        } message: {
+            Text("This will remove the shared link. Anyone with the link will no longer be able to view the recording.")
         }
         .onAppear {
             if !didPickUpInitialSelection, let id = appState.selectedRecordingID {
@@ -261,7 +297,10 @@ struct LibraryWindow: View {
                 }
                 .buttonStyle(HeaderIconButtonStyle())
                 .help(rec.shareExpiryDescription ?? "Copy share link")
-                Button { removeShareLink(rec) } label: {
+                Button {
+                    recordingToUnshare = rec
+                    showUnshareConfirmation = true
+                } label: {
                     Image(systemName: "xmark.circle.fill")
                 }
                 .buttonStyle(HeaderIconButtonStyle())
@@ -313,7 +352,7 @@ struct LibraryWindow: View {
     private var revealToolbarContent: some View {
         if let rec = selectedRecordings.first, selectedIDs.count == 1 {
             Button {
-                NSWorkspace.shared.selectFile(rec.fileURL.path, inFileViewerRootedAtPath: "")
+                NSWorkspace.shared.selectFile(rec.fileURL.path(percentEncoded: false), inFileViewerRootedAtPath: "")
             } label: {
                 Image(systemName: "folder")
             }
@@ -535,6 +574,7 @@ struct LibraryWindow: View {
                         recording: recording,
                         uploadProgress: uploadTracker.progress(for: recording.id)
                     )
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
                     .background(
@@ -675,7 +715,8 @@ struct LibraryWindow: View {
             }
 
             Button(role: .destructive) {
-                removeShareLink(recording)
+                recordingToUnshare = recording
+                showUnshareConfirmation = true
             } label: {
                 Label("Remove Link", systemImage: "link.badge.plus")
             }
@@ -692,13 +733,13 @@ struct LibraryWindow: View {
         Divider()
 
         Button {
-            NSWorkspace.shared.selectFile(recording.fileURL.path, inFileViewerRootedAtPath: "")
+            NSWorkspace.shared.selectFile(recording.fileURL.path(percentEncoded: false), inFileViewerRootedAtPath: "")
         } label: {
             Label("Reveal in Finder", systemImage: "folder")
         }
         Button {
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(recording.fileURL.path, forType: .string)
+            NSPasteboard.general.setString(recording.fileURL.path(percentEncoded: false), forType: .string)
         } label: {
             Label("Copy File Path", systemImage: "doc.on.doc")
         }
@@ -748,8 +789,8 @@ struct LibraryWindow: View {
 
         Divider()
         Button(role: .destructive) {
-            selectedIDs.remove(recording.id)
-            store.delete(recording)
+            selectedIDs = [recording.id]
+            showDeleteConfirmation = true
         } label: {
             Label("Delete", systemImage: "trash")
         }
@@ -768,11 +809,8 @@ struct LibraryWindow: View {
     }
 
     private func promptDeleteSelected() {
-        if selectedIDs.count > 1 {
-            showDeleteConfirmation = true
-        } else if !selectedIDs.isEmpty {
-            deleteSelected()
-        }
+        guard !selectedIDs.isEmpty else { return }
+        showDeleteConfirmation = true
     }
 
     private func stitchRecordings(_ recordings: [Recording]) async {
@@ -799,7 +837,7 @@ struct LibraryWindow: View {
             recording.thumbnailURL = thumbURL
             await MainActor.run { store.add(recording) }
         } catch {
-            NSLog("[Voom] Stitch failed: %@", "\(error)")
+            logger.error("[Voom] Stitch failed: \(error)")
         }
     }
 
@@ -895,10 +933,7 @@ struct LibraryWindow: View {
     }
 
     private func formatFileSize(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        return formatter.string(fromByteCount: bytes)
+        fileSizeFormatter.string(fromByteCount: bytes)
     }
 }
 
@@ -907,6 +942,7 @@ struct LibraryWindow: View {
 struct RecordingRow: View {
     let recording: Recording
     var uploadProgress: Double?
+    @State private var thumbnailImage: NSImage?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -947,17 +983,23 @@ struct RecordingRow: View {
         }
         .padding(.vertical, 5)
         .contentShape(Rectangle())
+        .task(id: recording.thumbnailURL) {
+            guard let thumbURL = recording.thumbnailURL else { return }
+            thumbnailImage = await Task.detached {
+                NSImage(contentsOf: thumbURL)
+            }.value
+        }
     }
 
     @ViewBuilder
     private var thumbnailView: some View {
         ZStack(alignment: .bottomTrailing) {
-            if let thumbURL = recording.thumbnailURL,
-               let nsImage = NSImage(contentsOf: thumbURL) {
+            if let nsImage = thumbnailImage {
                 Image(nsImage: nsImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 96, height: 58)
+                    .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
@@ -1019,16 +1061,11 @@ struct RecordingRow: View {
     }
 
     private func formatFileSize(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        return formatter.string(fromByteCount: bytes)
+        fileSizeFormatter.string(fromByteCount: bytes)
     }
 
     private func relativeDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        relativeDateFormatter.localizedString(for: date, relativeTo: Date())
     }
 }
 

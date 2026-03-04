@@ -1,5 +1,8 @@
 import Foundation
 import UserNotifications
+import os
+
+private let logger = Logger(subsystem: "com.voom.app", category: "ViewNotification")
 
 actor ViewNotificationService {
     static let shared = ViewNotificationService()
@@ -75,7 +78,7 @@ actor ViewNotificationService {
                 }
             }
         } catch {
-            NSLog("[Voom] View check failed: %@", "\(error)")
+            logger.error("[Voom] View check failed: \(error)")
         }
     }
 

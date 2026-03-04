@@ -282,7 +282,7 @@ struct StaggeredAppear: ViewModifier {
                 value: visible
             )
             .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                Task { @MainActor in
                     visible = true
                 }
             }

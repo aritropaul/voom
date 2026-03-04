@@ -235,47 +235,10 @@ actor ScreenRecorder {
         }
 
         // Auto-transcribe in background if audio is available and setting is enabled
-        let autoTranscribe = UserDefaults.standard.object(forKey: "AutoTranscribe") == nil ? true : UserDefaults.standard.bool(forKey: "AutoTranscribe")
-        if autoTranscribe && (hasSystemAudio || hasMicAudio) {
-            let capturedURL = url
-            let capturedID = recordingID
-            Task.detached {
-                await MainActor.run {
-                    if var rec = RecordingStore.shared.recording(for: capturedID) {
-                        rec.isTranscribing = true
-                        RecordingStore.shared.update(rec)
-                    }
-                }
-                do {
-                    NSLog("[Voom] Auto-transcription starting for %@", capturedURL.lastPathComponent)
-                    let segments = try await TranscriptionService.shared.transcribe(audioURL: capturedURL)
-                    NSLog("[Voom] Auto-transcription got %d segments", segments.count)
-                    let entries = segments.map {
-                        TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text)
-                    }
-                    let generatedTitle = await TextAnalysisService.shared.generateTitle(from: entries)
-                    let generatedSummary = await TextAnalysisService.shared.generateSummary(from: entries)
-                    await MainActor.run {
-                        if var rec = RecordingStore.shared.recording(for: capturedID) {
-                            rec.transcriptSegments = entries
-                            if !generatedTitle.isEmpty {
-                                rec.title = generatedTitle
-                            }
-                            rec.summary = generatedSummary.isEmpty ? nil : generatedSummary
-                            rec.isTranscribed = !segments.isEmpty
-                            rec.isTranscribing = false
-                            RecordingStore.shared.update(rec)
-                        }
-                    }
-                } catch {
-                    NSLog("[Voom] Auto-transcription failed: %@", "\(error)")
-                    await MainActor.run {
-                        if var rec = RecordingStore.shared.recording(for: capturedID) {
-                            rec.isTranscribing = false
-                            RecordingStore.shared.update(rec)
-                        }
-                    }
-                }
+        let autoTranscribeEnabled = UserDefaults.standard.object(forKey: "AutoTranscribe") == nil ? true : UserDefaults.standard.bool(forKey: "AutoTranscribe")
+        if autoTranscribeEnabled && (hasSystemAudio || hasMicAudio) {
+            await MainActor.run {
+                RecordingStore.shared.autoTranscribe(recordingID: recordingID, fileURL: url)
             }
         }
 
@@ -317,7 +280,7 @@ final class MicTimeAdjuster: @unchecked Sendable {
         if firstTime == nil {
             firstTime = timestamp
         }
-        let base = firstTime!
+        guard let base = firstTime else { lock.unlock(); return nil }
         let pauseOffset = accumulatedPause
         lock.unlock()
 

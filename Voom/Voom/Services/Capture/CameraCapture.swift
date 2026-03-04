@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import os
 
 /// Thread-safe box for sharing the capture session across actor boundaries.
 /// Written once during startCapture(), read-only afterwards.
@@ -188,27 +189,19 @@ actor CameraCapture {
 // MARK: - Delegate Handler
 
 final class CameraDelegateHandler: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
-    private let _latestPixelBuffer = UnsafeMutablePointer<CVPixelBuffer?>.allocate(capacity: 1)
+    private let lock = NSLock()
+    private var _latestPixelBuffer: CVPixelBuffer?
     var micHandler: (@Sendable (CMSampleBuffer) -> Void)?
-
-    override init() {
-        _latestPixelBuffer.initialize(to: nil)
-        super.init()
-    }
-
-    deinit {
-        _latestPixelBuffer.deinitialize(count: 1)
-        _latestPixelBuffer.deallocate()
-    }
+    var recordHandler: CameraFrameRecordHandler?
 
     var latestPixelBuffer: CVPixelBuffer? {
-        _latestPixelBuffer.pointee
+        lock.withLock { _latestPixelBuffer }
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if output is AVCaptureVideoDataOutput {
             if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
-                _latestPixelBuffer.pointee = pixelBuffer
+                lock.withLock { _latestPixelBuffer = pixelBuffer }
                 let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
                 recordHandler?.handleFrame(pixelBuffer, at: time)
             }

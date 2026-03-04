@@ -1,6 +1,23 @@
 import SwiftUI
 import AVFoundation
 import AVKit
+import os
+
+private let playerLogger = Logger(subsystem: "com.voom.app", category: "Player")
+
+private nonisolated(unsafe) let playerDateFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateStyle = .medium
+    f.timeStyle = .short
+    return f
+}()
+
+private nonisolated(unsafe) let playerFileSizeFormatter: ByteCountFormatter = {
+    let f = ByteCountFormatter()
+    f.countStyle = .file
+    f.allowedUnits = [.useKB, .useMB, .useGB]
+    return f
+}()
 
 struct PlayerView: View {
     let recordingID: UUID
@@ -29,6 +46,7 @@ struct PlayerView: View {
     @State private var showSharePasswordPopover = false
     @State private var isExportingGIF = false
     @State private var showAddTag = false
+    @State private var showUnshareConfirmation = false
     @State private var newTagName = ""
     @State private var newTagColor = "5E5CE6"
     @State private var trimStart: TimeInterval = 0
@@ -590,7 +608,7 @@ struct PlayerView: View {
             }
             updated.summary = generatedSummary.isEmpty ? nil : generatedSummary
         } catch {
-            NSLog("[Voom] Manual transcription failed: %@", "\(error)")
+            playerLogger.error("[Voom] Manual transcription failed: \(error)")
         }
         updated.isTranscribing = false
         store.update(updated)
@@ -875,7 +893,7 @@ struct PlayerView: View {
             rec.fileSize = await storage.fileSize(at: rec.fileURL)
             await MainActor.run { store.update(rec) }
         } catch {
-            NSLog("[Voom] Trim failed: %@", "\(error)")
+            playerLogger.error("[Voom] Trim failed: \(error)")
         }
     }
 
@@ -907,7 +925,7 @@ struct PlayerView: View {
             }
             await MainActor.run { store.update(rec) }
         } catch {
-            NSLog("[Voom] Cut failed: %@", "\(error)")
+            playerLogger.error("[Voom] Cut failed: \(error)")
         }
     }
 
@@ -938,17 +956,11 @@ struct PlayerView: View {
     }
 
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        playerDateFormatter.string(from: date)
     }
 
     private func formatFileSize(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        return formatter.string(fromByteCount: bytes)
+        playerFileSizeFormatter.string(fromByteCount: bytes)
     }
 }
 

@@ -142,42 +142,10 @@ actor CameraOnlyRecorder {
         }
 
         // Auto-transcribe if audio available
-        let autoTranscribe = UserDefaults.standard.object(forKey: "AutoTranscribe") == nil ? true : UserDefaults.standard.bool(forKey: "AutoTranscribe")
-        if autoTranscribe && hasMicAudio {
-            let capturedURL = url
-            let capturedID = recordingID
-            Task.detached {
-                await MainActor.run {
-                    if var rec = RecordingStore.shared.recording(for: capturedID) {
-                        rec.isTranscribing = true
-                        RecordingStore.shared.update(rec)
-                    }
-                }
-                do {
-                    let segments = try await TranscriptionService.shared.transcribe(audioURL: capturedURL)
-                    let entries = segments.map {
-                        TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text)
-                    }
-                    let generatedTitle = await TextAnalysisService.shared.generateTitle(from: entries)
-                    let generatedSummary = await TextAnalysisService.shared.generateSummary(from: entries)
-                    await MainActor.run {
-                        if var rec = RecordingStore.shared.recording(for: capturedID) {
-                            rec.transcriptSegments = entries
-                            if !generatedTitle.isEmpty { rec.title = generatedTitle }
-                            rec.summary = generatedSummary.isEmpty ? nil : generatedSummary
-                            rec.isTranscribed = !segments.isEmpty
-                            rec.isTranscribing = false
-                            RecordingStore.shared.update(rec)
-                        }
-                    }
-                } catch {
-                    await MainActor.run {
-                        if var rec = RecordingStore.shared.recording(for: capturedID) {
-                            rec.isTranscribing = false
-                            RecordingStore.shared.update(rec)
-                        }
-                    }
-                }
+        let autoTranscribeEnabled = UserDefaults.standard.object(forKey: "AutoTranscribe") == nil ? true : UserDefaults.standard.bool(forKey: "AutoTranscribe")
+        if autoTranscribeEnabled && hasMicAudio {
+            await MainActor.run {
+                RecordingStore.shared.autoTranscribe(recordingID: recordingID, fileURL: url)
             }
         }
 
@@ -206,7 +174,7 @@ final class CameraFrameRecordHandler: @unchecked Sendable {
         if firstTime == nil {
             firstTime = time
         }
-        let base = firstTime!
+        guard let base = firstTime else { lock.unlock(); return }
         let pauseOffset = accumulatedPause
         lock.unlock()
 
@@ -234,12 +202,3 @@ final class CameraFrameRecordHandler: @unchecked Sendable {
     }
 }
 
-// Add recordHandler property to CameraDelegateHandler via associated objects
-extension CameraDelegateHandler {
-    nonisolated(unsafe) private static var recordHandlerKey: UInt8 = 0
-
-    var recordHandler: CameraFrameRecordHandler? {
-        get { objc_getAssociatedObject(self, &Self.recordHandlerKey) as? CameraFrameRecordHandler }
-        set { objc_setAssociatedObject(self, &Self.recordHandlerKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC) }
-    }
-}

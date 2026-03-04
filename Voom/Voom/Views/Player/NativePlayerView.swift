@@ -14,7 +14,7 @@ struct NativePlayerView: NSViewRepresentable {
         playerView.player = player
 
         let w = _PlayerWrapper(playerView: playerView)
-        DispatchQueue.main.async { wrapper = w }
+        Task { @MainActor in wrapper = w }
         return w
     }
 

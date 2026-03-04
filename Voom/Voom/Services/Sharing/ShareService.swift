@@ -102,18 +102,21 @@ actor ShareService {
         let error: String
     }
 
-    private var dateFormatter: ISO8601DateFormatter {
+    private nonisolated(unsafe) static let dateFormatterFractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
-    }
+    }()
+
+    private nonisolated(unsafe) static let dateFormatterBasic: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
 
     private func parseDate(_ string: String) -> Date {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = f.date(from: string) { return d }
-        f.formatOptions = [.withInternetDateTime]
-        return f.date(from: string) ?? Date()
+        if let d = Self.dateFormatterFractional.date(from: string) { return d }
+        return Self.dateFormatterBasic.date(from: string) ?? Date()
     }
 
     // MARK: - Public API
@@ -256,8 +259,8 @@ actor ShareService {
             throw ShareError.invalidResponse
         }
 
-        let fileData = try Data(contentsOf: fileURL, options: .mappedIfSafe)
-        let totalSize = fileData.count
+        let fileHandle = try FileHandle(forReadingFrom: fileURL)
+        let totalSize = Int(try FileManager.default.attributesOfItem(atPath: fileURL.path(percentEncoded: false))[.size] as? Int64 ?? 0)
 
         // Start multipart upload
         var startReq = URLRequest(url: apiURL("/api/upload-multipart/\(shareCode)"))
@@ -277,7 +280,10 @@ actor ShareService {
 
             while offset < totalSize {
                 let end = min(offset + Self.chunkSize, totalSize)
-                let chunk = fileData[offset..<end]
+                let chunkSize = end - offset
+
+                try fileHandle.seek(toOffset: UInt64(offset))
+                let chunk = fileHandle.readData(ofLength: chunkSize)
 
                 var partReq = URLRequest(url: apiURL("/api/upload-part/\(shareCode)/\(uploadId)/\(partNumber)"))
                 partReq.httpMethod = "PUT"
@@ -285,7 +291,7 @@ actor ShareService {
                 partReq.timeoutInterval = 300
                 applyAuth(&partReq)
 
-                let (partData, partResp) = try await URLSession.shared.upload(for: partReq, from: Data(chunk))
+                let (partData, partResp) = try await URLSession.shared.upload(for: partReq, from: chunk)
                 try validateResponse(partResp, data: partData)
                 let partResult = try JSONDecoder().decode(MultipartPartResponse.self, from: partData)
 

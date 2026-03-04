@@ -63,7 +63,8 @@ struct ControlPanelView: View {
                         delegate.updateStatusIcon(recording: isNowRecording)
                     }
                     // Re-center panel after morph completes
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(0.05))
                         ControlPanelManager.shared.recenterPanel(appState: appState)
                     }
                 }
