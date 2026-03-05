@@ -306,6 +306,10 @@ final class MicTimeAdjuster: @unchecked Sendable {
 // MARK: - StreamOutput
 
 final class StreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
+    /// Last time system audio had non-silent samples. Written from audio callback, read from MeetingDetectionService.
+    nonisolated(unsafe) static var lastSystemAudioActivity: Date = Date()
+    nonisolated(unsafe) private static var lastRMSCheckTime: Date = .distantPast
+
     private let videoWriter: VideoWriter
     private let lock = NSLock()
 
@@ -410,8 +414,40 @@ final class StreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     }
 
     private func handleSystemAudioSample(_ sampleBuffer: CMSampleBuffer, adjustedTime: CMTime) {
+        // Track system audio activity for meeting auto-stop (throttled to once per second)
+        let now = Date()
+        if now.timeIntervalSince(Self.lastRMSCheckTime) >= 1.0 {
+            Self.lastRMSCheckTime = now
+            if Self.calculateRMS(sampleBuffer) > 0.001 {
+                Self.lastSystemAudioActivity = now
+            }
+        }
+
         if let retimed = retimeSampleBuffer(sampleBuffer, to: adjustedTime) {
             videoWriter.appendSystemAudioSample(retimed)
+        }
+    }
+
+    private static func calculateRMS(_ sampleBuffer: CMSampleBuffer) -> Float {
+        guard let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else { return 0 }
+        let length = CMBlockBufferGetDataLength(dataBuffer)
+        guard length > 0 else { return 0 }
+
+        var dataPointer: UnsafeMutablePointer<Int8>?
+        var lengthAtOffset: Int = 0
+        let status = CMBlockBufferGetDataPointer(dataBuffer, atOffset: 0, lengthAtOffsetOut: &lengthAtOffset, totalLengthOut: nil, dataPointerOut: &dataPointer)
+        guard status == noErr, let ptr = dataPointer else { return 0 }
+
+        let floatCount = lengthAtOffset / MemoryLayout<Float32>.size
+        guard floatCount > 0 else { return 0 }
+
+        return ptr.withMemoryRebound(to: Float32.self, capacity: floatCount) { floatPtr in
+            var sumSquares: Float = 0
+            for i in 0..<floatCount {
+                let sample = floatPtr[i]
+                sumSquares += sample * sample
+            }
+            return sqrtf(sumSquares / Float(floatCount))
         }
     }
 

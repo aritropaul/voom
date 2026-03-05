@@ -16,7 +16,7 @@ struct FillerWordSheet: View {
         VStack(spacing: VoomTheme.spacingLG) {
             HStack {
                 Text("Filler Words")
-                    .font(VoomTheme.fontHeadline())
+                    .font(VoomTheme.fontTitle())
                     .foregroundStyle(VoomTheme.textPrimary)
                 Spacer()
                 if !detections.isEmpty {
@@ -36,47 +36,64 @@ struct FillerWordSheet: View {
                 )
                 .padding(.vertical, VoomTheme.spacingXL)
             } else if isProcessing {
-                ProgressView("Analyzing transcript...")
-                    .padding(.vertical, VoomTheme.spacingXL)
+                VStack(spacing: VoomTheme.spacingSM) {
+                    ProgressView()
+                        .tint(VoomTheme.textTertiary)
+                    Text("Analyzing transcript...")
+                        .font(VoomTheme.fontCaption())
+                        .foregroundStyle(VoomTheme.textSecondary)
+                }
+                .padding(.vertical, VoomTheme.spacingXL)
             } else {
                 Text("Toggle individual filler words on or off. Only checked items will be cut when you apply.")
                     .font(VoomTheme.fontCaption())
                     .foregroundStyle(VoomTheme.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                List {
-                    ForEach(Array(detections.enumerated()), id: \.element.id) { index, detection in
-                        HStack(spacing: 8) {
-                            Toggle("", isOn: Binding(
-                                get: { detections[index].isSelected },
-                                set: { detections[index].isSelected = $0 }
-                            ))
-                            .toggleStyle(.checkbox)
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(Array(detections.enumerated()), id: \.element.id) { index, detection in
+                            HStack(spacing: 8) {
+                                Toggle("", isOn: Binding(
+                                    get: { detections[index].isSelected },
+                                    set: { detections[index].isSelected = $0 }
+                                ))
+                                .toggleStyle(.checkbox)
+                                .tint(VoomTheme.accentOrange)
 
-                            Text(detection.word)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(detections[index].isSelected ? VoomTheme.accentOrange : VoomTheme.textTertiary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(
-                                    Capsule()
-                                        .fill(detections[index].isSelected
-                                            ? VoomTheme.accentOrange.opacity(0.15)
-                                            : VoomTheme.backgroundTertiary
-                                        )
-                                )
+                                Text(detection.word)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(detections[index].isSelected ? VoomTheme.accentOrange : VoomTheme.textTertiary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        Capsule()
+                                            .fill(detections[index].isSelected
+                                                ? VoomTheme.accentOrange.opacity(0.15)
+                                                : VoomTheme.backgroundTertiary
+                                            )
+                                    )
 
-                            Text(formatTime(detection.estimatedTimeRange.start.seconds))
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(VoomTheme.textTertiary)
+                                Text(formatTime(detection.estimatedTimeRange.start.seconds))
+                                    .font(VoomTheme.fontMono())
+                                    .foregroundStyle(VoomTheme.textTertiary)
 
-                            Spacer()
+                                Spacer()
+                            }
+                            .padding(.horizontal, VoomTheme.spacingSM)
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 2)
                     }
                 }
-                .listStyle(.plain)
                 .frame(maxHeight: 300)
+                .background(
+                    RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                        .fill(VoomTheme.backgroundSecondary)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                        .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+                )
             }
 
             HStack {
@@ -86,35 +103,67 @@ struct FillerWordSheet: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(VoomTheme.textSecondary)
-                    .font(.system(size: 11))
+                    .font(VoomTheme.fontCaption())
 
                     Button("Deselect All") {
                         for i in detections.indices { detections[i].isSelected = false }
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(VoomTheme.textSecondary)
-                    .font(.system(size: 11))
+                    .font(VoomTheme.fontCaption())
                 }
 
                 Spacer()
 
-                Button("Cancel") {
+                Button {
                     isPresented = false
+                } label: {
+                    Text("Cancel")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(VoomTheme.textSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                                .fill(VoomTheme.backgroundCard)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                                .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+                        )
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(VoomTheme.textSecondary)
 
-                Button("Remove Selected (\(selectedCount))") {
+                Button {
                     showConfirmation = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "scissors")
+                            .font(.system(size: 10, weight: .medium))
+                        Text("Remove Selected (\(selectedCount))")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(selectedCount == 0 || isProcessing ? VoomTheme.textTertiary : VoomTheme.accentRed)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                            .fill(selectedCount == 0 || isProcessing ? VoomTheme.backgroundCard : VoomTheme.accentRed.opacity(0.12))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                            .strokeBorder(selectedCount == 0 || isProcessing ? VoomTheme.borderSubtle : VoomTheme.accentRed.opacity(0.3), lineWidth: 0.5)
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+                .buttonStyle(.plain)
                 .disabled(selectedCount == 0 || isProcessing)
             }
         }
         .padding(VoomTheme.spacingXL)
         .frame(width: 450)
         .frame(minHeight: 300)
+        .background(VoomTheme.backgroundPrimary)
+        .preferredColorScheme(.dark)
         .task {
             await detectFillers()
         }

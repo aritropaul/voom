@@ -60,6 +60,10 @@
 		8B3D5F7A9C1E2D4F6B8A0C3E /* CloudflareDeployService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2C4E6F8B0D1E3F5A7C9B2D /* CloudflareDeployService.swift */; };
 		D5E7F9A1B3C5D7E9F1A3B5C7 /* SelfHostSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D6E8F0A2B4C6D8E0F2A4B6 /* SelfHostSetupView.swift */; };
 		F7A9B1C3D5E7F9A1B3C5D7E9 /* WorkerBundle in Resources */ = {isa = PBXBuildFile; fileRef = E6F8A0B2C4D6E8F0A2B4C6D8 /* WorkerBundle */; };
+		4B8C0D2E3F5A7B9C1D4E6F8A /* MeetingDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7B9C1D2E4F6A8B0C3D5E7F /* MeetingDetectionService.swift */; };
+		6D0E2F4A5B7C9D1E3F6A8B0C /* MeetingPanelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C9D1E3F4A6B8C0D2E5F7A9B /* MeetingPanelManager.swift */; };
+		8F2A4B6C7D9E1F3A5B8C0D2E /* MeetingDetectedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1F3A5B6C8D0E2F4A7B9C1D /* MeetingDetectedView.swift */; };
+		A2B4C6D8E0F2A4B6C8D0E2F4 /* MenuBarMeetingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C5D7E9F1A3B5C7D9E1F3A5 /* MenuBarMeetingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -117,6 +121,10 @@
 		7A2C4E6F8B0D1E3F5A7C9B2D /* CloudflareDeployService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudflareDeployService.swift; sourceTree = "<group>"; };
 		C4D6E8F0A2B4C6D8E0F2A4B6 /* SelfHostSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfHostSetupView.swift; sourceTree = "<group>"; };
 		E6F8A0B2C4D6E8F0A2B4C6D8 /* WorkerBundle */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WorkerBundle; sourceTree = "<group>"; };
+		3A7B9C1D2E4F6A8B0C3D5E7F /* MeetingDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetectionService.swift; sourceTree = "<group>"; };
+		5C9D1E3F4A6B8C0D2E5F7A9B /* MeetingPanelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingPanelManager.swift; sourceTree = "<group>"; };
+		7E1F3A5B6C8D0E2F4A7B9C1D /* MeetingDetectedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetectedView.swift; sourceTree = "<group>"; };
+		B3C5D7E9F1A3B5C7D9E1F3A5 /* MenuBarMeetingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarMeetingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -182,6 +190,7 @@
 			isa = PBXGroup;
 			children = (
 				A10002017 /* CameraPreviewView.swift */,
+				B3C5D7E9F1A3B5C7D9E1F3A5 /* MenuBarMeetingView.swift */,
 			);
 			path = MenuBar;
 			sourceTree = "<group>";
@@ -231,6 +240,8 @@
 			children = (
 				A10002021 /* ControlPanelView.swift */,
 				A10002022 /* ControlPanelManager.swift */,
+				5C9D1E3F4A6B8C0D2E5F7A9B /* MeetingPanelManager.swift */,
+				7E1F3A5B6C8D0E2F4A7B9C1D /* MeetingDetectedView.swift */,
 			);
 			path = Panel;
 			sourceTree = "<group>";
@@ -256,9 +267,18 @@
 				A10005021 /* TextAnalysis */,
 				FCDFE53032F7A60C97860CFA /* Editing */,
 				8F115A63A1F20CA2AFCC3D30 /* Export */,
+				9A3B5C7D8E0F2A4B6C9D1E3F /* MeetingDetection */,
 				A10009080 /* GlobalHotkey.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		9A3B5C7D8E0F2A4B6C9D1E3F /* MeetingDetection */ = {
+			isa = PBXGroup;
+			children = (
+				3A7B9C1D2E4F6A8B0C3D5E7F /* MeetingDetectionService.swift */,
+			);
+			path = MeetingDetection;
 			sourceTree = "<group>";
 		};
 		A10005012 /* Capture */ = {
@@ -503,6 +523,10 @@
 				BB1E82A02048325BF6FDB3C1 /* TagFilterView.swift in Sources */,
 				8B3D5F7A9C1E2D4F6B8A0C3E /* CloudflareDeployService.swift in Sources */,
 				D5E7F9A1B3C5D7E9F1A3B5C7 /* SelfHostSetupView.swift in Sources */,
+				4B8C0D2E3F5A7B9C1D4E6F8A /* MeetingDetectionService.swift in Sources */,
+				6D0E2F4A5B7C9D1E3F6A8B0C /* MeetingPanelManager.swift in Sources */,
+				8F2A4B6C7D9E1F3A5B8C0D2E /* MeetingDetectedView.swift in Sources */,
+			A2B4C6D8E0F2A4B6C8D0E2F4 /* MenuBarMeetingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -383,15 +383,6 @@ struct PlayerView: View {
             }
 
             FlowLayout(spacing: VoomTheme.spacingSM) {
-                if recording.hasWebcam {
-                    VoomBadge("Camera", color: VoomTheme.textSecondary, icon: "camera.fill")
-                }
-                if recording.hasMicAudio {
-                    VoomBadge("Mic", color: VoomTheme.textSecondary, icon: "mic.fill")
-                }
-                if recording.hasSystemAudio {
-                    VoomBadge("System Audio", color: VoomTheme.textSecondary, icon: "speaker.wave.2.fill")
-                }
                 if recording.isTranscribed {
                     VoomBadge("Transcribed", color: VoomTheme.accentGreen, icon: "checkmark")
                 } else if recording.isTranscribing {

@@ -4,6 +4,7 @@ import SwiftUI
 @preconcurrency import ScreenCaptureKit
 import UserNotifications
 import Sparkle
+import EventKit
 import os
 
 private let logger = Logger(subsystem: "com.voom.app", category: "AppDelegate")
@@ -51,6 +52,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Start meeting detection polling if enabled
+        if appState.meetingDetectionEnabled {
+            Task {
+                await MeetingDetectionService.shared.startPolling()
+            }
+        }
+
         // Show onboarding on first launch only
         if !appState.hasCompletedOnboarding {
             Task { @MainActor in
@@ -91,6 +99,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showContextMenu() {
         let menu = NSMenu()
+
+        // Show next meeting at top of menu when meeting detection is on
+        if appState.meetingDetectionEnabled, let upcoming = appState.upcomingMeeting {
+            let meetingView = MenuBarMeetingView(meeting: upcoming)
+            let hostingView = NSHostingView(rootView: meetingView)
+            hostingView.appearance = NSAppearance(named: .darkAqua)
+            let size = hostingView.fittingSize
+            hostingView.frame = NSRect(origin: .zero, size: size)
+            let meetingItem = NSMenuItem()
+            meetingItem.view = hostingView
+            menu.addItem(meetingItem)
+            menu.addItem(.separator())
+        }
 
         let openItem = NSMenuItem(title: "Open Voom", action: #selector(openLibrary), keyEquivalent: "")
         openItem.target = self
@@ -141,6 +162,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func checkForUpdates() {
         updaterController.checkForUpdates(nil)
+    }
+
+    @objc private func openMeetingURL(_ sender: NSMenuItem) {
+        if let url = sender.representedObject as? URL {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func quitApp() {

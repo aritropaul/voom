@@ -861,13 +861,16 @@ struct LibraryWindow: View {
             var updated = recording
             if !title.isEmpty {
                 updated.title = title
+            } else {
+                // Reset to filename for short/empty transcripts
+                updated.title = recording.fileURL.deletingPathExtension().lastPathComponent
             }
             updated.summary = summary.isEmpty ? nil : summary
             store.update(updated)
             if !title.isEmpty || !summary.isEmpty {
                 toast.success("Title & summary regenerated", icon: "sparkles")
             } else {
-                toast.error("Apple Intelligence unavailable on this device.")
+                toast.success("Transcript too short to generate title & summary", icon: "info.circle")
             }
         }
     }

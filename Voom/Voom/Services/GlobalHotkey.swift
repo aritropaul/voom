@@ -67,4 +67,6 @@ final class GlobalHotkey {
 
 extension Notification.Name {
     static let toggleRecordingFromHotkey = Notification.Name("toggleRecordingFromHotkey")
+    static let startRecordingFromMeeting = Notification.Name("startRecordingFromMeeting")
+    static let autoStopMeetingRecording = Notification.Name("autoStopMeetingRecording")
 }

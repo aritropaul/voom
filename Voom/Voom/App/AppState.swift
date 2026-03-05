@@ -1,5 +1,34 @@
 import SwiftUI
 import ScreenCaptureKit
+import EventKit
+
+struct DetectedMeeting {
+    let eventIdentifier: String
+    let title: String
+    let startDate: Date
+    let endDate: Date
+
+    var timeRangeString: String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return "\(formatter.string(from: startDate)) – \(formatter.string(from: endDate))"
+    }
+}
+
+struct UpcomingMeeting {
+    let title: String
+    let startDate: Date
+    let endDate: Date
+    let meetingURL: URL?
+    let serviceName: String?
+
+    var statusLabel: String {
+        let now = Date()
+        if now >= startDate && now <= endDate { return "Now" }
+        let minutes = max(1, Int(ceil(startDate.timeIntervalSince(now) / 60)))
+        return "Upcoming in \(minutes) min"
+    }
+}
 
 enum RecordingState: Equatable {
     case idle
@@ -42,6 +71,13 @@ final class AppState {
         get { UserDefaults.standard.bool(forKey: "HasCompletedOnboarding") }
         set { UserDefaults.standard.set(newValue, forKey: "HasCompletedOnboarding") }
     }
+    var meetingDetectionEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "MeetingDetectionEnabled") }
+        set { UserDefaults.standard.set(newValue, forKey: "MeetingDetectionEnabled") }
+    }
+    var detectedMeeting: DetectedMeeting?
+    var upcomingMeeting: UpcomingMeeting?
+    var isMeetingRecording: Bool = false
 
     var isRecording: Bool { recordingState == .recording }
     var canStartRecording: Bool { recordingState == .idle }

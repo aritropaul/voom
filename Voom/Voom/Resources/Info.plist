@@ -12,5 +12,7 @@
 	<string>Voom needs microphone access to record audio narration in your screen recordings.</string>
 	<key>NSScreenRecordingUsageDescription</key>
 	<string>Voom needs screen recording permission to capture your screen.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Voom uses calendar access to detect active meetings and prompt you to record.</string>
 </dict>
 </plist>

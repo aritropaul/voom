@@ -81,6 +81,16 @@ struct ControlPanelView: View {
                     Task { await startRecording() }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .startRecordingFromMeeting)) { _ in
+                if appState.canStartRecording {
+                    Task { await startRecordingSkippingCountdown() }
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .autoStopMeetingRecording)) { _ in
+                if isRecordingActive {
+                    Task { await stopRecording() }
+                }
+            }
     }
 
     // MARK: - Bar Content
@@ -427,7 +437,11 @@ struct ControlPanelView: View {
         }
     }
 
-    private func startRecording() async {
+    private func startRecordingSkippingCountdown() async {
+        await startRecording(skipCountdown: true)
+    }
+
+    private func startRecording(skipCountdown: Bool = false) async {
         errorMessage = nil
         appState.recordingState = .preparing
 
@@ -495,7 +509,9 @@ struct ControlPanelView: View {
             }
         }
 
-        await CountdownOverlay.shared.run(display: display)
+        if !skipCountdown {
+            await CountdownOverlay.shared.run(display: display)
+        }
 
         let recorder = ScreenRecorder(appState: appState)
         self.screenRecorder = recorder
@@ -580,6 +596,7 @@ struct ControlPanelView: View {
 
         appState.recordingState = .idle
         appState.selectedRegion = nil
+        appState.isMeetingRecording = false
 
         // PiP stays visible if camera is enabled (session is still running)
         if !appState.isCameraEnabled || appState.recordingMode == .cameraOnly {

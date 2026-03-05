@@ -1,6 +1,7 @@
 import SwiftUI
 import ServiceManagement
 import Sparkle
+import EventKit
 
 struct InlineSettingsView: View {
     let topContentInset: CGFloat
@@ -14,6 +15,7 @@ struct InlineSettingsView: View {
     @AppStorage("ViewNotificationsEnabled") private var viewNotificationsEnabled = true
     @AppStorage("RecordingDirectory") private var recordingDirectory = ""
     @AppStorage("LaunchAtLogin") private var launchAtLogin = false
+    @AppStorage("MeetingDetectionEnabled") private var meetingDetectionEnabled = false
     @State private var testStatus: TestStatus = .idle
     @State private var showingSelfHostSetup = false
 
@@ -66,6 +68,20 @@ struct InlineSettingsView: View {
                         await ViewNotificationService.shared.startPolling()
                     } else {
                         await ViewNotificationService.shared.stopPolling()
+                    }
+                }
+            }
+            .onChange(of: meetingDetectionEnabled) { _, enabled in
+                Task {
+                    if enabled {
+                        let granted = await MeetingDetectionService.shared.requestCalendarAccess()
+                        if granted {
+                            await MeetingDetectionService.shared.startPolling()
+                        } else {
+                            await MainActor.run { meetingDetectionEnabled = false }
+                        }
+                    } else {
+                        await MeetingDetectionService.shared.stopPolling()
                     }
                 }
             }
@@ -182,6 +198,14 @@ struct InlineSettingsView: View {
     private var recordingContent: some View {
         settingsRow(title: "Auto-Transcribe", subtitle: "Transcribe recordings on-device after recording stops.") {
             Toggle("", isOn: $autoTranscribe)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+
+        Divider().foregroundStyle(VoomTheme.borderSubtle)
+
+        settingsRow(title: "Meeting Detection", subtitle: "Prompt to record when a calendar event is active and camera is in use.") {
+            Toggle("", isOn: $meetingDetectionEnabled)
                 .toggleStyle(.switch)
                 .controlSize(.small)
         }

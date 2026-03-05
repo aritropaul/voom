@@ -30,53 +30,38 @@ struct ShareSettingsSheet: View {
             .padding(.top, VoomTheme.spacingXL)
             .padding(.bottom, VoomTheme.spacingLG)
 
-            Divider()
-                .foregroundStyle(VoomTheme.borderSubtle)
+            Rectangle()
+                .fill(VoomTheme.borderSubtle)
+                .frame(height: 0.5)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: VoomTheme.spacingXL) {
-                    // Share Link Section
                     shareLinkSection
-
-                    Divider()
-                        .foregroundStyle(VoomTheme.borderSubtle)
-
-                    // Password Protection
+                    Rectangle().fill(VoomTheme.borderSubtle).frame(height: 0.5)
                     passwordSection
-
-                    Divider()
-                        .foregroundStyle(VoomTheme.borderSubtle)
-
-                    // Call to Action
+                    Rectangle().fill(VoomTheme.borderSubtle).frame(height: 0.5)
                     ctaSection
-
-                    Divider()
-                        .foregroundStyle(VoomTheme.borderSubtle)
-
-                    // Share File
+                    Rectangle().fill(VoomTheme.borderSubtle).frame(height: 0.5)
                     shareFileSection
                 }
                 .padding(VoomTheme.spacingXL)
             }
 
-            Divider()
-                .foregroundStyle(VoomTheme.borderSubtle)
+            Rectangle()
+                .fill(VoomTheme.borderSubtle)
+                .frame(height: 0.5)
 
             // Footer
             HStack {
                 Spacer()
-                Button("Cancel") { isPresented = false }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(VoomTheme.textSecondary)
-                Button("Save Settings") {
-                    saveSettings()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
+                voomSecondaryButton("Cancel") { isPresented = false }
+                voomPrimaryButton("Save Settings", icon: "checkmark") { saveSettings() }
             }
             .padding(VoomTheme.spacingLG)
         }
         .frame(width: 440, height: 520)
+        .background(VoomTheme.backgroundPrimary)
+        .preferredColorScheme(.dark)
         .onAppear {
             sharePassword = recording.sharePassword ?? ""
             ctaURLString = recording.ctaURL?.absoluteString ?? ""
@@ -98,12 +83,13 @@ struct ShareSettingsSheet: View {
     private var shareLinkSection: some View {
         VStack(alignment: .leading, spacing: VoomTheme.spacingMD) {
             Label("Share Link", systemImage: "link")
-                .font(.system(size: 13, weight: .semibold))
+                .font(VoomTheme.fontHeadline())
                 .foregroundStyle(VoomTheme.textPrimary)
 
             if uploadTracker.isUploading(recording.id) {
                 HStack(spacing: VoomTheme.spacingSM) {
                     ProgressView(value: uploadTracker.progress(for: recording.id) ?? 0)
+                        .tint(VoomTheme.accentGreen)
                     Text("Uploading...")
                         .font(VoomTheme.fontCaption())
                         .foregroundStyle(VoomTheme.textSecondary)
@@ -112,23 +98,18 @@ struct ShareSettingsSheet: View {
                 HStack(spacing: VoomTheme.spacingSM) {
                     if let url = recording.shareURL {
                         Text(url.absoluteString)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(VoomTheme.fontMono())
                             .foregroundStyle(VoomTheme.textSecondary)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
                     Spacer()
-                    Button {
+                    voomPrimaryButton("Copy", icon: "doc.on.doc") {
                         guard let url = recording.shareURL else { return }
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(url.absoluteString, forType: .string)
                         toast.success("Link copied!")
-                    } label: {
-                        Label("Copy", systemImage: "doc.on.doc")
-                            .font(.system(size: 11, weight: .medium))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
                 }
 
                 if let desc = recording.shareExpiryDescription {
@@ -137,26 +118,17 @@ struct ShareSettingsSheet: View {
                         .foregroundStyle(VoomTheme.accentOrange)
                 }
 
-                Button(role: .destructive) {
+                voomDestructiveButton("Remove Link", icon: "trash") {
                     showUnshareConfirmation = true
-                } label: {
-                    Label("Remove Link", systemImage: "trash")
-                        .font(.system(size: 11, weight: .medium))
                 }
-                .controlSize(.small)
             } else {
                 Text("Upload this recording and get a shareable link.")
                     .font(VoomTheme.fontCaption())
                     .foregroundStyle(VoomTheme.textTertiary)
 
-                Button {
+                voomPrimaryButton("Upload & Share", icon: "arrow.up.circle.fill") {
                     Task { await shareViaLink() }
-                } label: {
-                    Label("Upload & Share", systemImage: "arrow.up.circle.fill")
-                        .font(.system(size: 12, weight: .medium))
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
             }
         }
     }
@@ -167,16 +139,14 @@ struct ShareSettingsSheet: View {
     private var passwordSection: some View {
         VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
             Label("Password Protection", systemImage: "lock.shield")
-                .font(.system(size: 13, weight: .semibold))
+                .font(VoomTheme.fontHeadline())
                 .foregroundStyle(VoomTheme.textPrimary)
 
             Text("Viewers must enter this password before watching.")
                 .font(VoomTheme.fontCaption())
                 .foregroundStyle(VoomTheme.textTertiary)
 
-            SecureField("Optional password", text: $sharePassword)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12))
+            voomTextField("Optional password", text: $sharePassword, isSecure: true)
         }
     }
 
@@ -186,20 +156,15 @@ struct ShareSettingsSheet: View {
     private var ctaSection: some View {
         VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
             Label("Call to Action", systemImage: "hand.tap")
-                .font(.system(size: 13, weight: .semibold))
+                .font(VoomTheme.fontHeadline())
                 .foregroundStyle(VoomTheme.textPrimary)
 
             Text("Show a button when the video ends.")
                 .font(VoomTheme.fontCaption())
                 .foregroundStyle(VoomTheme.textTertiary)
 
-            TextField("URL (e.g. https://example.com)", text: $ctaURLString)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12))
-
-            TextField("Button text (e.g. Learn More)", text: $ctaText)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 12))
+            voomTextField("URL (e.g. https://example.com)", text: $ctaURLString)
+            voomTextField("Button text (e.g. Learn More)", text: $ctaText)
         }
     }
 
@@ -209,7 +174,7 @@ struct ShareSettingsSheet: View {
     private var shareFileSection: some View {
         VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
             Label("Share File", systemImage: "square.and.arrow.up")
-                .font(.system(size: 13, weight: .semibold))
+                .font(VoomTheme.fontHeadline())
                 .foregroundStyle(VoomTheme.textPrimary)
 
             Text("Share the video file directly via AirDrop, Messages, etc.")
@@ -217,11 +182,112 @@ struct ShareSettingsSheet: View {
                 .foregroundStyle(VoomTheme.textTertiary)
 
             ShareLink(item: recording.fileURL) {
-                Label("Share File", systemImage: "square.and.arrow.up")
-                    .font(.system(size: 12, weight: .medium))
+                HStack(spacing: 5) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("Share File")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(VoomTheme.textPrimary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                        .fill(VoomTheme.backgroundCard)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                        .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+                )
             }
-            .controlSize(.regular)
+            .buttonStyle(.plain)
         }
+    }
+
+    // MARK: - Themed Controls
+
+    private func voomTextField(_ placeholder: String, text: Binding<String>, isSecure: Bool = false) -> some View {
+        Group {
+            if isSecure {
+                SecureField(placeholder, text: text)
+            } else {
+                TextField(placeholder, text: text)
+            }
+        }
+        .textFieldStyle(.plain)
+        .font(VoomTheme.fontBody())
+        .foregroundStyle(VoomTheme.textPrimary)
+        .padding(.horizontal, VoomTheme.spacingMD)
+        .padding(.vertical, VoomTheme.spacingSM)
+        .background(
+            RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                .fill(VoomTheme.backgroundSecondary)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                .strokeBorder(VoomTheme.borderMedium, lineWidth: 0.5)
+        )
+    }
+
+    private func voomPrimaryButton(_ label: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .medium))
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                    .fill(VoomTheme.accentGreen)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func voomSecondaryButton(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(VoomTheme.textSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                        .fill(VoomTheme.backgroundCard)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                        .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func voomDestructiveButton(_ label: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .medium))
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(VoomTheme.accentRed)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                    .fill(VoomTheme.accentRed.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
+                    .strokeBorder(VoomTheme.accentRed.opacity(0.3), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Actions
