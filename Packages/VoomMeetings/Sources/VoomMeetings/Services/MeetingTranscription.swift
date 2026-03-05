@@ -1,174 +1,210 @@
 import Foundation
-import AVFoundation
+import os
 import VoomCore
 
-/// Dual-track meeting transcription: transcribes system audio and mic separately,
-/// then interleaves with speaker labels ("Speaker" for system audio, "You" for mic).
+private let logger = Logger(subsystem: "com.voom.app", category: "MeetingTranscription")
+
+/// Meeting transcription with split-track speaker diarization.
+/// Runs ASR on mixed audio, diarizes system audio for remote speakers,
+/// diarizes mic audio for "You" identification, then merges by temporal overlap.
 public actor MeetingTranscription {
     public static let shared = MeetingTranscription()
     private init() {}
 
-    /// Transcribe a meeting recording with speaker differentiation.
-    /// Extracts system audio and mic tracks, transcribes each independently,
-    /// labels segments, and interleaves by timestamp.
-    public func transcribeMeeting(fileURL: URL) async -> [TranscriptEntry] {
-        let asset = AVURLAsset(url: fileURL)
+    /// Transcribe a meeting recording with split-track speaker diarization.
+    /// - Parameters:
+    ///   - fileURL: Mixed audio/video file for ASR transcription
+    ///   - micReferenceURL: Mic-only audio for "You" identification (nil if mic disabled)
+    ///   - systemReferenceURL: System-only audio for remote speaker separation (nil for fallback)
+    public func transcribeMeeting(
+        fileURL: URL,
+        micReferenceURL: URL? = nil,
+        systemReferenceURL: URL? = nil
+    ) async -> [TranscriptEntry] {
+        logger.notice("[Voom] Starting meeting transcription: \(fileURL.lastPathComponent)")
 
-        // Get audio tracks
-        guard let tracks = try? await asset.loadTracks(withMediaType: .audio) else {
-            // Fallback: single-track transcription without speaker labels
-            let segments = try? await TranscriptionService.shared.transcribe(audioURL: fileURL)
-            return (segments ?? []).map { seg in
-                TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text)
-            }
+        // If we have split tracks, use the improved pipeline
+        if let systemRef = systemReferenceURL {
+            return await transcribeWithSplitTracks(
+                fileURL: fileURL,
+                micReferenceURL: micReferenceURL,
+                systemReferenceURL: systemRef
+            )
         }
 
-        if tracks.count >= 2 {
-            // Dual-track: separate system audio (track 0) and mic (track 1)
-            async let systemSegments = transcribeTrack(asset: asset, trackIndex: 0, speaker: "Speaker")
-            async let micSegments = transcribeTrack(asset: asset, trackIndex: 1, speaker: "You")
-
-            let system = await systemSegments
-            let mic = await micSegments
-
-            // Interleave by timestamp
-            return interleaveSegments(system: system, mic: mic)
-        } else {
-            // Single audio track — transcribe without speaker labels
-            let segments = try? await TranscriptionService.shared.transcribe(audioURL: fileURL)
-            return (segments ?? []).map { seg in
-                TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text)
-            }
-        }
+        // Fallback: mixed audio diarization (legacy path)
+        return await transcribeWithMixedAudio(fileURL: fileURL)
     }
 
-    /// Extract a single audio track and transcribe it.
-    private func transcribeTrack(asset: AVURLAsset, trackIndex: Int, speaker: String) async -> [TranscriptEntry] {
-        guard let tracks = try? await asset.loadTracks(withMediaType: .audio),
-              trackIndex < tracks.count else { return [] }
+    // MARK: - Split-Track Pipeline
 
-        // Export the specific track to a temporary file
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("voom-\(speaker)-\(UUID().uuidString).m4a")
+    private func transcribeWithSplitTracks(
+        fileURL: URL,
+        micReferenceURL: URL?,
+        systemReferenceURL: URL
+    ) async -> [TranscriptEntry] {
+        // Run all tasks in parallel
+        async let transcriptTask = transcribe(fileURL: fileURL)
+        async let remoteTask = diarizeRemote(systemAudioURL: systemReferenceURL)
+        async let localTask = diarizeLocal(micAudioURL: micReferenceURL)
 
-        do {
-            let composition = AVMutableComposition()
-            guard let compositionTrack = composition.addMutableTrack(
-                withMediaType: .audio,
-                preferredTrackID: kCMPersistentTrackID_Invalid
-            ) else { return [] }
+        let transcriptSegments = await transcriptTask
+        let remoteSpeakers = await remoteTask
+        let localSpeakers = await localTask
 
-            let duration = try await asset.load(.duration)
-            try compositionTrack.insertTimeRange(
-                CMTimeRange(start: .zero, duration: duration),
-                of: tracks[trackIndex],
-                at: .zero
-            )
+        if transcriptSegments.isEmpty {
+            logger.notice("[Voom] No transcript segments produced")
+            return []
+        }
 
-            // Export to M4A
-            guard let exportSession = AVAssetExportSession(
-                asset: composition,
-                presetName: AVAssetExportPresetAppleM4A
-            ) else { return [] }
+        logger.notice("[Voom] Merging: \(transcriptSegments.count) transcript, \(remoteSpeakers.count) remote, \(localSpeakers.count) local segments")
 
-            exportSession.outputURL = tempURL
-            exportSession.outputFileType = .m4a
+        // Merge with "You" priority
+        let labeled = mergeSplitTrackResults(transcriptSegments, remoteSpeakers: remoteSpeakers, localSpeakers: localSpeakers)
+        logger.notice("[Voom] Meeting transcription complete: \(labeled.count) labeled segments")
+        return labeled
+    }
 
-            await exportSession.export()
-            guard exportSession.status == .completed else { return [] }
+    // MARK: - Mixed Audio Fallback
 
-            // Transcribe the extracted track
-            let segments = try await TranscriptionService.shared.transcribe(audioURL: tempURL)
+    private func transcribeWithMixedAudio(fileURL: URL) async -> [TranscriptEntry] {
+        async let transcriptTask = transcribe(fileURL: fileURL)
+        async let diarizationTask = diarize(fileURL: fileURL)
 
-            // Label with speaker
-            let labeled = segments.map { seg -> TranscriptEntry in
-                TranscriptEntry(
-                    startTime: seg.startTime,
-                    endTime: seg.endTime,
-                    text: seg.text,
-                    speaker: speaker
-                )
+        let transcriptSegments = await transcriptTask
+        let speakerSegments = await diarizationTask
+
+        if transcriptSegments.isEmpty {
+            logger.notice("[Voom] No transcript segments produced")
+            return []
+        }
+
+        if speakerSegments.isEmpty {
+            logger.notice("[Voom] Diarization unavailable, returning unlabeled transcript (\(transcriptSegments.count) segments)")
+            return transcriptSegments.map { seg in
+                TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text)
             }
+        }
 
-            // Clean up temp file
-            try? FileManager.default.removeItem(at: tempURL)
+        let labeled = mergeTranscriptWithSpeakers(transcriptSegments, speakerSegments)
+        logger.notice("[Voom] Meeting transcription complete: \(labeled.count) labeled segments")
+        return labeled
+    }
 
-            return labeled
+    // MARK: - Private Helpers
+
+    private func transcribe(fileURL: URL) async -> [VoomTranscriptSegment] {
+        do {
+            return try await TranscriptionService.shared.transcribe(audioURL: fileURL)
         } catch {
-            try? FileManager.default.removeItem(at: tempURL)
+            logger.error("[Voom] Transcription failed: \(error)")
             return []
         }
     }
 
-    /// Interleave system and mic segments by timestamp.
-    private func interleaveSegments(system: [TranscriptEntry], mic: [TranscriptEntry]) -> [TranscriptEntry] {
-        var result = system + mic
-        result.sort { $0.startTime < $1.startTime }
-        return result
+    private func diarize(fileURL: URL) async -> [SpeakerSegment] {
+        do {
+            return try await SpeakerDiarizationService.shared.diarize(url: fileURL)
+        } catch {
+            logger.error("[Voom] Diarization failed: \(error)")
+            return []
+        }
     }
 
-    /// After transcription, merge the dual-track MP4 into a single mixed audio track.
-    /// This makes the final file playable with both sides audible.
-    public func mergeAudioTracks(fileURL: URL) async -> Bool {
-        let asset = AVURLAsset(url: fileURL)
-        guard let audioTracks = try? await asset.loadTracks(withMediaType: .audio),
-              audioTracks.count >= 2 else { return false }
-
-        let tempURL = fileURL.deletingPathExtension()
-            .appendingPathExtension("merged")
-            .appendingPathExtension("mp4")
-
+    private func diarizeRemote(systemAudioURL: URL) async -> [SpeakerSegment] {
         do {
-            let composition = AVMutableComposition()
-            let duration = try await asset.load(.duration)
-
-            // Add video track
-            if let videoTrack = try? await asset.loadTracks(withMediaType: .video).first,
-               let compositionVideoTrack = composition.addMutableTrack(
-                withMediaType: .video,
-                preferredTrackID: kCMPersistentTrackID_Invalid
-            ) {
-                try compositionVideoTrack.insertTimeRange(
-                    CMTimeRange(start: .zero, duration: duration),
-                    of: videoTrack,
-                    at: .zero
-                )
-            }
-
-            // Merge both audio tracks into one
-            guard let compositionAudioTrack = composition.addMutableTrack(
-                withMediaType: .audio,
-                preferredTrackID: kCMPersistentTrackID_Invalid
-            ) else { return false }
-
-            for audioTrack in audioTracks {
-                try compositionAudioTrack.insertTimeRange(
-                    CMTimeRange(start: .zero, duration: duration),
-                    of: audioTrack,
-                    at: .zero
-                )
-            }
-
-            // Export
-            guard let exportSession = AVAssetExportSession(
-                asset: composition,
-                presetName: AVAssetExportPresetHighestQuality
-            ) else { return false }
-
-            exportSession.outputURL = tempURL
-            exportSession.outputFileType = .mp4
-
-            await exportSession.export()
-            guard exportSession.status == .completed else { return false }
-
-            // Replace original with merged
-            try FileManager.default.removeItem(at: fileURL)
-            try FileManager.default.moveItem(at: tempURL, to: fileURL)
-
-            return true
+            return try await SpeakerDiarizationService.shared.diarizeRemoteSpeakers(systemAudioURL: systemAudioURL)
         } catch {
-            try? FileManager.default.removeItem(at: tempURL)
-            return false
+            logger.error("[Voom] Remote diarization failed: \(error)")
+            return []
         }
+    }
+
+    private func diarizeLocal(micAudioURL: URL?) async -> [SpeakerSegment] {
+        guard let micURL = micAudioURL else { return [] }
+        do {
+            return try await SpeakerDiarizationService.shared.diarizeLocalSpeaker(micAudioURL: micURL)
+        } catch {
+            logger.error("[Voom] Local diarization failed: \(error)")
+            return []
+        }
+    }
+
+    // MARK: - Split-Track Merge
+
+    /// For each ASR segment, check overlap with "You" segments first.
+    /// If >50% overlap → "You". Otherwise find best remote speaker match.
+    private func mergeSplitTrackResults(
+        _ transcript: [VoomTranscriptSegment],
+        remoteSpeakers: [SpeakerSegment],
+        localSpeakers: [SpeakerSegment]
+    ) -> [TranscriptEntry] {
+        transcript.map { seg in
+            let segDuration = seg.endTime - seg.startTime
+            guard segDuration > 0 else {
+                return TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text)
+            }
+
+            // Check "You" overlap first
+            let youOverlap = totalOverlap(for: seg, in: localSpeakers)
+            if youOverlap / segDuration > 0.5 {
+                return TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text, speaker: "You")
+            }
+
+            // Find best remote speaker
+            let remoteSpeaker = bestMatchingSpeaker(for: seg, in: remoteSpeakers)
+            return TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text, speaker: remoteSpeaker)
+        }
+    }
+
+    /// Total overlap of a transcript segment with a set of speaker segments.
+    private func totalOverlap(for segment: VoomTranscriptSegment, in speakers: [SpeakerSegment]) -> TimeInterval {
+        var total: TimeInterval = 0
+        for speaker in speakers {
+            let overlapStart = max(segment.startTime, speaker.startTime)
+            let overlapEnd = min(segment.endTime, speaker.endTime)
+            if overlapEnd > overlapStart {
+                total += overlapEnd - overlapStart
+            }
+        }
+        return total
+    }
+
+    // MARK: - Mixed Audio Merge (Fallback)
+
+    private func mergeTranscriptWithSpeakers(
+        _ transcript: [VoomTranscriptSegment],
+        _ speakers: [SpeakerSegment]
+    ) -> [TranscriptEntry] {
+        transcript.map { seg in
+            let speaker = bestMatchingSpeaker(for: seg, in: speakers)
+            return TranscriptEntry(
+                startTime: seg.startTime,
+                endTime: seg.endTime,
+                text: seg.text,
+                speaker: speaker
+            )
+        }
+    }
+
+    private func bestMatchingSpeaker(
+        for segment: VoomTranscriptSegment,
+        in speakers: [SpeakerSegment]
+    ) -> String? {
+        var bestSpeaker: String?
+        var bestOverlap: TimeInterval = 0
+
+        for speaker in speakers {
+            let overlapStart = max(segment.startTime, speaker.startTime)
+            let overlapEnd = min(segment.endTime, speaker.endTime)
+            let overlap = overlapEnd - overlapStart
+
+            if overlap > bestOverlap {
+                bestOverlap = overlap
+                bestSpeaker = speaker.speaker
+            }
+        }
+
+        return bestSpeaker
     }
 }

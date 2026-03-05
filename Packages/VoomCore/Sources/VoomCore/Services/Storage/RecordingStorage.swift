@@ -195,11 +195,13 @@ public final class RecordingStore {
                 }
                 let generatedTitle = await TextAnalysisService.shared.generateTitle(from: entries)
                 let generatedSummary = await TextAnalysisService.shared.generateSummary(from: entries)
+                let chapters = await TextAnalysisService.shared.generateChapters(from: entries)
                 await MainActor.run {
                     if var rec = RecordingStore.shared.recording(for: capturedID) {
                         rec.transcriptSegments = entries
                         if !generatedTitle.isEmpty { rec.title = generatedTitle }
                         rec.summary = generatedSummary.isEmpty ? nil : generatedSummary
+                        if !chapters.isEmpty { rec.chapters = chapters }
                         rec.isTranscribed = !segments.isEmpty
                         rec.isTranscribing = false
                         RecordingStore.shared.update(rec)

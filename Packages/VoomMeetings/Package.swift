@@ -9,11 +9,12 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../VoomCore"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.7.9"),
     ],
     targets: [
         .target(
             name: "VoomMeetings",
-            dependencies: ["VoomCore"]
+            dependencies: ["VoomCore", "FluidAudio"]
         ),
     ]
 )

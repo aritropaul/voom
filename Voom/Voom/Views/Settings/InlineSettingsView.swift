@@ -18,6 +18,7 @@ struct InlineSettingsView: View {
     @AppStorage("RecordingDirectory") private var recordingDirectory = ""
     @AppStorage("LaunchAtLogin") private var launchAtLogin = false
     @AppStorage("MeetingDetectionEnabled") private var meetingDetectionEnabled = false
+    @AppStorage("DebugMode") private var debugMode = false
     @State private var testStatus: TestStatus = .idle
     @State private var showingSelfHostSetup = false
 
@@ -137,6 +138,12 @@ struct InlineSettingsView: View {
                 supportContent
             }
             .staggeredAppear(4)
+
+            // Debug
+            settingsCard(icon: "ladybug", title: "Debug") {
+                debugContent
+            }
+            .staggeredAppear(5)
         }
         .padding(.horizontal, VoomTheme.spacingXL)
         .padding(.bottom, VoomTheme.spacingXL)
@@ -395,6 +402,17 @@ struct InlineSettingsView: View {
         \(chip.isEmpty ? arch : chip) (\(arch)), \(ram) GB RAM
         """
         return body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+    }
+
+    // MARK: - Debug
+
+    @ViewBuilder
+    private var debugContent: some View {
+        settingsRow(title: "Debug Mode", subtitle: "Show debug actions in recording context menus.") {
+            Toggle("", isOn: $debugMode)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
     }
 
     // MARK: - Helpers

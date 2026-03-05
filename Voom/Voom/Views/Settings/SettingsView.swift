@@ -42,7 +42,7 @@ struct SettingsView: View {
             } header: {
                 Text("Transcription")
             } footer: {
-                Text("When enabled, recordings with audio are transcribed on-device using WhisperKit after recording stops.")
+                Text("When enabled, recordings with audio are transcribed on-device after recording stops.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

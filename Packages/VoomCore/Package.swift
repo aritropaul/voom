@@ -8,12 +8,12 @@ let package = Package(
         .library(name: "VoomCore", targets: ["VoomCore"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.7.9"),
     ],
     targets: [
         .target(
             name: "VoomCore",
-            dependencies: ["WhisperKit"]
+            dependencies: ["FluidAudio"]
         ),
     ]
 )

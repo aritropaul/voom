@@ -4,7 +4,69 @@ import AVFoundation
 import AppKit
 import VoomCore
 
-/// Meeting-specific recorder: 30fps, HD/2K, dual-track audio (system + mic separate),
+// MARK: - AudioReferenceWriter
+
+/// Writes audio-only M4A to a temp file for post-recording diarization.
+public final class AudioReferenceWriter: @unchecked Sendable {
+    private var assetWriter: AVAssetWriter?
+    private var audioInput: AVAssetWriterInput?
+    private let outputURL: URL
+    private let lock = NSLock()
+    private var started = false
+
+    public init(outputURL: URL, channelCount: Int, sampleRate: Int) {
+        self.outputURL = outputURL
+        do {
+            let writer = try AVAssetWriter(outputURL: outputURL, fileType: .m4a)
+            let settings: [String: Any] = [
+                AVFormatIDKey: kAudioFormatLinearPCM,
+                AVSampleRateKey: sampleRate,
+                AVNumberOfChannelsKey: channelCount,
+                AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsNonInterleaved: false
+            ]
+            let input = AVAssetWriterInput(mediaType: .audio, outputSettings: settings)
+            input.expectsMediaDataInRealTime = true
+            writer.add(input)
+            self.assetWriter = writer
+            self.audioInput = input
+        } catch {
+            self.assetWriter = nil
+            self.audioInput = nil
+        }
+    }
+
+    public func appendSample(_ buffer: CMSampleBuffer) {
+        lock.lock()
+        guard let writer = assetWriter, let input = audioInput else { lock.unlock(); return }
+        if !started {
+            writer.startWriting()
+            writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(buffer))
+            started = true
+        }
+        if input.isReadyForMoreMediaData {
+            input.append(buffer)
+        }
+        lock.unlock()
+    }
+
+    public func finalize() async {
+        let writer: AVAssetWriter? = lock.withLock {
+            guard let w = assetWriter, started else { return nil }
+            return w
+        }
+        guard let writer else { return }
+        await withCheckedContinuation { continuation in
+            writer.finishWriting {
+                continuation.resume()
+            }
+        }
+    }
+}
+
+/// Meeting-specific recorder: 30fps, HD/2K, single mixed audio track,
 /// no camera PiP, no annotations, no region selection.
 public actor MeetingRecorder {
     private var stream: SCStream?
@@ -14,6 +76,10 @@ public actor MeetingRecorder {
     private var micTimeAdjuster: MeetingMicTimeAdjuster?
     private let stateProvider: any RecordingStateProvider
     private var isPaused = false
+    private var micRefWriter: AudioReferenceWriter?
+    private var systemRefWriter: AudioReferenceWriter?
+    private var micReferenceURL: URL?
+    private var systemReferenceURL: URL?
 
     public init(stateProvider: any RecordingStateProvider) {
         self.stateProvider = stateProvider
@@ -66,7 +132,7 @@ public actor MeetingRecorder {
         config.sampleRate = 48000
         config.channelCount = 2
 
-        // Set up video writer with separate audio tracks
+        // Set up video writer with single mixed audio track
         let writer = VideoWriter()
         try writer.configure(
             outputURL: outputURL,
@@ -78,12 +144,24 @@ public actor MeetingRecorder {
         )
         self.videoWriter = writer
 
-        // Create stream output handler
-        let output = MeetingStreamOutput(videoWriter: writer)
+        // Set up audio reference writers for split-track diarization
+        let tempDir = FileManager.default.temporaryDirectory
+        let systemRefURL = tempDir.appendingPathComponent("voom-system-\(UUID().uuidString).m4a")
+        let sysWriter = AudioReferenceWriter(outputURL: systemRefURL, channelCount: 2, sampleRate: 48000)
+        self.systemRefWriter = sysWriter
+        self.systemReferenceURL = systemRefURL
+
+        // Create stream output handler with system ref writer
+        let output = MeetingStreamOutput(videoWriter: writer, systemRefWriter: sysWriter)
         self.streamOutput = output
 
         // Set up mic capture if enabled
         if micEnabled {
+            let micRefURL = tempDir.appendingPathComponent("voom-mic-\(UUID().uuidString).m4a")
+            let micWriter = AudioReferenceWriter(outputURL: micRefURL, channelCount: 1, sampleRate: 48000)
+            self.micRefWriter = micWriter
+            self.micReferenceURL = micRefURL
+
             let writerRef = writer
             let micTimer = MeetingMicTimeAdjuster()
             self.micTimeAdjuster = micTimer
@@ -94,6 +172,7 @@ public actor MeetingRecorder {
                 guard !outputRef.isPaused else { return }
                 if let retimed = micTimer.retime(sampleBuffer) {
                     writerRef.appendMicAudioSample(retimed)
+                    micWriter.appendSample(retimed)
                 }
             }
         }
@@ -129,6 +208,16 @@ public actor MeetingRecorder {
         videoWriter = nil
         streamOutput = nil
         micTimeAdjuster = nil
+
+        // Finalize audio reference writers
+        if let micRef = micRefWriter {
+            await micRef.finalize()
+        }
+        if let sysRef = systemRefWriter {
+            await sysRef.finalize()
+        }
+        micRefWriter = nil
+        systemRefWriter = nil
 
         let outputURL = await MainActor.run { stateProvider.currentRecordingURL }
         if let outputURL {
@@ -177,11 +266,48 @@ public actor MeetingRecorder {
             RecordingStore.shared.add(recording)
         }
 
-        // Auto-transcribe meetings (always, since they have audio)
+        // Auto-transcribe meetings with speaker diarization
         let autoTranscribeEnabled = UserDefaults.standard.object(forKey: "AutoTranscribe") == nil ? true : UserDefaults.standard.bool(forKey: "AutoTranscribe")
         if autoTranscribeEnabled {
-            await MainActor.run {
-                RecordingStore.shared.autoTranscribe(recordingID: recordingID, fileURL: url)
+            let capturedID = recordingID
+            let capturedURL = url
+            let capturedMicRef = micReferenceURL
+            let capturedSysRef = systemReferenceURL
+            Task.detached {
+                await MainActor.run {
+                    if var rec = RecordingStore.shared.recording(for: capturedID) {
+                        rec.isTranscribing = true
+                        RecordingStore.shared.update(rec)
+                    }
+                }
+
+                // Run meeting-specific transcription with split-track diarization
+                let segments = await MeetingTranscription.shared.transcribeMeeting(
+                    fileURL: capturedURL,
+                    micReferenceURL: capturedMicRef,
+                    systemReferenceURL: capturedSysRef
+                )
+
+                // Generate meeting title, summary, and chapters from diarized transcript
+                let title = await MeetingAnalysis.shared.generateMeetingTitle(from: segments)
+                let summary = await MeetingAnalysis.shared.generateDetailedSummary(from: segments)
+                let chapters = await TextAnalysisService.shared.generateChapters(from: segments)
+
+                await MainActor.run {
+                    if var rec = RecordingStore.shared.recording(for: capturedID) {
+                        rec.transcriptSegments = segments
+                        if let title, !title.isEmpty { rec.title = title }
+                        rec.summary = summary
+                        if !chapters.isEmpty { rec.chapters = chapters }
+                        rec.isTranscribed = !segments.isEmpty
+                        rec.isTranscribing = false
+                        RecordingStore.shared.update(rec)
+                    }
+                }
+
+                // Clean up temp audio reference files
+                if let micRef = capturedMicRef { try? FileManager.default.removeItem(at: micRef) }
+                if let sysRef = capturedSysRef { try? FileManager.default.removeItem(at: sysRef) }
             }
         }
 
@@ -193,6 +319,7 @@ public actor MeetingRecorder {
 
 public final class MeetingStreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     private let videoWriter: VideoWriter
+    private let systemRefWriter: AudioReferenceWriter?
     private let lock = NSLock()
 
     private var firstScreenTime: CMTime?
@@ -221,8 +348,9 @@ public final class MeetingStreamOutput: NSObject, SCStreamOutput, @unchecked Sen
         }
     }
 
-    public init(videoWriter: VideoWriter) {
+    public init(videoWriter: VideoWriter, systemRefWriter: AudioReferenceWriter? = nil) {
         self.videoWriter = videoWriter
+        self.systemRefWriter = systemRefWriter
     }
 
     public func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
@@ -287,6 +415,7 @@ public final class MeetingStreamOutput: NSObject, SCStreamOutput, @unchecked Sen
 
         if let retimed = retimeSampleBuffer(sampleBuffer, to: adjustedTime) {
             videoWriter.appendSystemAudioSample(retimed)
+            systemRefWriter?.appendSample(retimed)
         }
     }
 

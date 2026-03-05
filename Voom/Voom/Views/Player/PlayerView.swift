@@ -1065,19 +1065,27 @@ private struct SegmentRow: View {
                 .frame(width: 2)
                 .padding(.vertical, 1)
 
-            if isEditing, let editingText {
-                TextField("", text: editingText)
-                    .font(.system(size: 12))
-                    .foregroundStyle(VoomTheme.textPrimary)
-                    .textFieldStyle(.plain)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                Text(segment.text)
-                    .font(.system(size: 12))
-                    .foregroundStyle(isActive ? VoomTheme.textPrimary : VoomTheme.textSecondary)
-                    .lineSpacing(2)
-                    .lineLimit(5)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                if let speaker = segment.speaker {
+                    Text(speaker)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(isActive ? Color.white.opacity(0.7) : VoomTheme.textTertiary)
+                }
+
+                if isEditing, let editingText {
+                    TextField("", text: editingText)
+                        .font(.system(size: 12))
+                        .foregroundStyle(VoomTheme.textPrimary)
+                        .textFieldStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    Text(segment.text)
+                        .font(.system(size: 12))
+                        .foregroundStyle(isActive ? VoomTheme.textPrimary : VoomTheme.textSecondary)
+                        .lineSpacing(2)
+                        .lineLimit(5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .padding(.vertical, 8)

@@ -49,16 +49,29 @@ public actor TextAnalysisService {
     public func generateChapters(from segments: [TranscriptEntry]) async -> [Chapter] {
         guard !segments.isEmpty else { return [] }
 
-        let text = segments.enumerated().map { i, seg in
+        // Subsample to ~80 evenly-spaced segments so the model sees the full timeline
+        let maxSegments = 80
+        let sampled: [TranscriptEntry]
+        if segments.count > maxSegments {
+            let step = Double(segments.count) / Double(maxSegments)
+            sampled = (0..<maxSegments).map { i in segments[Int(Double(i) * step)] }
+        } else {
+            sampled = segments
+        }
+
+        let lastTime = segments.last?.endTime ?? segments.last?.startTime ?? 0
+        let totalMinutes = Int(lastTime) / 60
+        let totalSeconds = Int(lastTime) % 60
+
+        let text = sampled.map { seg in
             let m = Int(seg.startTime) / 60
             let s = Int(seg.startTime) % 60
             return "[\(String(format: "%d:%02d", m, s))] \(seg.text)"
         }.joined(separator: "\n")
-        let truncated = String(text.prefix(8000))
 
         let result = await generate(
-            system: "You generate chapter markers for video recordings. Given a timestamped transcript, identify 2-6 logical sections and return chapter markers. Each line must be exactly: TIMESTAMP|Title — where TIMESTAMP is in M:SS format. No other text.",
-            user: "Generate chapter markers for this transcript:\n\n\(truncated)"
+            system: "You generate chapter markers for video recordings. Given a timestamped transcript, identify 3-6 logical sections and return chapter markers. Chapters MUST span the entire recording duration. The recording is \(totalMinutes):\(String(format: "%02d", totalSeconds)) long — ensure chapters cover from beginning to end. Each line must be exactly: TIMESTAMP|Title — where TIMESTAMP is in M:SS format. No other text.",
+            user: "Generate chapter markers for this transcript:\n\n\(text)"
         ) ?? ""
 
         var chapters: [Chapter] = []

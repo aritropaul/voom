@@ -1,6 +1,7 @@
 import SwiftUI
 import os
 import VoomCore
+import VoomMeetings
 
 private let logger = Logger(subsystem: "com.voom.app", category: "Library")
 
@@ -39,6 +40,7 @@ struct LibraryWindow: View {
     @State private var showStitchSheet = false
     @State private var selectedTagIDs: Set<UUID> = []
     @State private var showSettings = false
+    @AppStorage("DebugMode") private var debugMode = false
     @State private var detailIsScrolled = false
     @State private var hoveredRecordingID: UUID?
     @State private var isSettingsHovered = false
@@ -735,11 +737,31 @@ struct LibraryWindow: View {
             }
         }
 
-        if recording.isTranscribed && !recording.transcriptSegments.isEmpty {
+        if debugMode {
+            if recording.isTranscribed && !recording.transcriptSegments.isEmpty {
+                Button {
+                    regenerateTitleAndSummary(recording)
+                } label: {
+                    Label("Regenerate Title & Summary", systemImage: "sparkles")
+                }
+            }
+
             Button {
-                regenerateTitleAndSummary(recording)
+                regenerateTranscript(recording)
             } label: {
-                Label("Regenerate Title & Summary", systemImage: "sparkles")
+                Label("Regenerate Transcript", systemImage: "waveform")
+            }
+            .disabled(recording.isTranscribing)
+
+            Button {
+                var updated = recording
+                updated.isMeeting = !(recording.isMeeting ?? false)
+                store.update(updated)
+            } label: {
+                Label(
+                    (recording.isMeeting ?? false) ? "Unmark as Meeting" : "Mark as Meeting",
+                    systemImage: (recording.isMeeting ?? false) ? "video.badge.minus" : "video.badge.checkmark"
+                )
             }
         }
 
@@ -851,6 +873,52 @@ struct LibraryWindow: View {
             await MainActor.run { store.add(recording) }
         } catch {
             logger.error("[Voom] Stitch failed: \(error)")
+        }
+    }
+
+    private func regenerateTranscript(_ recording: Recording) {
+        let recordingID = recording.id
+        let fileURL = recording.fileURL
+        let isMeeting = recording.isMeeting ?? false
+        Task {
+            if var rec = store.recording(for: recordingID) {
+                rec.isTranscribing = true
+                store.update(rec)
+            }
+
+            let entries: [TranscriptEntry]
+            if isMeeting {
+                // Meeting: use diarization pipeline for speaker labels
+                entries = await MeetingTranscription.shared.transcribeMeeting(fileURL: fileURL)
+            } else {
+                // Regular recording: standard transcription
+                do {
+                    let segments = try await TranscriptionService.shared.transcribe(audioURL: fileURL)
+                    entries = segments.map {
+                        TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text)
+                    }
+                } catch {
+                    if var rec = store.recording(for: recordingID) {
+                        rec.isTranscribing = false
+                        store.update(rec)
+                    }
+                    toast.error("Transcription failed: \(error.localizedDescription)")
+                    return
+                }
+            }
+
+            let title = await TextAnalysisService.shared.generateTitle(from: entries)
+            let summary = await TextAnalysisService.shared.generateSummary(from: entries)
+
+            if var rec = store.recording(for: recordingID) {
+                rec.transcriptSegments = entries
+                if !title.isEmpty { rec.title = title }
+                rec.summary = summary.isEmpty ? nil : summary
+                rec.isTranscribed = !entries.isEmpty
+                rec.isTranscribing = false
+                store.update(rec)
+            }
+            toast.success("Transcript regenerated (\(entries.count) segments)", icon: "waveform")
         }
     }
 
