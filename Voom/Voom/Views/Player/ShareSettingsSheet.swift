@@ -242,7 +242,7 @@ struct ShareSettingsSheet: View {
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
-                    .fill(VoomTheme.accentGreen)
+                    .fill(VoomTheme.accentRed)
             )
         }
         .buttonStyle(.plain)
