@@ -1,5 +1,42 @@
 # Changelog
 
+## 2.8.1 — 2026-03-05 (SHAME)
+
+### Fixes
+- Reduced video file size ~40% by optimizing HEVC compression (8 Mbps bitrate, B-frames enabled, 4s GOP).
+- AI title generation now uses full transcript instead of only the first 2 minutes.
+- Improved title prompts to focus on primary work topics, ignoring small talk.
+- Enhanced summary generation with more thorough 4-8 sentence output covering decisions and action items.
+- Meeting recordings auto-stop immediately when camera turns off (no more waiting for audio silence).
+- Replaced AVCaptureSession mic capture with AVAudioEngine voice processing for hardware echo cancellation and noise suppression.
+
+## 2.8.0 — 2026-03-05 (DEFAULT)
+
+### Changes
+- Meeting detection: auto-trigger floating panel when meetings begin.
+- Full dark theme applied to share settings sheet and all modal views.
+- Improved AI-generated titles and summaries for screen recordings.
+
+## 2.7.3 — 2026-03-04 (SHAME)
+
+### Fixes
+- Share sheet primary buttons now use accentRed consistently.
+
+## 2.7.2 — 2026-03-04 (SHAME)
+
+### Fixes
+- Refined vibrancy materials and card styling.
+
+## 2.7.1 — 2026-03-04 (SHAME)
+
+### Fixes
+- Added vibrancy/blur materials to app backgrounds and cards.
+
+## 2.7.0 — 2026-03-04 (DEFAULT)
+
+### Changes
+- Modernized codebase with destructive action confirmations.
+
 ## 2.1.1 — 2026-03-02 (SHAME)
 
 ### Fixes

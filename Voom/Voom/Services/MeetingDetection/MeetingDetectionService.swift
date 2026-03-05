@@ -80,11 +80,21 @@ actor MeetingDetectionService {
             logger.notice("[Voom] Camera turned on, cleared prompted IDs")
         }
 
-        // Detect camera on→off transition: clean up
+        // Detect camera on→off transition: clean up and auto-stop meeting recording
         if !cameraInUse && wasCameraOn {
             promptedEventIDs.removeAll()
             let appState = await MainActor.run { AppDelegate.shared?.appState }
             if let appState {
+                // Auto-stop meeting recording immediately — camera off = meeting ended
+                let isMeetingRec = await MainActor.run { appState.isMeetingRecording }
+                let recordingState = await MainActor.run { appState.recordingState }
+                if isMeetingRec && (recordingState == .recording || recordingState == .paused) && !didPostAutoStop {
+                    didPostAutoStop = true
+                    logger.notice("[Voom] Auto-stopping meeting recording (camera turned off)")
+                    await MainActor.run {
+                        NotificationCenter.default.post(name: .autoStopMeetingRecording, object: nil)
+                    }
+                }
                 await MainActor.run {
                     appState.detectedMeeting = nil
                     MeetingPanelManager.shared.dismiss()

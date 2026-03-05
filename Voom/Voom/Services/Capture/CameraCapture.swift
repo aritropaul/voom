@@ -12,7 +12,7 @@ final class CaptureSessionBox: @unchecked Sendable {
 actor CameraCapture {
     private var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureVideoDataOutput?
-    private var audioOutput: AVCaptureAudioDataOutput?
+    private var audioEngine: AVAudioEngine?
     private let delegateHandler = CameraDelegateHandler()
 
     /// Access the capture session from any isolation context (no await needed).
@@ -103,75 +103,144 @@ actor CameraCapture {
         return bestFallback
     }
 
-    /// Pre-add the mic input to the session so it won't need reconfiguration later.
-    /// Call this right after startCapture() to avoid preview flicker when recording begins.
+    /// No-op — mic now uses AVAudioEngine (separate from camera AVCaptureSession).
+    /// Kept for API compatibility with ControlPanelView.
     func prepareForMic() async throws {
-        guard let session = captureSession else { return }
-        guard audioOutput == nil else { return } // already prepared
-
-        guard let mic = AVCaptureDevice.default(for: .audio) else {
-            throw CaptureError.noMicAvailable
-        }
-
-        let micInput = try AVCaptureDeviceInput(device: mic)
-        session.beginConfiguration()
-        if session.canAddInput(micInput) {
-            session.addInput(micInput)
-        }
-
-        let output = AVCaptureAudioDataOutput()
-        // Don't set delegate yet — will be set when recording starts
-        if session.canAddOutput(output) {
-            session.addOutput(output)
-            self.audioOutput = output
-        }
-        session.commitConfiguration()
+        // Voice processing mic is independent of the camera capture session,
+        // so no session reconfiguration needed and no preview flicker.
     }
 
     func startMicCapture(handler: @escaping @Sendable (CMSampleBuffer) -> Void) async throws {
-        guard let session = captureSession else {
-            // Create a new session if needed (mic-only case)
-            let newSession = AVCaptureSession()
-            newSession.beginConfiguration()
-            try addMicInput(to: newSession, handler: handler)
-            newSession.commitConfiguration()
-            newSession.startRunning()
-            self.captureSession = newSession
-            return
-        }
+        let engine = AVAudioEngine()
+        let inputNode = engine.inputNode
 
-        // If mic was pre-added via prepareForMic(), just set the handler
-        if let existingAudioOutput = audioOutput {
-            delegateHandler.micHandler = handler
-            existingAudioOutput.setSampleBufferDelegate(delegateHandler, queue: .global(qos: .userInteractive))
-            return
-        }
+        // Enable voice processing — hardware-accelerated echo cancellation,
+        // noise suppression, and automatic gain control (macOS 13+)
+        try inputNode.setVoiceProcessingEnabled(true)
 
-        session.beginConfiguration()
-        try addMicInput(to: session, handler: handler)
-        session.commitConfiguration()
-    }
-
-    private func addMicInput(to session: AVCaptureSession, handler: @escaping @Sendable (CMSampleBuffer) -> Void) throws {
-        guard let mic = AVCaptureDevice.default(for: .audio) else {
+        let nativeFormat = inputNode.outputFormat(forBus: 0)
+        guard nativeFormat.sampleRate > 0, nativeFormat.channelCount > 0 else {
             throw CaptureError.noMicAvailable
         }
 
-        let micInput = try AVCaptureDeviceInput(device: mic)
-        guard session.canAddInput(micInput) else {
-            throw CaptureError.cannotAddInput
+        inputNode.installTap(onBus: 0, bufferSize: 4096, format: nativeFormat) { [weak self] buffer, time in
+            guard self != nil else { return }
+            if let sampleBuffer = Self.convertToSampleBuffer(buffer: buffer, time: time) {
+                handler(sampleBuffer)
+            }
         }
-        session.addInput(micInput)
 
-        let audioOutput = AVCaptureAudioDataOutput()
-        delegateHandler.micHandler = handler
-        audioOutput.setSampleBufferDelegate(delegateHandler, queue: .global(qos: .userInteractive))
+        engine.prepare()
+        try engine.start()
+        self.audioEngine = engine
+    }
 
-        guard session.canAddOutput(audioOutput) else {
-            throw CaptureError.cannotAddOutput
+    // MARK: - AVAudioPCMBuffer → CMSampleBuffer Conversion
+
+    private static func convertToSampleBuffer(buffer: AVAudioPCMBuffer, time: AVAudioTime) -> CMSampleBuffer? {
+        let frameCount = buffer.frameLength
+        guard frameCount > 0 else { return nil }
+
+        let format = buffer.format
+        let channels = Int(format.channelCount)
+        let sampleRate = format.sampleRate
+
+        // Get interleaved float data
+        guard let floatData = buffer.floatChannelData else { return nil }
+
+        // Build interleaved PCM data
+        let totalSamples = Int(frameCount) * channels
+        var interleaved = [Float](repeating: 0, count: totalSamples)
+
+        if channels == 1 {
+            let src = floatData[0]
+            for i in 0..<Int(frameCount) {
+                interleaved[i] = src[i]
+            }
+        } else {
+            for frame in 0..<Int(frameCount) {
+                for ch in 0..<channels {
+                    interleaved[frame * channels + ch] = floatData[ch][frame]
+                }
+            }
         }
-        session.addOutput(audioOutput)
-        self.audioOutput = audioOutput
+
+        let dataSize = totalSamples * MemoryLayout<Float>.size
+
+        // Create CMBlockBuffer
+        var blockBuffer: CMBlockBuffer?
+        guard CMBlockBufferCreateWithMemoryBlock(
+            allocator: kCFAllocatorDefault,
+            memoryBlock: nil,
+            blockLength: dataSize,
+            blockAllocator: kCFAllocatorDefault,
+            customBlockSource: nil,
+            offsetToData: 0,
+            dataLength: dataSize,
+            flags: 0,
+            blockBufferOut: &blockBuffer
+        ) == noErr, let block = blockBuffer else { return nil }
+
+        guard interleaved.withUnsafeBytes({ bytes in
+            CMBlockBufferReplaceDataBytes(
+                with: bytes.baseAddress!, blockBuffer: block,
+                offsetIntoDestination: 0, dataLength: dataSize
+            )
+        }) == noErr else { return nil }
+
+        // Create audio format description
+        var asbd = AudioStreamBasicDescription(
+            mSampleRate: sampleRate,
+            mFormatID: kAudioFormatLinearPCM,
+            mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
+            mBytesPerPacket: UInt32(channels * MemoryLayout<Float>.size),
+            mFramesPerPacket: 1,
+            mBytesPerFrame: UInt32(channels * MemoryLayout<Float>.size),
+            mChannelsPerFrame: UInt32(channels),
+            mBitsPerChannel: UInt32(MemoryLayout<Float>.size * 8),
+            mReserved: 0
+        )
+
+        var formatDescription: CMAudioFormatDescription?
+        guard CMAudioFormatDescriptionCreate(
+            allocator: kCFAllocatorDefault,
+            asbd: &asbd,
+            layoutSize: 0,
+            layout: nil,
+            magicCookieSize: 0,
+            magicCookie: nil,
+            extensions: nil,
+            formatDescriptionOut: &formatDescription
+        ) == noErr, let fmtDesc = formatDescription else { return nil }
+
+        // Timestamp from AVAudioTime
+        let seconds = AVAudioTime.seconds(forHostTime: time.hostTime)
+        let pts = CMTime(seconds: seconds, preferredTimescale: CMTimeScale(sampleRate))
+
+        var timing = CMSampleTimingInfo(
+            duration: CMTime(value: 1, timescale: CMTimeScale(sampleRate)),
+            presentationTimeStamp: pts,
+            decodeTimeStamp: .invalid
+        )
+
+        var sampleBuffer: CMSampleBuffer?
+        var sampleSize = dataSize
+        guard CMSampleBufferCreate(
+            allocator: kCFAllocatorDefault,
+            dataBuffer: block,
+            dataReady: true,
+            makeDataReadyCallback: nil,
+            refcon: nil,
+            formatDescription: fmtDesc,
+            sampleCount: CMItemCount(frameCount),
+            sampleTimingEntryCount: 1,
+            sampleTimingArray: &timing,
+            sampleSizeEntryCount: 1,
+            sampleSizeArray: &sampleSize,
+            sampleBufferOut: &sampleBuffer
+        ) == noErr else { return nil }
+
+        return sampleBuffer
     }
 
     func setVideoFrameHandler(_ handler: CameraFrameRecordHandler?) {
@@ -182,16 +251,21 @@ actor CameraCapture {
         captureSession?.stopRunning()
         captureSession = nil
         videoOutput = nil
-        audioOutput = nil
+
+        // Clean up voice processing audio engine
+        if let engine = audioEngine {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+            audioEngine = nil
+        }
     }
 }
 
 // MARK: - Delegate Handler
 
-final class CameraDelegateHandler: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
+final class CameraDelegateHandler: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private var _latestPixelBuffer: CVPixelBuffer?
-    var micHandler: (@Sendable (CMSampleBuffer) -> Void)?
     var recordHandler: CameraFrameRecordHandler?
 
     var latestPixelBuffer: CVPixelBuffer? {
@@ -199,14 +273,10 @@ final class CameraDelegateHandler: NSObject, AVCaptureVideoDataOutputSampleBuffe
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        if output is AVCaptureVideoDataOutput {
-            if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
-                lock.withLock { _latestPixelBuffer = pixelBuffer }
-                let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-                recordHandler?.handleFrame(pixelBuffer, at: time)
-            }
-        } else if output is AVCaptureAudioDataOutput {
-            micHandler?(sampleBuffer)
+        if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            lock.withLock { _latestPixelBuffer = pixelBuffer }
+            let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+            recordHandler?.handleFrame(pixelBuffer, at: time)
         }
     }
 }

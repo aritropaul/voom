@@ -39,10 +39,10 @@ final class VideoWriter: @unchecked Sendable {
             AVVideoWidthKey: width,
             AVVideoHeightKey: height,
             AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: 10_000_000, // 10 Mbps — excellent quality for HEVC screen recording
+                AVVideoAverageBitRateKey: 8_000_000, // 8 Mbps — visually lossless for HEVC screen content
                 AVVideoExpectedSourceFrameRateKey: 60,
-                AVVideoMaxKeyFrameIntervalKey: 120, // 2s GOP — HEVC handles longer GOPs efficiently
-                AVVideoAllowFrameReorderingKey: false // Lower latency for real-time recording
+                AVVideoMaxKeyFrameIntervalKey: 240, // 4s GOP — longer GOP = better inter-frame prediction
+                AVVideoAllowFrameReorderingKey: true // B-frames enabled — 15-25% compression gain, latency irrelevant for disk recording
             ]
         ]
         let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
