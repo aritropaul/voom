@@ -1,86 +1,116 @@
 # Changelog
 
-## 2.8.1 — 2026-03-05 (SHAME)
+## 2.8.1 — 2026-03-05
 
-### Fixes
-- Reduced video file size ~40% by optimizing HEVC compression (8 Mbps bitrate, B-frames enabled, 4s GOP).
+- Reduced video file size ~40% with optimized HEVC compression (8 Mbps, B-frames, 4s GOP).
+- Replaced AVCaptureSession mic with AVAudioEngine voice processing for hardware echo cancellation and noise suppression.
 - AI title generation now uses full transcript instead of only the first 2 minutes.
 - Improved title prompts to focus on primary work topics, ignoring small talk.
-- Enhanced summary generation with more thorough 4-8 sentence output covering decisions and action items.
-- Meeting recordings auto-stop immediately when camera turns off (no more waiting for audio silence).
-- Replaced AVCaptureSession mic capture with AVAudioEngine voice processing for hardware echo cancellation and noise suppression.
+- Enhanced AI summaries to 4-8 sentences covering decisions and action items.
+- Meeting recordings auto-stop immediately when camera turns off.
 
-## 2.8.0 — 2026-03-05 (DEFAULT)
+## 2.8.0 — 2026-03-05
 
-### Changes
-- Meeting detection: auto-trigger floating panel when meetings begin.
+- Meeting detection: auto-trigger floating panel when video calls begin.
 - Full dark theme applied to share settings sheet and all modal views.
-- Improved AI-generated titles and summaries for screen recordings.
-
-## 2.7.3 — 2026-03-04 (SHAME)
-
-### Fixes
 - Share sheet primary buttons now use accentRed consistently.
 
-## 2.7.2 — 2026-03-04 (SHAME)
+## 2.7.3 — 2026-03-04
 
-### Fixes
-- Refined vibrancy materials and card styling.
+- Fixed Open Graph tags to use absolute URLs for share page embeds.
+- Added embed player route for share links.
 
-## 2.7.1 — 2026-03-04 (SHAME)
+## 2.7.2 — 2026-03-04
 
-### Fixes
-- Added vibrancy/blur materials to app backgrounds and cards.
+- Refined vibrancy materials and card styling across the app.
 
-## 2.7.0 — 2026-03-04 (DEFAULT)
+## 2.7.1 — 2026-03-04
 
-### Changes
+- Added vibrancy and blur materials to app backgrounds and cards.
+
+## 2.7.0 — 2026-03-04
+
 - Modernized codebase with destructive action confirmations.
 
-## 2.1.1 — 2026-03-02 (SHAME)
+## 2.6.2 — 2026-03-03
 
-### Fixes
+- Updated docs for free tier and added support email with system info.
+
+## 2.6.1 — 2026-03-03
+
+- Wired up tags feature in player detail view badge row and context menu.
+
+## 2.6.0 — 2026-03-03
+
+- Added self-host setup wizard to deploy Cloudflare Worker from within Voom.
+
+## 2.5.2 — 2026-03-03
+
+- Abort stale multipart uploads on failure.
+- Added R2 lifecycle cleanup for orphaned uploads.
+
+## 2.5.1 — 2026-03-03
+
+- Fixed header buttons not being clickable.
+- Added hardened runtime entitlements.
+
+## 2.5.0 — 2026-03-03
+
+- Fixed notarization by re-signing Sparkle binaries with timestamps.
+- Enabled hardened runtime for release builds.
+- Auto-set marketing and project version from git tag in release workflow.
+
+## 2.4.1 — 2026-03-02
+
+- Automated Sparkle appcast generation in release workflow.
+
+## 2.4.0 — 2026-03-02
+
+- UI overhaul: fixed selection colors, added animations.
+- Integrated Sparkle for auto-updates.
+
+## 2.3.1 — 2026-03-02
+
+- Fixed sidebar navigation and recording data safety.
+
+## 2.3.0 — 2026-03-02
+
+- Full Loom feature parity: recording modes, video editing, folder organization, share enhancements.
+- Fixed OG tags on password-protected share pages.
+
+## 2.2.1 — 2026-03-02
+
+- Improved share page: HD thumbnails, centered layout, app icon.
+
+## 2.2.0 — 2026-03-02
+
+- AI-generated titles and summaries for recordings.
+- Editable title and summary fields.
+- Multipart upload for large recordings.
+- Thumbnail Open Graph images for share links.
+
+## 2.1.1 — 2026-03-02
+
 - DMG now includes Applications shortcut for drag-to-install.
 
-## 2.1.0 — 2026-03-02 (DEFAULT)
+## 2.1.0 — 2026-03-02
 
-### Changes
 - New app icon.
-- Added icon to README.
 
-## 2.0.0 — 2026-03-02 (PROUD)
+## 2.0.0 — 2026-03-02
 
-### Highlights
 - Single audio track recording with real-time mic + system audio mixing.
 - Custom toast notification system replacing alert dialogs.
-- Improved share page with custom video controls.
-
-### Recording
-- Mic and system audio are now mixed into a single track during recording, eliminating browser playback issues.
-- Voice is prioritized over system audio when both sources are active (system audio is ducked).
-- Removed post-recording audio merge step — uploads start immediately.
-
-### UI
-- New pill-shaped toast overlay for share feedback (link copied, upload success/failure, unshare).
-- Toasts auto-dismiss after 2 seconds with smooth slide-in animations.
-- Toolbar buttons split into separate groups with proper spacing.
-- Delete button uses destructive placement for visual separation.
-
-### Share Page
-- Custom video controls with seekbar, volume, and fullscreen.
-- View counter on shared videos.
-- Timestamp copy links in transcript rows.
-
-### Reliability
-- Increased upload timeout (5 min request / 1 hr resource) for large recordings.
+- Custom video controls on share page with seekbar, volume, and fullscreen.
+- View counter and timestamp copy links on shared videos.
+- Increased upload timeout for large recordings.
 - Upfront permission requests on app launch.
 
 ## 1.0.0 — 2026-03-02
 
-### Initial Release
 - Screen recording with webcam PiP overlay.
-- System audio + microphone capture.
-- On-device transcription via WhisperKit (fully offline).
+- System audio and microphone capture.
+- On-device transcription via WhisperKit.
 - Share via link (self-hosted on Cloudflare).
 - Global keyboard shortcut (Cmd+Shift+R).
 - Auto-transcription toggle.
