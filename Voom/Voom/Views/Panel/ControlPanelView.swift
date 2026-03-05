@@ -1,5 +1,7 @@
 import SwiftUI
 import AVFoundation
+import VoomCore
+import VoomApp
 @preconcurrency import ScreenCaptureKit
 
 struct ControlPanelView: View {
@@ -513,12 +515,14 @@ struct ControlPanelView: View {
             await CountdownOverlay.shared.run(display: display)
         }
 
-        let recorder = ScreenRecorder(appState: appState)
+        let recorder = ScreenRecorder(stateProvider: appState)
         self.screenRecorder = recorder
         let micEnabled = appState.isMicEnabled
         let systemAudioEnabled = appState.isSystemAudioEnabled
         let pipPosition = appState.pipPosition
         let cropRect = appState.selectedRegion
+        let pipWinNum = OverlayManager.shared.cameraPanelWindowNumber
+        let annotationWinNum = OverlayManager.shared.annotationWindowNumber
 
         do {
             nonisolated(unsafe) let captureDisplay = display
@@ -529,7 +533,9 @@ struct ControlPanelView: View {
                 systemAudioEnabled: systemAudioEnabled,
                 pipPosition: pipPosition,
                 existingCamera: camera,
-                cropRect: cropRect
+                cropRect: cropRect,
+                pipWindowNumber: pipWinNum,
+                annotationWindowNumber: annotationWinNum
             )
             appState.recordingState = .recording
             appState.recordingDuration = 0
@@ -560,7 +566,7 @@ struct ControlPanelView: View {
             }
         }
 
-        let recorder = CameraOnlyRecorder(appState: appState)
+        let recorder = CameraOnlyRecorder(stateProvider: appState)
         self.cameraOnlyRecorder = recorder
         let micEnabled = appState.isMicEnabled
 

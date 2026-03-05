@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import VoomCore
 
 @MainActor
 final class AnnotationPanel {

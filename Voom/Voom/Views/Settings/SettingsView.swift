@@ -1,5 +1,6 @@
 import SwiftUI
 import Carbon.HIToolbox
+import VoomCore
 
 struct SettingsView: View {
     @AppStorage("ShareWorkerBaseURL") private var workerBaseURL = ""

@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import VoomCore
 
 struct OnboardingView: View {
     @Environment(AppState.self) private var appState

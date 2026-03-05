@@ -1,4 +1,5 @@
 import SwiftUI
+import VoomCore
 
 struct SelfHostSetupView: View {
     @Environment(\.dismiss) private var dismiss

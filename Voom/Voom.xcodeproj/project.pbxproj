@@ -9,17 +9,12 @@
 /* Begin PBXBuildFile section */
 		3041DE022F55337E00D61F1F /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = A10009001 /* WhisperKit */; };
 		A10009010 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A10009011 /* Sparkle */; };
+		B1A2C3D4E5F6A7B8C9D0E1F2 /* VoomCore in Frameworks */ = {isa = PBXBuildFile; productRef = C2B3D4E5F6A7B8C9D0E1F2A3 /* VoomCore */; };
 		A10001001 /* VoomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002001 /* VoomApp.swift */; };
 		A10001002 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002002 /* AppState.swift */; };
 		A10001004 /* LibraryWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002004 /* LibraryWindow.swift */; };
 		A10001005 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002005 /* PlayerView.swift */; };
-		A10001007 /* Recording.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002007 /* Recording.swift */; };
-		A10001008 /* ScreenRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002008 /* ScreenRecorder.swift */; };
-		A10001009 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002009 /* CameraCapture.swift */; };
-		A10001010 /* FrameCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002010 /* FrameCompositor.swift */; };
-		A10001011 /* VideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002011 /* VideoWriter.swift */; };
-		A10001012 /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002012 /* TranscriptionService.swift */; };
-		A10001013 /* RecordingStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002013 /* RecordingStorage.swift */; };
+		E1F2A3B4C5D6E7F8A9B0C1D2 /* VoomAppLib in Frameworks */ = {isa = PBXBuildFile; productRef = D4E5F6A7B8C9D0E1F2A3B4C5 /* VoomApp */; };
 		A10001014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10002014 /* Assets.xcassets */; };
 		A10001015 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002017 /* CameraPreviewView.swift */; };
 		A10001016 /* NativePlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002018 /* NativePlayerView.swift */; };
@@ -29,21 +24,10 @@
 		A10001020 /* ControlPanelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002022 /* ControlPanelManager.swift */; };
 		A10009021 /* CountdownOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009020 /* CountdownOverlay.swift */; };
 		A10009031 /* DisplayPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009030 /* DisplayPicker.swift */; };
-		A10009041 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009040 /* Theme.swift */; };
-		A10009051 /* ShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009050 /* ShareService.swift */; };
 		A10009061 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009060 /* SettingsView.swift */; };
 		D4F6B8C0E2A4D6F8B0C2E4A6 /* InlineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E5A7B9D1F3A5C7E9B1D3F5 /* InlineSettingsView.swift */; };
 		A10009071 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009070 /* OnboardingView.swift */; };
-		A10009081 /* GlobalHotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009080 /* GlobalHotkey.swift */; };
 		A10009091 /* ToastOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009090 /* ToastOverlay.swift */; };
-		A10009101 /* TextAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009100 /* TextAnalysisService.swift */; };
-		042557EE8F2A4F204E1B08B3 /* Folder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B957058D4314DA218DFFD92 /* Folder.swift */; };
-		C88E3E9D6252C0246E669B2B /* Annotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B3E7A3BC9AA6F788796145E /* Annotation.swift */; };
-		950B9DDF70673E1EF79B2592 /* CameraOnlyRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56901B55FB1EEE4EBA2A7900 /* CameraOnlyRecorder.swift */; };
-		F639D7279356240701F64776 /* VideoEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14B6E44E75F934668CB951E8 /* VideoEditor.swift */; };
-		F03AC56DDBB86EFDA3A43C76 /* FillerWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760E2E06DF8F442AB73F4B64 /* FillerWordDetector.swift */; };
-		CA29E40CFDDC9649D3649113 /* GIFExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5184F82573AAD949B103725A /* GIFExporter.swift */; };
-		D529D177BB0E6B53CFC49D9A /* ViewNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C49C88AC1A93C0F59F95E4A /* ViewNotificationService.swift */; };
 		B04B8D5B0A0DCCE2E6FAAE1A /* AnnotationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F1B859C84CB7A44AFF4E3A9 /* AnnotationOverlay.swift */; };
 		64D86073DFD9D7EC9CA27E05 /* AnnotationToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97E6F160020DC12A67366CF7 /* AnnotationToolbar.swift */; };
 		EB5D182176B346C35EA148E9 /* RegionSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F62201DF7112D57351F750 /* RegionSelector.swift */; };
@@ -57,13 +41,10 @@
 		EB030D819B4963073A112855 /* StitchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B99777057266A65C2DA21A6 /* StitchSheet.swift */; };
 		B3E119C1C2816FBCD6EE077F /* TagManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5995C11C4373DCD98BC11A7 /* TagManager.swift */; };
 		BB1E82A02048325BF6FDB3C1 /* TagFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38B9F4C385C5B8C908DDAAC /* TagFilterView.swift */; };
-		8B3D5F7A9C1E2D4F6B8A0C3E /* CloudflareDeployService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2C4E6F8B0D1E3F5A7C9B2D /* CloudflareDeployService.swift */; };
 		D5E7F9A1B3C5D7E9F1A3B5C7 /* SelfHostSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D6E8F0A2B4C6D8E0F2A4B6 /* SelfHostSetupView.swift */; };
 		F7A9B1C3D5E7F9A1B3C5D7E9 /* WorkerBundle in Resources */ = {isa = PBXBuildFile; fileRef = E6F8A0B2C4D6E8F0A2B4C6D8 /* WorkerBundle */; };
-		4B8C0D2E3F5A7B9C1D4E6F8A /* MeetingDetectionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A7B9C1D2E4F6A8B0C3D5E7F /* MeetingDetectionService.swift */; };
 		6D0E2F4A5B7C9D1E3F6A8B0C /* MeetingPanelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C9D1E3F4A6B8C0D2E5F7A9B /* MeetingPanelManager.swift */; };
-		8F2A4B6C7D9E1F3A5B8C0D2E /* MeetingDetectedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1F3A5B6C8D0E2F4A7B9C1D /* MeetingDetectedView.swift */; };
-		A2B4C6D8E0F2A4B6C8D0E2F4 /* MenuBarMeetingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C5D7E9F1A3B5C7D9E1F3A5 /* MenuBarMeetingView.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F3 /* VoomMeetingsLib in Frameworks */ = {isa = PBXBuildFile; productRef = B2C3D4E5F6A7B8C9D0E1F2A4 /* VoomMeetings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -71,13 +52,6 @@
 		A10002002 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A10002004 /* LibraryWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryWindow.swift; sourceTree = "<group>"; };
 		A10002005 /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
-		A10002007 /* Recording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recording.swift; sourceTree = "<group>"; };
-		A10002008 /* ScreenRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecorder.swift; sourceTree = "<group>"; };
-		A10002009 /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
-		A10002010 /* FrameCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameCompositor.swift; sourceTree = "<group>"; };
-		A10002011 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
-		A10002012 /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
-		A10002013 /* RecordingStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingStorage.swift; sourceTree = "<group>"; };
 		A10002014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10002015 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10002016 /* Voom.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Voom.entitlements; sourceTree = "<group>"; };
@@ -90,21 +64,10 @@
 		A10003000 /* Voom.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Voom.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10009020 /* CountdownOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownOverlay.swift; sourceTree = "<group>"; };
 		A10009030 /* DisplayPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayPicker.swift; sourceTree = "<group>"; };
-		A10009040 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		A10009050 /* ShareService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareService.swift; sourceTree = "<group>"; };
 		A10009060 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C3E5A7B9D1F3A5C7E9B1D3F5 /* InlineSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineSettingsView.swift; sourceTree = "<group>"; };
 		A10009070 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
-		A10009080 /* GlobalHotkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotkey.swift; sourceTree = "<group>"; };
 		A10009090 /* ToastOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastOverlay.swift; sourceTree = "<group>"; };
-		A10009100 /* TextAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextAnalysisService.swift; sourceTree = "<group>"; };
-		5B957058D4314DA218DFFD92 /* Folder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Folder.swift; sourceTree = "<group>"; };
-		1B3E7A3BC9AA6F788796145E /* Annotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Annotation.swift; sourceTree = "<group>"; };
-		56901B55FB1EEE4EBA2A7900 /* CameraOnlyRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraOnlyRecorder.swift; sourceTree = "<group>"; };
-		14B6E44E75F934668CB951E8 /* VideoEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEditor.swift; sourceTree = "<group>"; };
-		760E2E06DF8F442AB73F4B64 /* FillerWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordDetector.swift; sourceTree = "<group>"; };
-		5184F82573AAD949B103725A /* GIFExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GIFExporter.swift; sourceTree = "<group>"; };
-		9C49C88AC1A93C0F59F95E4A /* ViewNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewNotificationService.swift; sourceTree = "<group>"; };
 		6F1B859C84CB7A44AFF4E3A9 /* AnnotationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationOverlay.swift; sourceTree = "<group>"; };
 		97E6F160020DC12A67366CF7 /* AnnotationToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationToolbar.swift; sourceTree = "<group>"; };
 		E5F62201DF7112D57351F750 /* RegionSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelector.swift; sourceTree = "<group>"; };
@@ -118,13 +81,9 @@
 		9B99777057266A65C2DA21A6 /* StitchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchSheet.swift; sourceTree = "<group>"; };
 		E5995C11C4373DCD98BC11A7 /* TagManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagManager.swift; sourceTree = "<group>"; };
 		E38B9F4C385C5B8C908DDAAC /* TagFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagFilterView.swift; sourceTree = "<group>"; };
-		7A2C4E6F8B0D1E3F5A7C9B2D /* CloudflareDeployService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudflareDeployService.swift; sourceTree = "<group>"; };
 		C4D6E8F0A2B4C6D8E0F2A4B6 /* SelfHostSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfHostSetupView.swift; sourceTree = "<group>"; };
 		E6F8A0B2C4D6E8F0A2B4C6D8 /* WorkerBundle */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WorkerBundle; sourceTree = "<group>"; };
-		3A7B9C1D2E4F6A8B0C3D5E7F /* MeetingDetectionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetectionService.swift; sourceTree = "<group>"; };
 		5C9D1E3F4A6B8C0D2E5F7A9B /* MeetingPanelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingPanelManager.swift; sourceTree = "<group>"; };
-		7E1F3A5B6C8D0E2F4A7B9C1D /* MeetingDetectedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetectedView.swift; sourceTree = "<group>"; };
-		B3C5D7E9F1A3B5C7D9E1F3A5 /* MenuBarMeetingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarMeetingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -134,6 +93,9 @@
 			files = (
 				3041DE022F55337E00D61F1F /* WhisperKit in Frameworks */,
 				A10009010 /* Sparkle in Frameworks */,
+				B1A2C3D4E5F6A7B8C9D0E1F2 /* VoomCore in Frameworks */,
+				E1F2A3B4C5D6E7F8A9B0C1D2 /* VoomAppLib in Frameworks */,
+				A1B2C3D4E5F6A7B8C9D0E1F3 /* VoomMeetingsLib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -153,8 +115,6 @@
 			children = (
 				A10005002 /* App */,
 				A10005003 /* Views */,
-				A10005010 /* Models */,
-				A10005011 /* Services */,
 				A10005020 /* Resources */,
 			);
 			path = Voom;
@@ -173,7 +133,6 @@
 		A10005003 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				A10009040 /* Theme.swift */,
 				A10005019 /* Components */,
 				A10005009 /* Panel */,
 				A10005004 /* MenuBar */,
@@ -190,7 +149,6 @@
 			isa = PBXGroup;
 			children = (
 				A10002017 /* CameraPreviewView.swift */,
-				B3C5D7E9F1A3B5C7D9E1F3A5 /* MenuBarMeetingView.swift */,
 			);
 			path = MenuBar;
 			sourceTree = "<group>";
@@ -241,114 +199,8 @@
 				A10002021 /* ControlPanelView.swift */,
 				A10002022 /* ControlPanelManager.swift */,
 				5C9D1E3F4A6B8C0D2E5F7A9B /* MeetingPanelManager.swift */,
-				7E1F3A5B6C8D0E2F4A7B9C1D /* MeetingDetectedView.swift */,
 			);
 			path = Panel;
-			sourceTree = "<group>";
-		};
-		A10005010 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				A10002007 /* Recording.swift */,
-				5B957058D4314DA218DFFD92 /* Folder.swift */,
-				1B3E7A3BC9AA6F788796145E /* Annotation.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
-		A10005011 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				A10005012 /* Capture */,
-				A10005013 /* Writing */,
-				A10005014 /* Transcription */,
-				A10005015 /* Storage */,
-				A10005016 /* Sharing */,
-				A10005021 /* TextAnalysis */,
-				FCDFE53032F7A60C97860CFA /* Editing */,
-				8F115A63A1F20CA2AFCC3D30 /* Export */,
-				9A3B5C7D8E0F2A4B6C9D1E3F /* MeetingDetection */,
-				A10009080 /* GlobalHotkey.swift */,
-			);
-			path = Services;
-			sourceTree = "<group>";
-		};
-		9A3B5C7D8E0F2A4B6C9D1E3F /* MeetingDetection */ = {
-			isa = PBXGroup;
-			children = (
-				3A7B9C1D2E4F6A8B0C3D5E7F /* MeetingDetectionService.swift */,
-			);
-			path = MeetingDetection;
-			sourceTree = "<group>";
-		};
-		A10005012 /* Capture */ = {
-			isa = PBXGroup;
-			children = (
-				A10002008 /* ScreenRecorder.swift */,
-				A10002009 /* CameraCapture.swift */,
-				A10002010 /* FrameCompositor.swift */,
-				56901B55FB1EEE4EBA2A7900 /* CameraOnlyRecorder.swift */,
-			);
-			path = Capture;
-			sourceTree = "<group>";
-		};
-		A10005013 /* Writing */ = {
-			isa = PBXGroup;
-			children = (
-				A10002011 /* VideoWriter.swift */,
-			);
-			path = Writing;
-			sourceTree = "<group>";
-		};
-		A10005014 /* Transcription */ = {
-			isa = PBXGroup;
-			children = (
-				A10002012 /* TranscriptionService.swift */,
-			);
-			path = Transcription;
-			sourceTree = "<group>";
-		};
-		A10005015 /* Storage */ = {
-			isa = PBXGroup;
-			children = (
-				A10002013 /* RecordingStorage.swift */,
-			);
-			path = Storage;
-			sourceTree = "<group>";
-		};
-		A10005016 /* Sharing */ = {
-			isa = PBXGroup;
-			children = (
-				A10009050 /* ShareService.swift */,
-				9C49C88AC1A93C0F59F95E4A /* ViewNotificationService.swift */,
-				7A2C4E6F8B0D1E3F5A7C9B2D /* CloudflareDeployService.swift */,
-			);
-			path = Sharing;
-			sourceTree = "<group>";
-		};
-		A10005021 /* TextAnalysis */ = {
-			isa = PBXGroup;
-			children = (
-				A10009100 /* TextAnalysisService.swift */,
-			);
-			path = TextAnalysis;
-			sourceTree = "<group>";
-		};
-		FCDFE53032F7A60C97860CFA /* Editing */ = {
-			isa = PBXGroup;
-			children = (
-				14B6E44E75F934668CB951E8 /* VideoEditor.swift */,
-				760E2E06DF8F442AB73F4B64 /* FillerWordDetector.swift */,
-			);
-			path = Editing;
-			sourceTree = "<group>";
-		};
-		8F115A63A1F20CA2AFCC3D30 /* Export */ = {
-			isa = PBXGroup;
-			children = (
-				5184F82573AAD949B103725A /* GIFExporter.swift */,
-			);
-			path = Export;
 			sourceTree = "<group>";
 		};
 		A10005017 /* Settings */ = {
@@ -415,6 +267,9 @@
 			packageProductDependencies = (
 				A10009001 /* WhisperKit */,
 				A10009011 /* Sparkle */,
+				C2B3D4E5F6A7B8C9D0E1F2A3 /* VoomCore */,
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* VoomApp */,
+				B2C3D4E5F6A7B8C9D0E1F2A4 /* VoomMeetings */,
 			);
 			productName = Voom;
 			productReference = A10003000 /* Voom.app */;
@@ -447,6 +302,9 @@
 			packageReferences = (
 				A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */,
 				A10009012 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				D3E4F5A6B7C8D9E0F1A2B3C4 /* XCLocalSwiftPackageReference "../Packages/VoomCore" */,
+				F4A5B6C7D8E9F0A1B2C3D4E5 /* XCLocalSwiftPackageReference "../Packages/VoomApp" */,
+				A5B6C7D8E9F0A1B2C3D4E5F6 /* XCLocalSwiftPackageReference "../Packages/VoomMeetings" */,
 			);
 			productRefGroup = A10005099 /* Products */;
 			projectDirPath = "";
@@ -481,33 +339,15 @@
 				A10001020 /* ControlPanelManager.swift in Sources */,
 				A10001004 /* LibraryWindow.swift in Sources */,
 				A10001005 /* PlayerView.swift in Sources */,
-				A10001007 /* Recording.swift in Sources */,
-				A10001008 /* ScreenRecorder.swift in Sources */,
-				A10001009 /* CameraCapture.swift in Sources */,
-				A10001010 /* FrameCompositor.swift in Sources */,
-				A10001011 /* VideoWriter.swift in Sources */,
-				A10001012 /* TranscriptionService.swift in Sources */,
-				A10001013 /* RecordingStorage.swift in Sources */,
 				A10001015 /* CameraPreviewView.swift in Sources */,
 				A10001016 /* NativePlayerView.swift in Sources */,
 				A10001017 /* RecordingOverlay.swift in Sources */,
 				A10009021 /* CountdownOverlay.swift in Sources */,
 				A10009031 /* DisplayPicker.swift in Sources */,
-				A10009041 /* Theme.swift in Sources */,
-				A10009051 /* ShareService.swift in Sources */,
 				A10009061 /* SettingsView.swift in Sources */,
 				D4F6B8C0E2A4D6F8B0C2E4A6 /* InlineSettingsView.swift in Sources */,
 				A10009071 /* OnboardingView.swift in Sources */,
-				A10009081 /* GlobalHotkey.swift in Sources */,
 				A10009091 /* ToastOverlay.swift in Sources */,
-				A10009101 /* TextAnalysisService.swift in Sources */,
-				042557EE8F2A4F204E1B08B3 /* Folder.swift in Sources */,
-				C88E3E9D6252C0246E669B2B /* Annotation.swift in Sources */,
-				950B9DDF70673E1EF79B2592 /* CameraOnlyRecorder.swift in Sources */,
-				F639D7279356240701F64776 /* VideoEditor.swift in Sources */,
-				F03AC56DDBB86EFDA3A43C76 /* FillerWordDetector.swift in Sources */,
-				CA29E40CFDDC9649D3649113 /* GIFExporter.swift in Sources */,
-				D529D177BB0E6B53CFC49D9A /* ViewNotificationService.swift in Sources */,
 				B04B8D5B0A0DCCE2E6FAAE1A /* AnnotationOverlay.swift in Sources */,
 				64D86073DFD9D7EC9CA27E05 /* AnnotationToolbar.swift in Sources */,
 				EB5D182176B346C35EA148E9 /* RegionSelector.swift in Sources */,
@@ -521,12 +361,8 @@
 				EB030D819B4963073A112855 /* StitchSheet.swift in Sources */,
 				B3E119C1C2816FBCD6EE077F /* TagManager.swift in Sources */,
 				BB1E82A02048325BF6FDB3C1 /* TagFilterView.swift in Sources */,
-				8B3D5F7A9C1E2D4F6B8A0C3E /* CloudflareDeployService.swift in Sources */,
 				D5E7F9A1B3C5D7E9F1A3B5C7 /* SelfHostSetupView.swift in Sources */,
-				4B8C0D2E3F5A7B9C1D4E6F8A /* MeetingDetectionService.swift in Sources */,
 				6D0E2F4A5B7C9D1E3F6A8B0C /* MeetingPanelManager.swift in Sources */,
-				8F2A4B6C7D9E1F3A5B8C0D2E /* MeetingDetectedView.swift in Sources */,
-			A2B4C6D8E0F2A4B6C8D0E2F4 /* MenuBarMeetingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -740,6 +576,21 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		D3E4F5A6B7C8D9E0F1A2B3C4 /* XCLocalSwiftPackageReference "../Packages/VoomCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../Packages/VoomCore";
+		};
+		F4A5B6C7D8E9F0A1B2C3D4E5 /* XCLocalSwiftPackageReference "../Packages/VoomApp" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../Packages/VoomApp";
+		};
+		A5B6C7D8E9F0A1B2C3D4E5F6 /* XCLocalSwiftPackageReference "../Packages/VoomMeetings" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../Packages/VoomMeetings";
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -769,6 +620,18 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A10009012 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		C2B3D4E5F6A7B8C9D0E1F2A3 /* VoomCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoomCore;
+		};
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* VoomApp */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoomApp;
+		};
+		B2C3D4E5F6A7B8C9D0E1F2A4 /* VoomMeetings */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VoomMeetings;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

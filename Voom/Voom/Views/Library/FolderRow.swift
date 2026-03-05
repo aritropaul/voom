@@ -1,4 +1,5 @@
 import SwiftUI
+import VoomCore
 
 struct FolderRow: View {
     let folder: Folder

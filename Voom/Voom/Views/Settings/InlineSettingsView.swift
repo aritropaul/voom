@@ -2,6 +2,8 @@ import SwiftUI
 import ServiceManagement
 import Sparkle
 import EventKit
+import VoomCore
+import VoomMeetings
 
 struct InlineSettingsView: View {
     let topContentInset: CGFloat
@@ -76,6 +78,9 @@ struct InlineSettingsView: View {
                     if enabled {
                         let granted = await MeetingDetectionService.shared.requestCalendarAccess()
                         if granted {
+                            if let delegate = NSApp.delegate as? AppDelegate {
+                                await delegate.configureMeetingDetection()
+                            }
                             await MeetingDetectionService.shared.startPolling()
                         } else {
                             await MainActor.run { meetingDetectionEnabled = false }

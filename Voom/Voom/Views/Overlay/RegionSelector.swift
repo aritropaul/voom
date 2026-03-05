@@ -1,5 +1,6 @@
 import AppKit
 import ScreenCaptureKit
+import VoomCore
 
 @MainActor
 final class RegionSelector {

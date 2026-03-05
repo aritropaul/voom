@@ -1,4 +1,5 @@
 import SwiftUI
+import VoomCore
 
 /// Shared storage for the SwiftUI openWindow action, accessible from non-SwiftUI code.
 @MainActor

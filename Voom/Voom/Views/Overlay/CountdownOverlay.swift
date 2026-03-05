@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import ScreenCaptureKit
+import VoomCore
 
 // MARK: - Countdown View
 

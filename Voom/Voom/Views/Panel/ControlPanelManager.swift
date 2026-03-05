@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import VoomCore
 @preconcurrency import ScreenCaptureKit
 
 @MainActor

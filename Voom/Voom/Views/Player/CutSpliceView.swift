@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import CoreMedia
+import VoomCore
 
 struct CutRegion: Identifiable {
     let id = UUID()

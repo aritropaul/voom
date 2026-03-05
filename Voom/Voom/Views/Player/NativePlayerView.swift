@@ -1,5 +1,6 @@
 import SwiftUI
 import AVKit
+import VoomCore
 
 struct NativePlayerView: NSViewRepresentable {
     let player: AVPlayer

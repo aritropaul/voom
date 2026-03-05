@@ -1,4 +1,5 @@
 import SwiftUI
+import VoomCore
 
 struct ChapterView: View {
     @Binding var chapters: [Chapter]

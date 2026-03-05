@@ -6,6 +6,8 @@ import UserNotifications
 import Sparkle
 import EventKit
 import os
+import VoomCore
+import VoomMeetings
 
 private let logger = Logger(subsystem: "com.voom.app", category: "AppDelegate")
 
@@ -55,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Start meeting detection polling if enabled
         if appState.meetingDetectionEnabled {
             Task {
+                await configureMeetingDetection()
                 await MeetingDetectionService.shared.startPolling()
             }
         }
@@ -172,6 +175,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
+    }
+
+    func configureMeetingDetection() async {
+        let state = appState
+        let callbacks = MeetingDetectionCallbacks(
+            onMeetingDetected: { detected in
+                state.detectedMeeting = detected
+                MeetingPanelManager.shared.show(meeting: detected, appState: state)
+            },
+            onAutoStopRequested: {
+                NotificationCenter.default.post(name: .autoStopMeetingRecording, object: nil)
+            },
+            onCameraOff: {
+                state.detectedMeeting = nil
+                MeetingPanelManager.shared.dismiss()
+            },
+            onUpcomingMeetingChanged: { upcoming in
+                state.upcomingMeeting = upcoming
+            },
+            getRecordingState: {
+                state.recordingState
+            },
+            getIsMeetingRecording: {
+                state.isMeetingRecording
+            }
+        )
+        await MeetingDetectionService.shared.setCallbacks(callbacks)
     }
 
     func updateStatusIcon(recording: Bool) {

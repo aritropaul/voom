@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 import AVKit
 import os
+import VoomCore
 
 private let playerLogger = Logger(subsystem: "com.voom.app", category: "Player")
 

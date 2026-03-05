@@ -1,4 +1,5 @@
 import SwiftUI
+import VoomCore
 
 struct TagFilterView: View {
     let availableTags: [RecordingTag]

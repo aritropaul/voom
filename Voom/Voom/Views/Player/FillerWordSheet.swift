@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreMedia
 import os
+import VoomCore
 
 private let fillerLogger = Logger(subsystem: "com.voom.app", category: "FillerWord")
 

@@ -1,58 +1,10 @@
 import SwiftUI
 import ScreenCaptureKit
 import EventKit
-
-struct DetectedMeeting {
-    let eventIdentifier: String
-    let title: String
-    let startDate: Date
-    let endDate: Date
-
-    var timeRangeString: String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return "\(formatter.string(from: startDate)) – \(formatter.string(from: endDate))"
-    }
-}
-
-struct UpcomingMeeting {
-    let title: String
-    let startDate: Date
-    let endDate: Date
-    let meetingURL: URL?
-    let serviceName: String?
-
-    var statusLabel: String {
-        let now = Date()
-        if now >= startDate && now <= endDate { return "Now" }
-        let minutes = max(1, Int(ceil(startDate.timeIntervalSince(now) / 60)))
-        return "Upcoming in \(minutes) min"
-    }
-}
-
-enum RecordingState: Equatable {
-    case idle
-    case preparing
-    case recording
-    case paused
-    case stopping
-}
-
-enum PiPPosition: String, CaseIterable {
-    case bottomLeft, bottomRight, topLeft, topRight
-
-    var label: String {
-        switch self {
-        case .bottomLeft: "Bottom Left"
-        case .bottomRight: "Bottom Right"
-        case .topLeft: "Top Left"
-        case .topRight: "Top Right"
-        }
-    }
-}
+import VoomCore
 
 @Observable @MainActor
-final class AppState {
+final class AppState: RecordingStateProvider {
     var recordingState: RecordingState = .idle
     var isPanelVisible: Bool = false
     var isCameraEnabled: Bool = true

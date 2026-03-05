@@ -1,4 +1,5 @@
 import SwiftUI
+import VoomCore
 
 struct TagManager: View {
     @Environment(RecordingStore.self) private var store

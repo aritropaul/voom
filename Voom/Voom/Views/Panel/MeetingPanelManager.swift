@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import VoomCore
+import VoomMeetings
 @preconcurrency import ScreenCaptureKit
 
 @MainActor

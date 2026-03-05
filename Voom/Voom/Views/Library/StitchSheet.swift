@@ -1,4 +1,5 @@
 import SwiftUI
+import VoomCore
 
 struct StitchSheet: View {
     let recordings: [Recording]

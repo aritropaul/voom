@@ -1,5 +1,6 @@
 import SwiftUI
 import os
+import VoomCore
 
 private let logger = Logger(subsystem: "com.voom.app", category: "Library")
 

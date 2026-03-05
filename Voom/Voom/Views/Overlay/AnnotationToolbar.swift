@@ -1,4 +1,5 @@
 import SwiftUI
+import VoomCore
 
 struct AnnotationToolbar: View {
     @Bindable var viewModel: AnnotationViewModel

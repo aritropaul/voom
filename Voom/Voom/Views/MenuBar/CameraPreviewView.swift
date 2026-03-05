@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import VoomCore
 
 struct CameraPreviewView: NSViewRepresentable {
     let session: AVCaptureSession

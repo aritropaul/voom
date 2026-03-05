@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 @preconcurrency import AVFoundation
 import ScreenCaptureKit
+import VoomCore
 
 // MARK: - Controls Overlay View
 
