@@ -18,12 +18,13 @@
 - **Pause/resume** — pause and resume recording without splitting files
 
 ### Post-recording
-- **On-device transcription** — powered by WhisperKit (distil-large-v3), fully offline
+- **On-device transcription** — powered by FluidAudio, fully offline
+- **Speaker diarization** — identifies who said what in meeting recordings, with "You" labeling for the local user
 - **Trim** — cut the start and end of a recording
 - **Cut/splice** — remove sections from the middle of a recording
 - **Stitch** — combine multiple recordings into one
 - **Filler word removal** — detect and cut "um", "uh", "like", etc. from transcribed recordings
-- **Chapters** — add timestamped chapter markers for easy navigation
+- **Auto chapters** — AI-generated chapter markers spanning the full recording duration
 - **GIF export** — copy a GIF of the first 15 seconds to clipboard
 
 ### Organization
@@ -47,7 +48,7 @@
 | **Price** | Free, forever (including cloud sharing) | $15/user/month (Business) |
 | **Privacy** | Recordings stay on your Mac. Cloud sharing is opt-in to your own infra | All recordings uploaded to Loom servers |
 | **Recording quality** | Full Retina resolution, HEVC hardware encoding | 720p–1080p, software encoding via ffmpeg |
-| **Transcription** | On-device via WhisperKit — nothing leaves your machine | Cloud-based |
+| **Transcription** | On-device via FluidAudio — nothing leaves your machine | Cloud-based |
 | **Editing** | Trim, cut/splice, stitch, filler word removal | Trim only (paid) |
 | **Recording limit** | Unlimited, any length | 5 min (free), 45 min (business) |
 | **Open source** | Yes (MIT) | No |

@@ -2,7 +2,7 @@
 
 ## What is Voom?
 
-A privacy-first macOS screen recording app. Records screen + camera + mic, transcribes on-device with WhisperKit, and optionally shares via a self-hosted Cloudflare Worker. No Electron — pure Swift/SwiftUI.
+A privacy-first macOS screen recording app. Records screen + camera + mic, transcribes on-device with FluidAudio, and optionally shares via a self-hosted Cloudflare Worker. No Electron — pure Swift/SwiftUI.
 
 ## Quick Reference
 
@@ -38,7 +38,7 @@ voom/
 │       │   ├── Capture/               # ScreenRecorder, CameraCapture, FrameCompositor, CameraOnlyRecorder
 │       │   ├── Writing/               # VideoWriter (HEVC/H.264 via VideoToolbox)
 │       │   ├── Storage/               # RecordingStorage (JSON persistence)
-│       │   ├── Transcription/         # TranscriptionService (WhisperKit)
+│       │   ├── Transcription/         # TranscriptionService (FluidAudio)
 │       │   ├── Sharing/               # ShareService, CloudflareDeployService, ViewNotificationService
 │       │   ├── Editing/               # VideoEditor, FillerWordDetector
 │       │   ├── Export/                # GIFExporter
@@ -97,7 +97,7 @@ final class SomeStore {
 |---------|-----------|---------|
 | UI state | `@MainActor` | AppState, RecordingStore, ShareUploadTracker, DeployProgress |
 | I/O services | `actor` | ScreenRecorder, RecordingStorage, ShareService, TranscriptionService |
-| WhisperKit | `nonisolated(unsafe)` | Only accessed from TranscriptionService |
+| FluidAudio | `nonisolated(unsafe)` | Only accessed from TranscriptionService / SpeakerDiarizationService |
 | SCStream callbacks | Global queue | Must dispatch to MainActor for state updates |
 
 Use `await MainActor.run { ... }` for cross-actor UI updates. Never use DispatchQueue.main.async in new code.
@@ -234,6 +234,6 @@ Both `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` are set from the git tag 
 
 | Package | Purpose | Manager |
 |---------|---------|---------|
-| WhisperKit | On-device transcription (distil-large-v3) | Swift Package |
+| FluidAudio | On-device ASR and speaker diarization | Swift Package |
 | Sparkle | Auto-updates with EdDSA signing | Swift Package |
 | wrangler | Cloudflare Worker deployment CLI | npm |

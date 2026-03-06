@@ -1,5 +1,17 @@
 # Changelog
 
+## 3.0.0 — 2026-03-05
+
+- Migrated from WhisperKit to FluidAudio for on-device ASR and speaker diarization.
+- Split monolithic app into VoomCore, VoomApp, and VoomMeetings packages.
+- Split-track speaker diarization: saves separate mic and system audio during meeting recordings for accurate speaker separation.
+- "You" identification: mic audio diarized separately so the local user's segments are labeled "You" instead of a generic speaker number.
+- Remote speaker separation: system audio diarized independently for cleaner multi-speaker identification without local voice interference.
+- Chapters now auto-generate after transcription for both regular and meeting recordings.
+- Fixed chapter generation only covering first ~2 minutes by subsampling transcript evenly across full duration.
+- Speaker labels displayed in transcript view.
+- Added debug mode in settings.
+
 ## 2.8.1 — 2026-03-05
 
 - Reduced video file size ~40% with optimized HEVC compression (8 Mbps, B-frames, 4s GOP).
