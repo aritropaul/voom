@@ -33,7 +33,8 @@ public actor MeetingAnalysis {
     /// Generate a detailed meeting summary with speaker awareness.
     public func generateDetailedSummary(from segments: [TranscriptEntry]) async -> String? {
         let transcript = formatTranscriptForAnalysis(segments)
-        guard transcript.split(separator: " ").count >= 10 else { return nil }
+        let wordCount = segments.reduce(0) { $0 + $1.text.split(separator: " ").count }
+        guard wordCount >= 3 else { return nil }
 
         let systemPrompt = """
         You are summarizing a meeting recording. Provide a concise but comprehensive summary.
@@ -49,7 +50,8 @@ public actor MeetingAnalysis {
     /// Generate a meeting-focused title from transcript.
     public func generateMeetingTitle(from segments: [TranscriptEntry]) async -> String? {
         let transcript = formatTranscriptForAnalysis(segments)
-        guard transcript.split(separator: " ").count >= 5 else { return nil }
+        let wordCount = segments.reduce(0) { $0 + $1.text.split(separator: " ").count }
+        guard wordCount >= 2 else { return nil }
 
         let systemPrompt = """
         You are generating a short title for a meeting recording.

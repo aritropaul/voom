@@ -40,6 +40,8 @@ struct PlayerView: View {
     @State private var playbackSpeed: Float = 1.0
     @State private var editingTitle: String = ""
     @State private var editingSummary: String = ""
+    @State private var isEditingSummary = false
+    @FocusState private var isSummaryFocused: Bool
     @State private var showTrimView = false
     @State private var showCutView = false
     @State private var showFillerSheet = false
@@ -245,6 +247,7 @@ struct PlayerView: View {
         }
         .onChange(of: recording?.summary) { _, newSummary in
             editingSummary = newSummary ?? ""
+            isEditingSummary = false
         }
         .onChange(of: showCaptions) { _, show in
             if !show { playerWrapperRef?.updateCaption(nil) }
@@ -611,35 +614,74 @@ struct PlayerView: View {
     @ViewBuilder
     private func summarySection(summary: String) -> some View {
         VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
-            Button {
-                withAnimation(.smooth(duration: 0.2)) {
-                    isSummaryExpanded.toggle()
+            HStack {
+                Button {
+                    withAnimation(.smooth(duration: 0.2)) {
+                        isSummaryExpanded.toggle()
+                    }
+                } label: {
+                    HStack {
+                        VoomSectionHeader(icon: "text.alignleft", title: "Summary")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(VoomTheme.textTertiary)
+                            .rotationEffect(.degrees(isSummaryExpanded ? 90 : 0))
+                    }
+                    .contentShape(Rectangle())
                 }
-            } label: {
-                HStack {
-                    VoomSectionHeader(icon: "text.alignleft", title: "Summary")
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(VoomTheme.textTertiary)
-                        .rotationEffect(.degrees(isSummaryExpanded ? 90 : 0))
+                .buttonStyle(.plain)
+
+                if isSummaryExpanded {
+                    Button {
+                        if isEditingSummary {
+                            commitSummary()
+                            isEditingSummary = false
+                        } else {
+                            editingSummary = summary
+                            isEditingSummary = true
+                        }
+                    } label: {
+                        Image(systemName: isEditingSummary ? "checkmark.circle.fill" : "pencil")
+                            .font(.system(size: 11))
+                            .foregroundStyle(isEditingSummary ? VoomTheme.accentGreen : VoomTheme.textTertiary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
 
             if isSummaryExpanded {
-                TextEditor(text: $editingSummary)
-                    .font(.system(size: 13))
-                    .foregroundStyle(VoomTheme.textSecondary)
-                    .lineSpacing(4)
-                    .scrollContentBackground(.hidden)
-                    .padding(.horizontal, VoomTheme.spacingLG - 5)
-                    .padding(.vertical, VoomTheme.spacingMD)
-                    .frame(minHeight: 60)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .voomCard()
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                if isEditingSummary {
+                    TextEditor(text: $editingSummary)
+                        .font(.system(size: 13))
+                        .foregroundStyle(VoomTheme.textSecondary)
+                        .lineSpacing(4)
+                        .scrollContentBackground(.hidden)
+                        .padding(.horizontal, VoomTheme.spacingLG - 5)
+                        .padding(.vertical, VoomTheme.spacingMD)
+                        .frame(minHeight: 120, maxHeight: 300)
+                        .voomCard()
+                        .focused($isSummaryFocused)
+                        .onAppear { isSummaryFocused = true }
+                        .onChange(of: isSummaryFocused) { _, focused in
+                            if !focused {
+                                commitSummary()
+                                isEditingSummary = false
+                            }
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                } else {
+                    Text(summary)
+                        .font(.system(size: 13))
+                        .foregroundStyle(VoomTheme.textSecondary)
+                        .lineSpacing(4)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, VoomTheme.spacingLG)
+                        .padding(.vertical, VoomTheme.spacingMD)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .voomCard()
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
         }
     }

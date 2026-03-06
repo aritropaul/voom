@@ -42,8 +42,8 @@ struct VoomApp: App {
                 .overlay { ToastOverlay() }
                 .environment(appDelegate.appState)
                 .environment(appDelegate.store)
-                .environment(\.whatsNew, WhatsNewEnvironment(versionStore: UserDefaultsWhatsNewVersionStore(), whatsNewCollection: self))
                 .whatsNewSheet()
+                .environment(\.whatsNew, WhatsNewEnvironment(versionStore: UserDefaultsWhatsNewVersionStore(), whatsNewCollection: self))
                 .preferredColorScheme(.dark)
                 .onAppear {
                     NSApp.setActivationPolicy(.regular)

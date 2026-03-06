@@ -2,12 +2,14 @@ import SwiftUI
 import AVFoundation
 import VoomCore
 import VoomApp
+import VoomMeetings
 @preconcurrency import ScreenCaptureKit
 
 struct ControlPanelView: View {
     @Environment(AppState.self) private var appState
     @State private var screenRecorder: ScreenRecorder?
     @State private var cameraOnlyRecorder: CameraOnlyRecorder?
+    @State private var meetingRecorder: MeetingRecorder?
     @State private var activeCamera: CameraCapture?
     @State private var durationTimer: Timer?
     @State private var errorMessage: String?
@@ -515,37 +517,63 @@ struct ControlPanelView: View {
             await CountdownOverlay.shared.run(display: display)
         }
 
-        let recorder = ScreenRecorder(stateProvider: appState)
-        self.screenRecorder = recorder
         let micEnabled = appState.isMicEnabled
-        let systemAudioEnabled = appState.isSystemAudioEnabled
-        let pipPosition = appState.pipPosition
-        let cropRect = appState.selectedRegion
-        let pipWinNum = OverlayManager.shared.cameraPanelWindowNumber
-        let annotationWinNum = OverlayManager.shared.annotationWindowNumber
 
-        do {
-            nonisolated(unsafe) let captureDisplay = display
-            try await recorder.startRecording(
-                display: captureDisplay,
-                cameraEnabled: cameraEnabled,
-                micEnabled: micEnabled,
-                systemAudioEnabled: systemAudioEnabled,
-                pipPosition: pipPosition,
-                existingCamera: camera,
-                cropRect: cropRect,
-                pipWindowNumber: pipWinNum,
-                annotationWindowNumber: annotationWinNum
-            )
-            appState.recordingState = .recording
-            appState.recordingDuration = 0
-            startDurationTimer()
-        } catch {
-            appState.recordingState = .idle
-            OverlayManager.shared.hideCameraPiP()
-            if let cam = activeCamera { await cam.stopCapture() }
-            activeCamera = nil
-            errorMessage = "Recording failed: \(error.localizedDescription)"
+        if appState.isMeetingRecording {
+            // Meeting path: use MeetingRecorder (HD/2K, 30fps, split-track diarization)
+            let recorder = MeetingRecorder(stateProvider: appState)
+            self.meetingRecorder = recorder
+
+            do {
+                nonisolated(unsafe) let captureDisplay = display
+                try await recorder.startRecording(
+                    display: captureDisplay,
+                    micEnabled: micEnabled
+                )
+                appState.recordingState = .recording
+                appState.recordingDuration = 0
+                startDurationTimer()
+            } catch {
+                appState.recordingState = .idle
+                OverlayManager.shared.hideCameraPiP()
+                if let cam = activeCamera { await cam.stopCapture() }
+                activeCamera = nil
+                meetingRecorder = nil
+                errorMessage = "Recording failed: \(error.localizedDescription)"
+            }
+        } else {
+            // Regular screen recording path
+            let recorder = ScreenRecorder(stateProvider: appState)
+            self.screenRecorder = recorder
+            let systemAudioEnabled = appState.isSystemAudioEnabled
+            let pipPosition = appState.pipPosition
+            let cropRect = appState.selectedRegion
+            let pipWinNum = OverlayManager.shared.cameraPanelWindowNumber
+            let annotationWinNum = OverlayManager.shared.annotationWindowNumber
+
+            do {
+                nonisolated(unsafe) let captureDisplay = display
+                try await recorder.startRecording(
+                    display: captureDisplay,
+                    cameraEnabled: cameraEnabled,
+                    micEnabled: micEnabled,
+                    systemAudioEnabled: systemAudioEnabled,
+                    pipPosition: pipPosition,
+                    existingCamera: camera,
+                    cropRect: cropRect,
+                    pipWindowNumber: pipWinNum,
+                    annotationWindowNumber: annotationWinNum
+                )
+                appState.recordingState = .recording
+                appState.recordingDuration = 0
+                startDurationTimer()
+            } catch {
+                appState.recordingState = .idle
+                OverlayManager.shared.hideCameraPiP()
+                if let cam = activeCamera { await cam.stopCapture() }
+                activeCamera = nil
+                errorMessage = "Recording failed: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -595,6 +623,9 @@ struct ControlPanelView: View {
         if let recorder = cameraOnlyRecorder {
             recordingID = await recorder.stopRecording()
             cameraOnlyRecorder = nil
+        } else if let recorder = meetingRecorder {
+            recordingID = await recorder.stopRecording()
+            meetingRecorder = nil
         } else if let recorder = screenRecorder {
             recordingID = await recorder.stopRecording()
             screenRecorder = nil
@@ -621,6 +652,16 @@ struct ControlPanelView: View {
 
     private func togglePause() async {
         if let recorder = cameraOnlyRecorder {
+            if appState.recordingState == .paused {
+                await recorder.resume()
+                appState.recordingState = .recording
+                startDurationTimer()
+            } else {
+                await recorder.pause()
+                appState.recordingState = .paused
+                stopDurationTimer()
+            }
+        } else if let recorder = meetingRecorder {
             if appState.recordingState == .paused {
                 await recorder.resume()
                 appState.recordingState = .recording

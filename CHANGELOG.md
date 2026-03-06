@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.2 — 2026-03-06
+
+- Meeting recordings now use MeetingRecorder: HD/2K (capped at 2560), 30fps, split-track audio for speaker diarization.
+- Fixed meeting recordings using ScreenRecorder at native retina resolution instead of the dedicated meeting pipeline.
+- AI title and summary generation now subsamples transcripts to fit Apple Foundation Models context window, fixing failures on long recordings.
+- Speaker labels from diarization are now included in title and summary prompts for meeting-aware AI generation.
+- Summary card in player view fits content height without internal scrolling; edit via pencil icon.
+- Lowered word count thresholds for title (5 to 2) and summary (10 to 3) to handle short recordings.
+
 ## 3.0.1 — 2026-03-06
 
 - Web-optimized sharing: videos are re-encoded to H.264 for universal browser playback with smaller file sizes.
