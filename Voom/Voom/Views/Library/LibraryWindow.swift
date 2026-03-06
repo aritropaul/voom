@@ -40,7 +40,6 @@ struct LibraryWindow: View {
     @State private var showStitchSheet = false
     @State private var selectedTagIDs: Set<UUID> = []
     @State private var showSettings = false
-    @AppStorage("DebugMode") private var debugMode = false
     @State private var detailIsScrolled = false
     @State private var hoveredRecordingID: UUID?
     @State private var isSettingsHovered = false
@@ -737,33 +736,33 @@ struct LibraryWindow: View {
             }
         }
 
-        if debugMode {
-            if recording.isTranscribed && !recording.transcriptSegments.isEmpty {
-                Button {
-                    regenerateTitleAndSummary(recording)
-                } label: {
-                    Label("Regenerate Title & Summary", systemImage: "sparkles")
-                }
-            }
-
+        #if DEBUG
+        if recording.isTranscribed && !recording.transcriptSegments.isEmpty {
             Button {
-                regenerateTranscript(recording)
+                regenerateTitleAndSummary(recording)
             } label: {
-                Label("Regenerate Transcript", systemImage: "waveform")
-            }
-            .disabled(recording.isTranscribing)
-
-            Button {
-                var updated = recording
-                updated.isMeeting = !(recording.isMeeting ?? false)
-                store.update(updated)
-            } label: {
-                Label(
-                    (recording.isMeeting ?? false) ? "Unmark as Meeting" : "Mark as Meeting",
-                    systemImage: (recording.isMeeting ?? false) ? "video.badge.minus" : "video.badge.checkmark"
-                )
+                Label("Regenerate Title & Summary", systemImage: "sparkles")
             }
         }
+
+        Button {
+            regenerateTranscript(recording)
+        } label: {
+            Label("Regenerate Transcript", systemImage: "waveform")
+        }
+        .disabled(recording.isTranscribing)
+
+        Button {
+            var updated = recording
+            updated.isMeeting = !(recording.isMeeting ?? false)
+            store.update(updated)
+        } label: {
+            Label(
+                (recording.isMeeting ?? false) ? "Unmark as Meeting" : "Mark as Meeting",
+                systemImage: (recording.isMeeting ?? false) ? "video.badge.minus" : "video.badge.checkmark"
+            )
+        }
+        #endif
 
         Divider()
 

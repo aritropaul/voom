@@ -55,10 +55,20 @@
 | **Native** | Swift/SwiftUI (~5 MB) | Electron (~200 MB) |
 | **Platform** | macOS | macOS, Windows, Chrome, iOS, Android |
 
+### Meetings
+- **Meeting detection** — auto-trigger floating panel when video calls begin
+- **Split-track diarization** — separate mic and system audio for accurate speaker identification
+- **"You" labeling** — local user's speech identified separately from remote participants
+- **Meeting summaries** — AI-generated title, summary, and action items
+
 ## Architecture
 
 ```
 Voom/                   macOS app (Swift, SwiftUI, ScreenCaptureKit)
+Packages/
+  VoomCore/             Core services: capture, transcription, storage, text analysis
+  VoomApp/              Application layer over VoomCore
+  VoomMeetings/         Meeting detection, recording, diarization, analysis
 voom-share/             Cloudflare Worker (R2 + D1 + Workers)
 ```
 
@@ -123,7 +133,8 @@ Each shared recording gets a minimal dark page with:
 |-----------|-----------|
 | App | Swift, SwiftUI, ScreenCaptureKit, AVFoundation |
 | Encoding | HEVC (VideoToolbox hardware encoder) |
-| Transcription | WhisperKit (on-device, Apple Silicon) |
+| Transcription | FluidAudio (on-device, Apple Silicon) |
+| Speaker Diarization | FluidAudio (on-device, Apple Neural Engine) |
 | Storage | Cloudflare R2 |
 | Database | Cloudflare D1 (SQLite) |
 | API + Share Page | Cloudflare Workers |
