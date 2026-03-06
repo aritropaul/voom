@@ -121,10 +121,6 @@ public actor CameraCapture {
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
 
-        // Enable voice processing — hardware-accelerated echo cancellation,
-        // noise suppression, and automatic gain control (macOS 13+)
-        try inputNode.setVoiceProcessingEnabled(true)
-
         let nativeFormat = inputNode.outputFormat(forBus: 0)
         guard nativeFormat.sampleRate > 0, nativeFormat.channelCount > 0 else {
             throw CaptureError.noMicAvailable

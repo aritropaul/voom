@@ -9,13 +9,14 @@
 - Remote speaker separation: system audio diarized independently for cleaner multi-speaker identification without local voice interference.
 - Chapters now auto-generate after transcription for both regular and meeting recordings.
 - Fixed chapter generation only covering first ~2 minutes by subsampling transcript evenly across full duration.
+- Fixed garbled mic audio caused by AVAudioEngine voice processing conflicting with ScreenCaptureKit audio capture.
 - Speaker labels displayed in transcript view.
 - Added debug mode in settings.
 
 ## 2.8.1 — 2026-03-05
 
 - Reduced video file size ~40% with optimized HEVC compression (8 Mbps, B-frames, 4s GOP).
-- Replaced AVCaptureSession mic with AVAudioEngine voice processing for hardware echo cancellation and noise suppression.
+- Replaced AVCaptureSession mic with AVAudioEngine for microphone capture.
 - AI title generation now uses full transcript instead of only the first 2 minutes.
 - Improved title prompts to focus on primary work topics, ignoring small talk.
 - Enhanced AI summaries to 4-8 sentences covering decisions and action items.
