@@ -125,15 +125,39 @@ public actor ShareService {
         guard ShareConfig.isConfigured else { throw ShareError.notConfigured }
 
         let tracker = await ShareUploadTracker.shared
+        let pipelineProgress = await SharePipelineProgress.shared
+
+        // Step 0: Optimize video for web
+        var uploadFileURL = recording.fileURL
+        var optimizedURL: URL?
+        var optimizedFileSize: Int64?
+
+        do {
+            await pipelineProgress.start(for: recording.id)
+            let id = recording.id
+            let result = try await SharePipeline.shared.optimize(sourceURL: recording.fileURL) { pct in
+                Task { @MainActor in
+                    SharePipelineProgress.shared.update(for: id, progress: pct)
+                }
+            }
+            uploadFileURL = result.optimizedURL
+            optimizedURL = result.optimizedURL
+            optimizedFileSize = result.fileSize
+            await pipelineProgress.complete(for: recording.id)
+        } catch {
+            // Fallback: use raw file if optimization fails
+            await pipelineProgress.complete(for: recording.id)
+        }
+
         await tracker.startUpload(for: recording.id)
 
         do {
-            // Step 1: Request upload slot
-            let uploadResponse = try await requestUpload(recording: recording)
+            // Step 1: Request upload slot (use optimized file size if available)
+            let uploadResponse = try await requestUpload(recording: recording, fileSize: optimizedFileSize)
 
             // Step 2: Upload video file
             try await uploadVideo(
-                fileURL: recording.fileURL,
+                fileURL: uploadFileURL,
                 uploadURL: uploadResponse.uploadURL,
                 recordingID: recording.id
             )
@@ -146,15 +170,22 @@ public actor ShareService {
                 )
             }
 
-            // Step 4: Post metadata, transcript, title, and summary
+            // Step 4: Post metadata, transcript, title, summary, chapters, and meeting info
             try await postMetadata(
                 shareCode: uploadResponse.shareCode,
                 title: recording.title,
                 summary: recording.summary,
-                segments: recording.transcriptSegments
+                segments: recording.transcriptSegments,
+                chapters: recording.chapters,
+                isMeeting: recording.isMeeting
             )
 
             await tracker.completeUpload(for: recording.id)
+
+            // Cleanup temp file
+            if let tempURL = optimizedURL {
+                try? FileManager.default.removeItem(at: tempURL)
+            }
 
             guard let shareURL = URL(string: uploadResponse.shareURL) else {
                 throw ShareError.invalidResponse
@@ -163,6 +194,10 @@ public actor ShareService {
             let expiresAt = parseDate(uploadResponse.expiresAt)
             return (shareURL, uploadResponse.shareCode, expiresAt)
         } catch {
+            // Cleanup temp file on error
+            if let tempURL = optimizedURL {
+                try? FileManager.default.removeItem(at: tempURL)
+            }
             await tracker.failUpload(for: recording.id, error: error.localizedDescription)
             throw error
         }
@@ -199,7 +234,7 @@ public actor ShareService {
 
     // MARK: - Private Helpers
 
-    private func requestUpload(recording: Recording) async throws -> UploadResponse {
+    private func requestUpload(recording: Recording, fileSize: Int64? = nil) async throws -> UploadResponse {
         var request = URLRequest(url: apiURL("/api/upload"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -211,7 +246,7 @@ public actor ShareService {
             "width": recording.width,
             "height": recording.height,
             "hasWebcam": recording.hasWebcam,
-            "fileSize": recording.fileSize,
+            "fileSize": fileSize ?? recording.fileSize,
         ]
 
         // Password protection: SHA-256 hash before sending
@@ -343,14 +378,18 @@ public actor ShareService {
         try validateResponse(response, data: data)
     }
 
-    private func postMetadata(shareCode: String, title: String, summary: String?, segments: [TranscriptEntry]) async throws {
+    private func postMetadata(shareCode: String, title: String, summary: String?, segments: [TranscriptEntry], chapters: [Chapter]?, isMeeting: Bool?) async throws {
         var request = URLRequest(url: apiURL("/api/metadata/\(shareCode)"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(&request)
 
         let segmentDicts = segments.map { seg -> [String: Any] in
-            ["startTime": seg.startTime, "endTime": seg.endTime, "text": seg.text]
+            var dict: [String: Any] = ["startTime": seg.startTime, "endTime": seg.endTime, "text": seg.text]
+            if let speaker = seg.speaker {
+                dict["speaker"] = speaker
+            }
+            return dict
         }
         var body: [String: Any] = [
             "segments": segmentDicts,
@@ -358,6 +397,14 @@ public actor ShareService {
         ]
         if let summary, !summary.isEmpty {
             body["summary"] = summary
+        }
+        if let chapters, !chapters.isEmpty {
+            body["chapters"] = chapters.map { ch -> [String: Any] in
+                ["timestamp": ch.timestamp, "title": ch.title]
+            }
+        }
+        if let isMeeting {
+            body["isMeeting"] = isMeeting
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

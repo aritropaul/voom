@@ -45,6 +45,8 @@
 		F7A9B1C3D5E7F9A1B3C5D7E9 /* WorkerBundle in Resources */ = {isa = PBXBuildFile; fileRef = E6F8A0B2C4D6E8F0A2B4C6D8 /* WorkerBundle */; };
 		6D0E2F4A5B7C9D1E3F6A8B0C /* MeetingPanelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C9D1E3F4A6B8C0D2E5F7A9B /* MeetingPanelManager.swift */; };
 		A1B2C3D4E5F6A7B8C9D0E1F3 /* VoomMeetingsLib in Frameworks */ = {isa = PBXBuildFile; productRef = B2C3D4E5F6A7B8C9D0E1F2A4 /* VoomMeetings */; };
+		1E7F3A5B9C2D6E8F0A4B7C1D /* WhatsNewKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0D6E2F4A8B1C5D7E9F3A6B0C /* WhatsNewKit */; };
+		8B4C0D2E6F9A3B5C7D1E4F8A /* WhatsNewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A3B9C1D5E8F2A4B6C0D3E7F /* WhatsNewProvider.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -84,6 +86,7 @@
 		C4D6E8F0A2B4C6D8E0F2A4B6 /* SelfHostSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfHostSetupView.swift; sourceTree = "<group>"; };
 		E6F8A0B2C4D6E8F0A2B4C6D8 /* WorkerBundle */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WorkerBundle; sourceTree = "<group>"; };
 		5C9D1E3F4A6B8C0D2E5F7A9B /* MeetingPanelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingPanelManager.swift; sourceTree = "<group>"; };
+		7A3B9C1D5E8F2A4B6C0D3E7F /* WhatsNewProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsNewProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -96,6 +99,7 @@
 				B1A2C3D4E5F6A7B8C9D0E1F2 /* VoomCore in Frameworks */,
 				E1F2A3B4C5D6E7F8A9B0C1D2 /* VoomAppLib in Frameworks */,
 				A1B2C3D4E5F6A7B8C9D0E1F3 /* VoomMeetingsLib in Frameworks */,
+				1E7F3A5B9C2D6E8F0A4B7C1D /* WhatsNewKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,6 +130,7 @@
 				A10002001 /* VoomApp.swift */,
 				A10002002 /* AppState.swift */,
 				A10002020 /* AppDelegate.swift */,
+				7A3B9C1D5E8F2A4B6C0D3E7F /* WhatsNewProvider.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -270,6 +275,7 @@
 				C2B3D4E5F6A7B8C9D0E1F2A3 /* VoomCore */,
 				D4E5F6A7B8C9D0E1F2A3B4C5 /* VoomApp */,
 				B2C3D4E5F6A7B8C9D0E1F2A4 /* VoomMeetings */,
+				0D6E2F4A8B1C5D7E9F3A6B0C /* WhatsNewKit */,
 			);
 			productName = Voom;
 			productReference = A10003000 /* Voom.app */;
@@ -305,6 +311,7 @@
 				D3E4F5A6B7C8D9E0F1A2B3C4 /* XCLocalSwiftPackageReference "../Packages/VoomCore" */,
 				F4A5B6C7D8E9F0A1B2C3D4E5 /* XCLocalSwiftPackageReference "../Packages/VoomApp" */,
 				A5B6C7D8E9F0A1B2C3D4E5F6 /* XCLocalSwiftPackageReference "../Packages/VoomMeetings" */,
+				9C5D1E3F7A0B4C6D8E2F5A9B /* XCRemoteSwiftPackageReference "WhatsNewKit" */,
 			);
 			productRefGroup = A10005099 /* Products */;
 			projectDirPath = "";
@@ -363,6 +370,7 @@
 				BB1E82A02048325BF6FDB3C1 /* TagFilterView.swift in Sources */,
 				D5E7F9A1B3C5D7E9F1A3B5C7 /* SelfHostSetupView.swift in Sources */,
 				6D0E2F4A5B7C9D1E3F6A8B0C /* MeetingPanelManager.swift in Sources */,
+				8B4C0D2E6F9A3B5C7D1E4F8A /* WhatsNewProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -510,7 +518,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 3.0.0;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.voom.app.debug;
 				PRODUCT_NAME = "Voom Debug";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -543,7 +551,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 3.0.0;
+				MARKETING_VERSION = 3.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.voom.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -608,6 +616,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		9C5D1E3F7A0B4C6D8E2F5A9B /* XCRemoteSwiftPackageReference "WhatsNewKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SvenTiigi/WhatsNewKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -632,6 +648,11 @@
 		B2C3D4E5F6A7B8C9D0E1F2A4 /* VoomMeetings */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = VoomMeetings;
+		};
+		0D6E2F4A8B1C5D7E9F3A6B0C /* WhatsNewKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9C5D1E3F7A0B4C6D8E2F5A9B /* XCRemoteSwiftPackageReference "WhatsNewKit" */;
+			productName = WhatsNewKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

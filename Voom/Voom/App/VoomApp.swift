@@ -1,5 +1,6 @@
 import SwiftUI
 import VoomCore
+import WhatsNewKit
 
 /// Shared storage for the SwiftUI openWindow action, accessible from non-SwiftUI code.
 @MainActor
@@ -41,6 +42,8 @@ struct VoomApp: App {
                 .overlay { ToastOverlay() }
                 .environment(appDelegate.appState)
                 .environment(appDelegate.store)
+                .environment(\.whatsNew, WhatsNewEnvironment(versionStore: UserDefaultsWhatsNewVersionStore(), whatsNewCollection: self))
+                .whatsNewSheet()
                 .preferredColorScheme(.dark)
                 .onAppear {
                     NSApp.setActivationPolicy(.regular)

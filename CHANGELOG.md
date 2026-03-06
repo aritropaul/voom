@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.1 — 2026-03-06
+
+- Web-optimized sharing: videos are re-encoded to H.264 for universal browser playback with smaller file sizes.
+- WebVTT captions on share pages with speaker labels visible in the player and fullscreen.
+- Auto-generated chapters displayed on share pages with clickable timestamps and seekbar markers.
+- Share pipeline shows optimization progress in the share sheet before upload begins.
+- Speaker labels and meeting flag included in share metadata.
+- D1 migration adds chapters table, speaker column on transcript segments, and is_meeting flag.
+- Added WhatsNewKit integration to showcase new features on first launch after update.
+
 ## 3.0.0 — 2026-03-05
 
 - Migrated from WhisperKit to FluidAudio for on-device ASR and speaker diarization.

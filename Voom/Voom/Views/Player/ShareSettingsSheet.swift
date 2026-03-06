@@ -6,6 +6,7 @@ struct ShareSettingsSheet: View {
     @Environment(RecordingStore.self) private var store
     @Binding var isPresented: Bool
     @State private var uploadTracker = ShareUploadTracker.shared
+    @State private var pipelineProgress = SharePipelineProgress.shared
     @State private var toast = ToastManager.shared
     @State private var sharePassword = ""
     @State private var ctaURLString = ""
@@ -87,7 +88,15 @@ struct ShareSettingsSheet: View {
                 .font(VoomTheme.fontHeadline())
                 .foregroundStyle(VoomTheme.textPrimary)
 
-            if uploadTracker.isUploading(recording.id) {
+            if pipelineProgress.isOptimizing(recording.id) {
+                HStack(spacing: VoomTheme.spacingSM) {
+                    ProgressView(value: pipelineProgress.progress(for: recording.id) ?? 0)
+                        .tint(VoomTheme.accentOrange)
+                    Text("Optimizing...")
+                        .font(VoomTheme.fontCaption())
+                        .foregroundStyle(VoomTheme.textSecondary)
+                }
+            } else if uploadTracker.isUploading(recording.id) {
                 HStack(spacing: VoomTheme.spacingSM) {
                     ProgressView(value: uploadTracker.progress(for: recording.id) ?? 0)
                         .tint(VoomTheme.accentGreen)
@@ -130,6 +139,7 @@ struct ShareSettingsSheet: View {
                 voomPrimaryButton("Upload & Share", icon: "arrow.up.circle.fill") {
                     Task { await shareViaLink() }
                 }
+                .disabled(pipelineProgress.isOptimizing(recording.id) || uploadTracker.isUploading(recording.id))
             }
         }
     }

@@ -129,6 +129,12 @@ export default {
       return handleGetComments(env, commentGetMatch[1]);
     }
 
+    // VTT captions
+    const vttMatch = path.match(/^\/vtt\/([a-z0-9]+)$/);
+    if (vttMatch && request.method === 'GET') {
+      return handleVTT(request, env, vttMatch[1]);
+    }
+
     // Share page
     const shareMatch = path.match(/^\/s\/([a-z0-9]+)$/);
     if (shareMatch && request.method === 'GET') {
@@ -296,24 +302,34 @@ async function handleMetadata(request, env, shareCode) {
   if (!video) return errorResponse('Video not found', 404);
 
   const body = await request.json();
-  const { segments, title, summary } = body;
+  const { segments, title, summary, chapters, isMeeting } = body;
 
   if (segments && segments.length > 0) {
     const stmt = env.DB.prepare(
-      'INSERT INTO transcript_segments (video_id, start_time, end_time, text) VALUES (?, ?, ?, ?)'
+      'INSERT INTO transcript_segments (video_id, start_time, end_time, text, speaker) VALUES (?, ?, ?, ?, ?)'
     );
-    const batch = segments.map(seg => stmt.bind(video.id, seg.startTime, seg.endTime, seg.text));
+    const batch = segments.map(seg => stmt.bind(video.id, seg.startTime, seg.endTime, seg.text, seg.speaker || null));
     await env.DB.batch(batch);
   }
 
-  // Update title, summary, and mark upload complete
-  if (title || summary) {
-    await env.DB.prepare(
-      'UPDATE videos SET upload_completed = 1, title = COALESCE(?, title), summary = ? WHERE share_code = ?'
-    ).bind(title || null, summary || null, shareCode).run();
-  } else {
-    await env.DB.prepare('UPDATE videos SET upload_completed = 1 WHERE share_code = ?').bind(shareCode).run();
+  if (chapters && chapters.length > 0) {
+    const stmt = env.DB.prepare(
+      'INSERT INTO chapters (video_id, timestamp, title) VALUES (?, ?, ?)'
+    );
+    const batch = chapters.map(ch => stmt.bind(video.id, ch.timestamp, ch.title));
+    await env.DB.batch(batch);
   }
+
+  // Update title, summary, is_meeting, and mark upload complete
+  const updateFields = ['upload_completed = 1'];
+  const updateBinds = [];
+  if (title) { updateFields.push('title = ?'); updateBinds.push(title); }
+  if (summary !== undefined) { updateFields.push('summary = ?'); updateBinds.push(summary || null); }
+  if (isMeeting !== undefined) { updateFields.push('is_meeting = ?'); updateBinds.push(isMeeting ? 1 : 0); }
+  updateBinds.push(shareCode);
+  await env.DB.prepare(
+    `UPDATE videos SET ${updateFields.join(', ')} WHERE share_code = ?`
+  ).bind(...updateBinds).run();
 
   return jsonResponse({ ok: true });
 }
@@ -336,6 +352,7 @@ async function handleDelete(env, shareCode) {
 
   await env.VIDEOS_BUCKET.delete(`videos/${shareCode}.mp4`);
   await env.VIDEOS_BUCKET.delete(`thumbnails/${shareCode}.jpg`);
+  await env.DB.prepare('DELETE FROM chapters WHERE video_id = ?').bind(video.id).run();
   await env.DB.prepare('DELETE FROM reactions WHERE video_id = ?').bind(video.id).run();
   await env.DB.prepare('DELETE FROM comments WHERE video_id = ?').bind(video.id).run();
   await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
@@ -408,6 +425,52 @@ async function handleVideoStream(request, env, shareCode) {
   });
 }
 
+// --- VTT Captions ---
+
+async function handleVTT(request, env, shareCode) {
+  const video = await env.DB.prepare(
+    "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
+  ).bind(shareCode).first();
+
+  if (!video) return new Response('Not found', { status: 404 });
+
+  // Password protection check
+  if (video.password_hash) {
+    const cookies = parseCookies(request.headers.get('Cookie') || '');
+    if (cookies[`voom_auth_${shareCode}`] !== video.password_hash) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+  }
+
+  const segments = await env.DB.prepare(
+    'SELECT start_time, end_time, text, speaker FROM transcript_segments WHERE video_id = ? ORDER BY start_time'
+  ).bind(video.id).all();
+
+  let vtt = 'WEBVTT\n\n';
+  (segments.results || []).forEach((seg, i) => {
+    const start = formatVTTTime(seg.start_time);
+    const end = formatVTTTime(seg.end_time);
+    const speaker = seg.speaker ? `<v ${seg.speaker}>` : '';
+    vtt += `${i + 1}\n${start} --> ${end}\n${speaker}${seg.text}\n\n`;
+  });
+
+  return new Response(vtt, {
+    headers: {
+      'Content-Type': 'text/vtt; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}
+
+function formatVTTTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const ms = Math.floor((s % 1) * 1000);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(Math.floor(s)).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+}
+
 // --- Share Page ---
 
 async function handleSharePage(request, env, shareCode) {
@@ -448,14 +511,18 @@ async function handleSharePage(request, env, shareCode) {
   await env.DB.prepare('UPDATE videos SET view_count = view_count + 1 WHERE id = ?').bind(video.id).run();
 
   const segments = await env.DB.prepare(
-    'SELECT start_time, end_time, text FROM transcript_segments WHERE video_id = ? ORDER BY start_time'
+    'SELECT start_time, end_time, text, speaker FROM transcript_segments WHERE video_id = ? ORDER BY start_time'
   )
     .bind(video.id)
     .all();
 
+  const chapters = await env.DB.prepare(
+    'SELECT timestamp, title FROM chapters WHERE video_id = ? ORDER BY timestamp'
+  ).bind(video.id).all();
+
   const viewCount = (video.view_count || 0) + 1;
   const baseUrl = new URL(request.url).origin;
-  const html = sharePageHTML(video, segments.results || [], shareCode, viewCount, baseUrl);
+  const html = sharePageHTML(video, segments.results || [], chapters.results || [], shareCode, viewCount, baseUrl);
   return new Response(html, {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' },
@@ -472,6 +539,7 @@ async function cleanupExpired(env) {
   for (const video of expired.results || []) {
     await env.VIDEOS_BUCKET.delete(`videos/${video.share_code}.mp4`);
     await env.VIDEOS_BUCKET.delete(`thumbnails/${video.share_code}.jpg`);
+    await env.DB.prepare('DELETE FROM chapters WHERE video_id = ?').bind(video.id).run();
     await env.DB.prepare('DELETE FROM reactions WHERE video_id = ?').bind(video.id).run();
     await env.DB.prepare('DELETE FROM comments WHERE video_id = ?').bind(video.id).run();
     await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
@@ -735,9 +803,13 @@ function escapeHTML(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function sharePageHTML(video, segments, shareCode, viewCount, baseUrl) {
+function sharePageHTML(video, segments, chapters, shareCode, viewCount, baseUrl) {
+  const hasSpeakers = segments.some(s => s.speaker);
   const segmentsJSON = JSON.stringify(
-    segments.map(s => ({ start: s.start_time, end: s.end_time, text: s.text }))
+    segments.map(s => ({ start: s.start_time, end: s.end_time, text: s.text, speaker: s.speaker || null }))
+  );
+  const chaptersJSON = JSON.stringify(
+    chapters.map(c => ({ timestamp: c.timestamp, title: c.title }))
   );
 
   const segmentsHTML = segments
@@ -745,13 +817,25 @@ function sharePageHTML(video, segments, shareCode, viewCount, baseUrl) {
       s => `
       <div class="transcript-row" data-start="${s.start_time}">
         <span class="timestamp">${formatTimestamp(s.start_time)}</span>
-        <span class="text">${escapeHTML(s.text)}</span>
+        <span class="seg-content">${s.speaker ? `<span class="speaker-label">${escapeHTML(s.speaker)}</span>` : ''}<span class="text">${escapeHTML(s.text)}</span></span>
         <button class="copy-ts" title="Copy link to this timestamp" data-time="${s.start_time}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
         </button>
       </div>`
     )
     .join('');
+
+  const chaptersHTML = chapters.length > 0 ? `
+  <div class="chapters-section">
+    <div class="section-header"><span class="label">Chapters</span></div>
+    <div class="chapters-list">
+      ${chapters.map(c => `
+      <div class="chapter-row" data-time="${c.timestamp}">
+        <span class="timestamp">${formatTimestamp(c.timestamp)}</span>
+        <span class="chapter-title">${escapeHTML(c.title)}</span>
+      </div>`).join('')}
+    </div>
+  </div>` : '';
 
   const viewCountStr = viewCount === 1 ? '1 view' : `${viewCount.toLocaleString()} views`;
 
@@ -865,6 +949,8 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
 .label{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted)}
 .transcript-list{display:flex;flex-direction:column;gap:var(--space-s);max-height:480px;overflow-y:auto}
 .transcript-row{display:grid;grid-template-columns:60px 1fr 28px;align-items:baseline;cursor:pointer;padding:4px 0;transition:opacity .15s;position:relative}
+.seg-content{display:flex;flex-direction:column;gap:2px}
+.speaker-label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);opacity:.7}
 .transcript-row:hover .text{color:var(--text-main)}
 .timestamp{font-family:var(--font-mono);font-size:11px;color:var(--text-muted)}
 .text{font-size:15px;line-height:1.6;color:var(--text-muted);transition:color .2s}
@@ -873,6 +959,18 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
 .copy-ts{opacity:0;background:none;border:none;color:var(--text-muted);cursor:pointer;padding:2px;transition:opacity .15s,color .15s;align-self:center}
 .transcript-row:hover .copy-ts{opacity:1}
 .copy-ts:hover{color:var(--text-main)}
+
+/* Chapters */
+.chapters-section{display:flex;flex-direction:column;gap:var(--space-s)}
+.chapters-list{display:flex;flex-direction:column;gap:4px}
+.chapter-row{display:grid;grid-template-columns:60px 1fr;align-items:baseline;cursor:pointer;padding:6px 0;transition:opacity .15s}
+.chapter-row:hover .chapter-title{color:var(--text-main)}
+.chapter-title{font-size:14px;line-height:1.4;color:var(--text-muted);transition:color .2s}
+.chapter-row.active .chapter-title{color:var(--text-main)}
+.chapter-row.active .timestamp{color:var(--text-main)}
+
+/* Seekbar chapter markers */
+.seekbar-marker{position:absolute;top:0;width:2px;height:100%;background:rgba(255,255,255,.4);border-radius:1px;pointer-events:none;z-index:1}
 
 /* Toast */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(255,255,255,.12);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.1);color:#fff;font-family:var(--font-mono);font-size:12px;padding:8px 20px;border-radius:8px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:100}
@@ -938,6 +1036,7 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
   <div class="player-section" id="player-section">
     <video id="player" preload="metadata" playsinline poster="/thumb/${shareCode}">
       <source src="/v/${shareCode}" type="video/mp4">
+      ${segments.length > 0 ? `<track kind="captions" src="/vtt/${shareCode}" srclang="en" label="English" default>` : ''}
     </video>
     <div class="big-play" id="big-play">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21"/></svg>
@@ -1002,6 +1101,8 @@ h1{font-size:17px;font-weight:500;line-height:1.3;letter-spacing:-.01em}
     ${video.summary ? `<p class="summary">${escapeHTML(video.summary)}</p>` : ''}
   </div>
 
+  ${chaptersHTML}
+
   <div class="reactions-bar" id="reactions-bar">
     <button class="react-btn" data-emoji="\u{1F44D}"><span class="emoji">\u{1F44D}</span><span class="count" id="rc-0">0</span></button>
     <button class="react-btn" data-emoji="\u{2764}\u{FE0F}"><span class="emoji">\u{2764}\u{FE0F}</span><span class="count" id="rc-1">0</span></button>
@@ -1043,7 +1144,9 @@ const cap=document.getElementById('captions');
 const capSpan=cap?cap.querySelector('span'):null;
 const ccBtn=document.getElementById('cc-btn');
 const segs=${segmentsJSON};
+const chaps=${chaptersJSON};
 const rows=document.querySelectorAll('.transcript-row');
+const chapRows=document.querySelectorAll('.chapter-row');
 let ccOn=${segments.length > 0 ? 'true' : 'false'};
 
 /* --- Toast --- */
@@ -1123,6 +1226,19 @@ vid.addEventListener('loadedmetadata',()=>{
   const params=new URLSearchParams(window.location.search);
   const t=parseFloat(params.get('t'));
   if(t>0&&t<vid.duration){vid.currentTime=t}
+  /* Chapter markers on seekbar */
+  const seekTrack=document.querySelector('.seekbar-track');
+  if(seekTrack&&chaps.length>0&&vid.duration>0){
+    chaps.forEach(c=>{
+      const marker=document.createElement('div');
+      marker.className='seekbar-marker';
+      marker.style.left=(c.timestamp/vid.duration)*100+'%';
+      seekTrack.appendChild(marker);
+    });
+  }
+  /* Suppress native VTT rendering — use custom overlay instead */
+  const tracks=vid.textTracks;
+  for(let i=0;i<tracks.length;i++){tracks[i].mode='hidden'}
 });
 
 vid.addEventListener('timeupdate',()=>{
@@ -1142,11 +1258,21 @@ vid.addEventListener('timeupdate',()=>{
     const active=t>=s.start&&t<s.end;
     el.classList.toggle('active',active);
     if(active){
-      /* scroll disabled — was pulling page down to transcript */
-      if(capSpan&&ccOn){capSpan.textContent=s.text;cap.classList.remove('hidden');found=true}
+      if(capSpan&&ccOn){
+        capSpan.textContent=s.speaker?(s.speaker+': '+s.text):s.text;
+        cap.classList.remove('hidden');found=true;
+      }
     }
   });
   if(!found&&capSpan){cap.classList.add('hidden')}
+
+  /* Chapter highlight */
+  chapRows.forEach((el,i)=>{
+    if(!chaps[i])return;
+    const next=chaps[i+1];
+    const active=t>=chaps[i].timestamp&&(!next||t<next.timestamp);
+    el.classList.toggle('active',active);
+  });
 });
 
 vid.addEventListener('progress',()=>{
@@ -1262,6 +1388,14 @@ document.querySelectorAll('.copy-ts').forEach(btn=>{
     const t=Math.floor(parseFloat(btn.dataset.time));
     const url=window.location.origin+window.location.pathname+'?t='+t;
     navigator.clipboard.writeText(url).then(()=>showToast('Copied!')).catch(()=>{});
+  });
+});
+
+/* --- Chapter seek --- */
+chapRows.forEach(el=>{
+  el.addEventListener('click',()=>{
+    const t=parseFloat(el.dataset.time);
+    seekTo(t);
   });
 });
 
