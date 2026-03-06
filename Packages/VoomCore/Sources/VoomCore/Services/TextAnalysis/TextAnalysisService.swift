@@ -4,8 +4,19 @@ import os
 
 private let logger = Logger(subsystem: "com.voom.app", category: "TextAnalysis")
 
+/// Protocol for external AI generation providers (e.g., OpenRouter).
+/// Returns nil on failure to allow fallback to Apple Foundation Models.
+public protocol AIGenerationProvider: Sendable {
+    func generate(systemPrompt: String, userPrompt: String) async -> String?
+}
+
 public actor TextAnalysisService {
     public static let shared = TextAnalysisService()
+    private var externalProvider: (any AIGenerationProvider)?
+
+    public func setExternalProvider(_ provider: (any AIGenerationProvider)?) {
+        self.externalProvider = provider
+    }
 
     public func generateTitle(from segments: [TranscriptEntry]) async -> String {
         guard !segments.isEmpty else { return "" }
@@ -136,6 +147,14 @@ public actor TextAnalysisService {
     }
 
     private func generate(system: String, user: String) async -> String? {
+        // Try external provider first (e.g., OpenRouter)
+        if let provider = externalProvider {
+            if let result = await provider.generate(systemPrompt: system, userPrompt: user) {
+                return result
+            }
+            logger.notice("[Voom] External AI provider returned nil, falling back to Apple FM")
+        }
+
         guard #available(macOS 26.0, *) else { return nil }
 
         guard SystemLanguageModel.default.availability == .available else {

@@ -25,6 +25,7 @@
 - **Stitch** — combine multiple recordings into one
 - **Filler word removal** — detect and cut "um", "uh", "like", etc. from transcribed recordings
 - **Auto chapters** — AI-generated chapter markers spanning the full recording duration
+- **Bring your own AI** — connect your own OpenAI, Anthropic, Google, or xAI API key for better AI generation, with automatic on-device fallback
 - **GIF export** — copy a GIF of the first 15 seconds to clipboard
 
 ### Organization
@@ -68,6 +69,7 @@ Voom/                   macOS app (Swift, SwiftUI, ScreenCaptureKit)
 Packages/
   VoomCore/             Core services: capture, transcription, storage, text analysis
   VoomApp/              Application layer over VoomCore
+  VoomAI/               BYOK AI provider integration (OpenAI, Anthropic, Google, xAI)
   VoomMeetings/         Meeting detection, recording, diarization, analysis
 voom-share/             Cloudflare Worker (R2 + D1 + Workers)
 ```

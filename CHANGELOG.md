@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.0 — 2026-03-06
+
+- Bring your own AI: connect your own API key from OpenAI, Anthropic, Google, or xAI for AI-powered titles, summaries, and chapters.
+- Auto-detects provider from API key prefix — paste a key and the provider and model switch automatically.
+- New VoomAI package with direct provider API integration (no middleman services).
+- AI settings in both Settings window and inline settings with provider picker, model selector, and connection test.
+- Falls back to Apple's on-device model when no API key is configured (zero-config default unchanged).
+
 ## 3.0.2 — 2026-03-06
 
 - Meeting recordings now use MeetingRecorder: HD/2K (capped at 2560), 30fps, split-track audio for speaker diarization.

@@ -1,6 +1,7 @@
 import SwiftUI
 import Carbon.HIToolbox
 import VoomCore
+import VoomAI
 
 struct SettingsView: View {
     @AppStorage("ShareWorkerBaseURL") private var workerBaseURL = ""
@@ -8,7 +9,11 @@ struct SettingsView: View {
     @AppStorage("AutoTranscribe") private var autoTranscribe = true
     @AppStorage("GlobalHotkeyEnabled") private var globalHotkeyEnabled = true
     @AppStorage("ViewNotificationsEnabled") private var viewNotificationsEnabled = true
+    @AppStorage("AIAPIKey") private var aiAPIKey = ""
+    @AppStorage("AISelectedProvider") private var aiSelectedProvider = AIProvider.defaultProvider.rawValue
+    @AppStorage("AISelectedModel") private var aiSelectedModel = AIProvider.defaultModel.id
     @State private var testStatus: TestStatus = .idle
+    @State private var aiTestStatus: AITestStatus = .idle
     @State private var showingSelfHostSetup = false
 
     private enum TestStatus: Equatable {
@@ -16,6 +21,10 @@ struct SettingsView: View {
         case testing
         case success
         case failed(String)
+    }
+
+    private enum AITestStatus: Equatable {
+        case idle, testing, success, failed(String)
     }
 
     var body: some View {
@@ -28,8 +37,12 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Sharing", systemImage: "link")
                 }
-}
-        .frame(width: 480, height: 320)
+            aiSettings
+                .tabItem {
+                    Label("AI", systemImage: "brain")
+                }
+        }
+        .frame(width: 480, height: 360)
     }
 
     // MARK: - General Tab
@@ -147,6 +160,116 @@ struct SettingsView: View {
         .padding()
         .sheet(isPresented: $showingSelfHostSetup) {
             SelfHostSetupView()
+        }
+    }
+
+    // MARK: - AI Tab
+
+    private var currentProvider: AIProviderKind {
+        AIProviderKind(rawValue: aiSelectedProvider) ?? .anthropic
+    }
+
+    @ViewBuilder
+    private var aiSettings: some View {
+        Form {
+            Section {
+                Picker("Provider", selection: $aiSelectedProvider) {
+                    ForEach(AIProviderKind.allCases) { provider in
+                        Text(provider.rawValue).tag(provider.rawValue)
+                    }
+                }
+
+                Picker("Model", selection: $aiSelectedModel) {
+                    ForEach(AIProvider.models(for: currentProvider)) { model in
+                        Text(model.displayName).tag(model.id)
+                    }
+                }
+
+                SecureField("API Key", text: $aiAPIKey, prompt: Text(currentProvider.keyPlaceholder))
+                    .textFieldStyle(.roundedBorder)
+            } header: {
+                Text("AI Provider")
+            } footer: {
+                Text("Use your own API key for AI-powered titles, summaries, and chapters.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                HStack {
+                    Button("Test Connection") {
+                        testAIConnection()
+                    }
+                    .disabled(aiAPIKey.isEmpty || aiTestStatus == .testing)
+
+                    switch aiTestStatus {
+                    case .idle:
+                        EmptyView()
+                    case .testing:
+                        ProgressView()
+                            .controlSize(.small)
+                    case .success:
+                        Label("Connected", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.caption)
+                    case .failed(let msg):
+                        Label(msg, systemImage: "xmark.circle.fill")
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                            .lineLimit(1)
+                    }
+                }
+
+                if !aiAPIKey.isEmpty {
+                    Button("Clear API Key") {
+                        aiAPIKey = ""
+                        aiTestStatus = .idle
+                        Task {
+                            await TextAnalysisService.shared.setExternalProvider(nil)
+                        }
+                    }
+                }
+            } footer: {
+                if aiAPIKey.isEmpty {
+                    Text("Without an API key, Voom uses Apple's on-device model (macOS 26+).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+        .onChange(of: aiSelectedProvider) { _, newValue in
+            // Reset model to provider default when switching providers
+            let provider = AIProviderKind(rawValue: newValue) ?? .anthropic
+            aiSelectedModel = AIProvider.defaultModel(for: provider).id
+            aiTestStatus = .idle
+        }
+        .onChange(of: aiAPIKey) { _, newValue in
+            // Auto-detect provider from key prefix
+            if let detected = AIProviderKind.detect(from: newValue) {
+                aiSelectedProvider = detected.rawValue
+                aiSelectedModel = AIProvider.defaultModel(for: detected).id
+            }
+            Task {
+                if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    await TextAnalysisService.shared.setExternalProvider(nil)
+                } else {
+                    await TextAnalysisService.shared.setExternalProvider(AIService.shared)
+                }
+            }
+        }
+    }
+
+    private func testAIConnection() {
+        aiTestStatus = .testing
+        Task {
+            do {
+                try await AIService.shared.testConnection()
+                aiTestStatus = .success
+            } catch {
+                aiTestStatus = .failed(error.localizedDescription)
+            }
         }
     }
 

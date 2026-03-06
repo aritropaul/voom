@@ -49,5 +49,28 @@ extension VoomApp: @preconcurrency WhatsNewCollectionProvider {
             ],
             primaryAction: WhatsNew.PrimaryAction(title: "Continue")
         )
+
+        WhatsNew(
+            version: "3.1.0",
+            title: "What's New in Voom",
+            features: [
+                WhatsNew.Feature(
+                    image: .init(systemName: "brain", foregroundColor: .purple),
+                    title: "Bring Your Own AI",
+                    subtitle: "Connect your own API key from OpenAI, Anthropic, Google, or xAI for titles, summaries, and chapters."
+                ),
+                WhatsNew.Feature(
+                    image: .init(systemName: "key.fill", foregroundColor: .orange),
+                    title: "Auto-Detect Provider",
+                    subtitle: "Paste an API key and Voom automatically selects the right provider and model."
+                ),
+                WhatsNew.Feature(
+                    image: .init(systemName: "arrow.triangle.branch", foregroundColor: .green),
+                    title: "Seamless Fallback",
+                    subtitle: "No API key? Voom uses Apple's on-device model automatically — nothing to configure."
+                ),
+            ],
+            primaryAction: WhatsNew.PrimaryAction(title: "Continue")
+        )
     }
 }

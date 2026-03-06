@@ -7,6 +7,7 @@ import Sparkle
 import EventKit
 import os
 import VoomCore
+import VoomAI
 import VoomMeetings
 
 private let logger = Logger(subsystem: "com.voom.app", category: "AppDelegate")
@@ -59,6 +60,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task {
                 await configureMeetingDetection()
                 await MeetingDetectionService.shared.startPolling()
+            }
+        }
+
+        // Wire OpenRouter AI provider if configured
+        if AIConfig.isConfigured {
+            Task {
+                await TextAnalysisService.shared.setExternalProvider(AIService.shared)
             }
         }
 

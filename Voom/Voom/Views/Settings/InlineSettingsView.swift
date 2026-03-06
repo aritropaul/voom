@@ -3,6 +3,7 @@ import ServiceManagement
 import Sparkle
 import EventKit
 import VoomCore
+import VoomAI
 import VoomMeetings
 
 struct InlineSettingsView: View {
@@ -18,10 +19,18 @@ struct InlineSettingsView: View {
     @AppStorage("RecordingDirectory") private var recordingDirectory = ""
     @AppStorage("LaunchAtLogin") private var launchAtLogin = false
     @AppStorage("MeetingDetectionEnabled") private var meetingDetectionEnabled = false
+    @AppStorage("AIAPIKey") private var aiAPIKey = ""
+    @AppStorage("AISelectedProvider") private var aiSelectedProvider = AIProvider.defaultProvider.rawValue
+    @AppStorage("AISelectedModel") private var aiSelectedModel = AIProvider.defaultModel.id
     @State private var testStatus: TestStatus = .idle
+    @State private var aiTestStatus: AITestStatus = .idle
     @State private var showingSelfHostSetup = false
 
     private enum TestStatus: Equatable {
+        case idle, testing, success, failed(String)
+    }
+
+    private enum AITestStatus: Equatable {
         case idle, testing, success, failed(String)
     }
 
@@ -90,6 +99,24 @@ struct InlineSettingsView: View {
                     }
                 }
             }
+            .onChange(of: aiSelectedProvider) { _, newValue in
+                let provider = AIProviderKind(rawValue: newValue) ?? .anthropic
+                aiSelectedModel = AIProvider.defaultModel(for: provider).id
+                aiTestStatus = .idle
+            }
+            .onChange(of: aiAPIKey) { _, newValue in
+                if let detected = AIProviderKind.detect(from: newValue) {
+                    aiSelectedProvider = detected.rawValue
+                    aiSelectedModel = AIProvider.defaultModel(for: detected).id
+                }
+                Task {
+                    if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        await TextAnalysisService.shared.setExternalProvider(nil)
+                    } else {
+                        await TextAnalysisService.shared.setExternalProvider(AIService.shared)
+                    }
+                }
+            }
             .onChange(of: launchAtLogin) { _, enabled in
                 try? SMAppService.mainApp.register()
             }
@@ -126,24 +153,30 @@ struct InlineSettingsView: View {
             }
             .staggeredAppear(2)
 
+            // AI
+            settingsCard(icon: "brain", title: "AI Models") {
+                aiContent
+            }
+            .staggeredAppear(3)
+
             // About
             settingsCard(icon: "info.circle", title: "About") {
                 aboutContent
             }
-            .staggeredAppear(3)
+            .staggeredAppear(4)
 
             // Support
             settingsCard(icon: "envelope", title: "Support") {
                 supportContent
             }
-            .staggeredAppear(4)
+            .staggeredAppear(5)
 
             #if DEBUG
             // Debug
             settingsCard(icon: "ladybug", title: "Debug") {
                 debugContent
             }
-            .staggeredAppear(5)
+            .staggeredAppear(6)
             #endif
         }
         .padding(.horizontal, VoomTheme.spacingXL)
@@ -321,6 +354,103 @@ struct InlineSettingsView: View {
             .font(VoomTheme.fontCaption())
             .buttonStyle(.plain)
             .foregroundStyle(VoomTheme.textTertiary)
+        }
+    }
+
+    // MARK: - AI
+
+    private var currentProvider: AIProviderKind {
+        AIProviderKind(rawValue: aiSelectedProvider) ?? .anthropic
+    }
+
+    @ViewBuilder
+    private var aiContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Provider")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(VoomTheme.textPrimary)
+            Picker("", selection: $aiSelectedProvider) {
+                ForEach(AIProviderKind.allCases) { provider in
+                    Text(provider.rawValue).tag(provider.rawValue)
+                }
+            }
+            .labelsHidden()
+        }
+
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Model")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(VoomTheme.textPrimary)
+            Picker("", selection: $aiSelectedModel) {
+                ForEach(AIProvider.models(for: currentProvider)) { model in
+                    Text(model.displayName).tag(model.id)
+                }
+            }
+            .labelsHidden()
+        }
+
+        VStack(alignment: .leading, spacing: 6) {
+            Text("API Key")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(VoomTheme.textPrimary)
+            SecureField(currentProvider.keyPlaceholder, text: $aiAPIKey)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12))
+        }
+
+        HStack(spacing: VoomTheme.spacingSM) {
+            Button("Test Connection") {
+                testAIConnection()
+            }
+            .disabled(aiAPIKey.isEmpty || aiTestStatus == .testing)
+            .controlSize(.small)
+
+            switch aiTestStatus {
+            case .idle:
+                EmptyView()
+            case .testing:
+                ProgressView().controlSize(.small)
+            case .success:
+                Label("Connected", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(VoomTheme.accentGreen)
+                    .font(VoomTheme.fontCaption())
+            case .failed(let msg):
+                Label(msg, systemImage: "xmark.circle.fill")
+                    .foregroundStyle(VoomTheme.accentRed)
+                    .font(VoomTheme.fontCaption())
+                    .lineLimit(1)
+            }
+        }
+
+        Text("Use your own API key for AI titles, summaries, and chapters. Without a key, Voom uses Apple's on-device model.")
+            .font(VoomTheme.fontCaption())
+            .foregroundStyle(VoomTheme.textTertiary)
+
+        if !aiAPIKey.isEmpty {
+            Divider().foregroundStyle(VoomTheme.borderSubtle)
+
+            Button("Clear API Key") {
+                aiAPIKey = ""
+                aiTestStatus = .idle
+                Task {
+                    await TextAnalysisService.shared.setExternalProvider(nil)
+                }
+            }
+            .font(VoomTheme.fontCaption())
+            .buttonStyle(.plain)
+            .foregroundStyle(VoomTheme.accentRed)
+        }
+    }
+
+    private func testAIConnection() {
+        aiTestStatus = .testing
+        Task {
+            do {
+                try await AIService.shared.testConnection()
+                aiTestStatus = .success
+            } catch {
+                aiTestStatus = .failed(error.localizedDescription)
+            }
         }
     }
 
