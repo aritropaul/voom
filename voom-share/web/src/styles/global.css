@@ -57,11 +57,20 @@ body {
   filter: blur(3px);
 }
 
+/* Blur layer over video (like Linear's page_blurVideo) */
+.hero-blur {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
 /* Gradient: vignette — dark edges, lighter center */
 .hero-gradient {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 2;
   background:
     linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.2) 25%, rgba(0,0,0,0.2) 75%, rgba(0,0,0,1) 100%),
     linear-gradient(0deg, rgba(0,0,0,0.6) 0%, transparent 15%),
@@ -71,7 +80,7 @@ body {
 /* Content: left column, main block vertically centered */
 .hero-content {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   left: max(40px, 12%);
   top: 0;
   bottom: 0;
@@ -90,7 +99,7 @@ body {
   border-radius: 8px;
 }
 
-/* Main block: vertically centered by parent flex */
+/* Main block: vertically centered */
 .hero-main {
   display: flex;
   flex-direction: column;
@@ -109,6 +118,13 @@ body {
   font-size: 14px;
   line-height: 1.5;
   color: rgba(255,255,255,0.65);
+  mix-blend-mode: plus-lighter;
+  transform: translateZ(0);
+  text-rendering: optimizeLegibility;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .hero-play {
@@ -159,16 +175,22 @@ body {
 /* ── Content Sections (below hero, always visible) ── */
 .content-sections {
   width: 100%;
-  max-width: 720px;
+  max-width: 680px;
   margin: 0 auto;
-  padding: var(--space-m) var(--space-s) var(--space-l);
+  padding: 56px var(--space-s) 80px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-m);
+  gap: 40px;
 }
 
 .content-sections > * {
   width: 100%;
+}
+
+/* Subtle divider between major sections */
+.content-sections > * + * {
+  padding-top: 40px;
+  border-top: 1px solid var(--border);
 }
 
 /* ── Player Modal ── */
