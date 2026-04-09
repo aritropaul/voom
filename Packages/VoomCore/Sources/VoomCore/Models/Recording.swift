@@ -113,6 +113,15 @@ public struct Recording: Codable, Identifiable, Hashable, Sendable {
     // View notification tracking
     public var lastNotifiedViewCount: Int?
 
+    // Cursor tracking
+    public var cursorEventsURL: URL?
+
+    // Zoom keyframes
+    public var zoomKeyframesURL: URL?
+
+    // Privacy blur
+    public var blurRegions: [BlurRegion]?
+
     public var isShared: Bool {
         shareURL != nil && shareExpiresAt != nil
     }

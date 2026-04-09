@@ -21,7 +21,7 @@ public enum RecordingMode: String, Codable, CaseIterable, Hashable, Sendable {
 
 // MARK: - PiP Position
 
-public enum PiPPosition: String, CaseIterable, Sendable {
+public enum PiPPosition: String, Codable, CaseIterable, Sendable {
     case bottomLeft, bottomRight, topLeft, topRight
 
     public var label: String {
@@ -54,6 +54,12 @@ public struct DetectedMeeting: Sendable {
         self.startDate = startDate
         self.endDate = endDate
     }
+}
+
+// MARK: - Notifications
+
+public extension Notification.Name {
+    static let seekToTimestamp = Notification.Name("com.voom.seekToTimestamp")
 }
 
 // MARK: - Upcoming Meeting

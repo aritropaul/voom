@@ -88,6 +88,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Microphone
         AVCaptureDevice.requestAccess(for: .audio) { _ in }
+
+        // Accessibility (for cursor tracking)
+        _ = AXIsProcessTrusted()
     }
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {

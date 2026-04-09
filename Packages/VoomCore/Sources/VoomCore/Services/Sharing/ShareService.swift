@@ -132,22 +132,8 @@ public actor ShareService {
         var optimizedURL: URL?
         var optimizedFileSize: Int64?
 
-        do {
-            await pipelineProgress.start(for: recording.id)
-            let id = recording.id
-            let result = try await SharePipeline.shared.optimize(sourceURL: recording.fileURL) { pct in
-                Task { @MainActor in
-                    SharePipelineProgress.shared.update(for: id, progress: pct)
-                }
-            }
-            uploadFileURL = result.optimizedURL
-            optimizedURL = result.optimizedURL
-            optimizedFileSize = result.fileSize
-            await pipelineProgress.complete(for: recording.id)
-        } catch {
-            // Fallback: use raw file if optimization fails
-            await pipelineProgress.complete(for: recording.id)
-        }
+        // Upload raw file directly (HEVC supported by modern browsers, avoids re-encoding bottleneck)
+        await pipelineProgress.complete(for: recording.id)
 
         await tracker.startUpload(for: recording.id)
 

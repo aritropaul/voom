@@ -1,0 +1,74 @@
+---
+interface Props {
+  title: string;
+  duration: number;
+  viewCount: number;
+  createdAt: string;
+  width: number;
+  height: number;
+  summary?: string | null;
+}
+
+import { formatDuration, formatDate } from '../scripts/api';
+
+const { title, duration, viewCount, createdAt, width, height, summary } = Astro.props;
+
+const viewStr = viewCount === 1 ? '1 view' : `${viewCount.toLocaleString()} views`;
+---
+
+<div class="metadata">
+  <div class="meta-row">
+    <div class="stats">
+      <span>{formatDuration(duration)}</span>
+      <span>{viewStr}</span>
+      <span>{formatDate(createdAt)}</span>
+      {width > 0 && <span>{width} × {height}</span>}
+    </div>
+    <button class="copy-link-btn" id="copy-link-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      Copy link
+    </button>
+  </div>
+  <h1>{title}</h1>
+  {summary && <p class="summary">{summary}</p>}
+</div>
+
+<style>
+  .metadata { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .meta-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-s); }
+  .stats {
+    display: flex;
+    gap: var(--space-s);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    flex-wrap: wrap;
+  }
+  h1 { font-size: 17px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; }
+  .summary { font-size: 13px; line-height: 1.6; color: var(--text-muted); margin-top: 6px; }
+  .copy-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 5px 12px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .copy-link-btn:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-main); }
+
+  @media (max-width: 600px) {
+    h1 { font-size: 20px; }
+    .meta-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  }
+</style>

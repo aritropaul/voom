@@ -31,11 +31,11 @@ public actor SharePipeline {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("voom-share-\(UUID().uuidString).mp4")
 
-        // Reader
+        // Reader — YUV 4:2:0 instead of BGRA (62% less memory per frame)
         let reader = try AVAssetReader(asset: asset)
 
         let videoOutputSettings: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
         ]
         let videoOutput = AVAssetReaderTrackOutput(track: videoTrack, outputSettings: videoOutputSettings)
         videoOutput.alwaysCopiesSampleData = false
@@ -61,6 +61,7 @@ public actor SharePipeline {
 
         // Writer
         let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
+        writer.shouldOptimizeForNetworkUse = true
 
         let videoInputSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
@@ -98,17 +99,28 @@ public actor SharePipeline {
         writer.startWriting()
         writer.startSession(atSourceTime: .zero)
 
-        // Process video
-        while videoInput.isReadyForMoreMediaData {
-            if let sampleBuffer = videoOutput.copyNextSampleBuffer() {
-                let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-                let pct = CMTimeGetSeconds(pts) / totalSeconds
-                progress(min(pct, 1.0))
-                videoInput.append(sampleBuffer)
-            } else {
-                break
+
+        var frameCount = 0
+
+        // Process video — yield between batches to let H.264 encoder drain
+        while reader.status == .reading {
+            while videoInput.isReadyForMoreMediaData {
+                if let sampleBuffer = videoOutput.copyNextSampleBuffer() {
+                    let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                    let pct = CMTimeGetSeconds(pts) / totalSeconds
+                    progress(min(pct, 1.0))
+                    videoInput.append(sampleBuffer)
+                    frameCount += 1
+                } else {
+                    break
+                }
             }
+            if reader.status != .reading { break }
+            // Yield to let writer's H.264 encoder process queued frames
+            await Task.yield()
+            try await Task.sleep(nanoseconds: 5_000_000) // 5ms
         }
+
         videoInput.markAsFinished()
 
         // Process audio
@@ -135,6 +147,7 @@ public actor SharePipeline {
 
         let attrs = try FileManager.default.attributesOfItem(atPath: outputURL.path(percentEncoded: false))
         let fileSize = attrs[.size] as? Int64 ?? 0
+
 
         return PipelineResult(optimizedURL: outputURL, fileSize: fileSize)
     }

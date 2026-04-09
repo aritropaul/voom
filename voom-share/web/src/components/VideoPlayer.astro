@@ -1,0 +1,388 @@
+---
+interface Props {
+  shareCode: string;
+  hasTranscript: boolean;
+  ctaUrl?: string | null;
+  ctaText?: string | null;
+}
+
+const { shareCode, hasTranscript, ctaUrl, ctaText } = Astro.props;
+---
+
+<div class="player-section" id="player-section">
+  <video id="player" preload="metadata" playsinline poster={`/thumb/${shareCode}`}>
+    <source src={`/v/${shareCode}`} type="video/mp4">
+    {hasTranscript && (
+      <track kind="captions" src={`/vtt/${shareCode}`} srclang="en" label="English" default>
+    )}
+  </video>
+
+  <div class="big-play" id="big-play">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21"/></svg>
+  </div>
+
+  {ctaUrl && (
+    <div class="cta-overlay" id="cta-overlay">
+      <a href={ctaUrl} target="_blank" rel="noopener">{ctaText || 'Learn More'}</a>
+      <button class="cta-replay" id="cta-replay">Replay</button>
+    </div>
+  )}
+
+  <div class="caption-overlay hidden" id="captions"><span></span></div>
+
+  <div class="progress-bar-bottom" id="progress-bottom">
+    <div class="fill" id="progress-fill"></div>
+  </div>
+
+  <div class="controls" id="controls">
+    <button id="ctrl-play" title="Play/Pause">
+      <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21"/></svg>
+      <svg id="icon-pause" width="20" height="20" viewBox="0 0 24 24" fill="#fff" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
+    </button>
+
+    <span class="time-display" id="time-display">0:00 / 0:00</span>
+
+    <div class="seekbar-container" id="seekbar">
+      <div class="seekbar-track">
+        <div class="seekbar-buffered" id="seekbar-buffered"></div>
+        <div class="seekbar-fill" id="seekbar-fill"></div>
+      </div>
+      <div class="seekbar-thumb" id="seekbar-thumb"></div>
+    </div>
+
+    <div class="volume-group">
+      <button id="ctrl-mute" title="Mute (M)">
+        <svg id="icon-vol" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        <svg id="icon-mute" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+      </button>
+      <div class="volume-slider">
+        <input type="range" id="volume-range" min="0" max="1" step="0.05" value="1">
+      </div>
+    </div>
+
+    <div style="position:relative">
+      <button class="speed-btn" id="ctrl-speed" title="Playback speed">1x</button>
+      <div class="speed-menu" id="speed-menu">
+        <button data-speed="0.5">0.5x</button>
+        <button data-speed="1" class="active">1x</button>
+        <button data-speed="1.25">1.25x</button>
+        <button data-speed="1.5">1.5x</button>
+        <button data-speed="2">2x</button>
+      </div>
+    </div>
+
+    {hasTranscript && (
+      <button class="cc-ctrl on" id="cc-btn" title="Toggle captions (C)">CC</button>
+    )}
+
+    <button id="ctrl-fs" title="Fullscreen (F)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+    </button>
+  </div>
+</div>
+
+<style>
+  .player-section {
+    width: 100%;
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+    background: #050505;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+  }
+
+  video {
+    display: block;
+    width: 100%;
+    background: #000;
+  }
+
+  .big-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.2s, transform 0.15s;
+    z-index: 3;
+  }
+
+  .big-play svg { margin-left: 4px; }
+  .player-section.playing .big-play { opacity: 0; pointer-events: none; }
+  .player-section:hover .big-play { opacity: 1; }
+  .player-section.playing:hover .big-play { opacity: 0; }
+  .player-section.hide-cursor { cursor: none; }
+
+  .progress-bar-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .progress-bar-bottom .fill {
+    height: 100%;
+    background: var(--text-main);
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+
+  .controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0 12px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7) 40%, rgba(0, 0, 0, 0.85));
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.25s;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .controls.visible { opacity: 1; pointer-events: auto; }
+  .controls button {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: color 0.15s;
+  }
+  .controls button:hover { color: #fff; }
+
+  .seekbar-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    height: 32px;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .seekbar-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    position: relative;
+    transition: height 0.15s;
+  }
+
+  .seekbar-container:hover .seekbar-track { height: 6px; }
+
+  .seekbar-buffered {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+  }
+
+  .seekbar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #fff;
+    border-radius: 2px;
+  }
+
+  .seekbar-thumb {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.15s;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+
+  .seekbar-container:hover .seekbar-thumb { opacity: 1; }
+
+  .time-display {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .volume-group { display: flex; align-items: center; gap: 2px; }
+  .volume-slider { width: 0; overflow: hidden; transition: width 0.2s; display: flex; align-items: center; }
+  .volume-group:hover .volume-slider { width: 60px; }
+  .volume-slider input[type=range] {
+    width: 56px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .volume-slider input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  .speed-btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    min-width: 32px;
+    position: relative;
+  }
+
+  .speed-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 20, 20, 0.95);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 4px 0;
+    display: none;
+    flex-direction: column;
+    min-width: 64px;
+    margin-bottom: 8px;
+  }
+
+  .speed-menu.open { display: flex; }
+  .speed-menu button {
+    padding: 6px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+  }
+  .speed-menu button:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+  .speed-menu button.active { color: #fff; }
+
+  .cc-ctrl { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+  .cc-ctrl.on { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+
+  .caption-overlay {
+    position: absolute;
+    bottom: 56px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    pointer-events: none;
+    padding: 0 10%;
+    transition: opacity 0.2s;
+    z-index: 3;
+  }
+
+  .caption-overlay span {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.7);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .caption-overlay.hidden { opacity: 0; }
+
+  .cta-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 5;
+  }
+
+  .cta-overlay.visible { display: flex; }
+  .cta-overlay a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    background: #fff;
+    color: #000;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 10px;
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .cta-overlay a:hover { opacity: 0.85; }
+  .cta-replay {
+    background: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #fff !important;
+    font-size: 13px !important;
+    padding: 10px 20px !important;
+  }
+
+  :global(.seekbar-marker) {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 1px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  @media (max-width: 600px) {
+    .player-section { border-radius: 10px; }
+    .caption-overlay { bottom: 44px; padding: 0 16px; }
+    .caption-overlay span { font-size: 13px; }
+    .big-play { width: 56px; height: 56px; }
+    .big-play svg { width: 24px; height: 24px; margin-left: 3px; }
+    .volume-group:hover .volume-slider { width: 0; }
+  }
+</style>

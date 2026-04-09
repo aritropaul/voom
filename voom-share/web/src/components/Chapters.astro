@@ -1,0 +1,42 @@
+---
+import type { Chapter } from '../scripts/api';
+import { formatTimestamp } from '../scripts/api';
+
+interface Props {
+  chapters: Chapter[];
+}
+
+const { chapters } = Astro.props;
+---
+
+{chapters.length > 0 && (
+  <div class="chapters-section">
+    <div class="section-header"><span class="label">Chapters</span></div>
+    <div class="chapters-list">
+      {chapters.map(c => (
+        <div class="chapter-row" data-time={c.timestamp}>
+          <span class="timestamp">{formatTimestamp(c.timestamp)}</span>
+          <span class="chapter-title">{c.title}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
+<style>
+  .chapters-section { display: flex; flex-direction: column; gap: var(--space-s); }
+  .chapters-list { display: flex; flex-direction: column; gap: 4px; }
+  .chapter-row {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    align-items: baseline;
+    cursor: pointer;
+    padding: 6px 0;
+    transition: opacity 0.15s;
+  }
+  .chapter-row:hover .chapter-title { color: var(--text-main); }
+  .chapter-title { font-size: 14px; line-height: 1.4; color: var(--text-muted); transition: color 0.2s; }
+  .chapter-row.active .chapter-title { color: var(--text-main); }
+  .chapter-row.active .timestamp { color: var(--text-main); }
+  .timestamp { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+</style>

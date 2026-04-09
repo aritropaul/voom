@@ -584,36 +584,120 @@ struct LibraryWindow: View {
                 ForEach(group.recordings) { recording in
                     let isSelected = selectedIDs.contains(recording.id)
                     let isHovered = hoveredRecordingID == recording.id
-                    RecordingRow(
-                        recording: recording,
-                        uploadProgress: uploadTracker.progress(for: recording.id)
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(isSelected ? Color.white.opacity(0.08) : isHovered ? Color.white.opacity(0.04) : Color.clear)
-                    )
-                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .onHover { hovering in
-                        hoveredRecordingID = hovering ? recording.id : nil
-                    }
-                    .onTapGesture {
-                        if NSEvent.modifierFlags.contains(.command) {
-                            if isSelected {
-                                selectedIDs.remove(recording.id)
+                    VStack(alignment: .leading, spacing: 0) {
+                        RecordingRow(
+                            recording: recording,
+                            uploadProgress: uploadTracker.progress(for: recording.id)
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(isSelected ? Color.white.opacity(0.08) : isHovered ? Color.white.opacity(0.04) : Color.clear)
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .onHover { hovering in
+                            hoveredRecordingID = hovering ? recording.id : nil
+                        }
+                        .onTapGesture {
+                            if NSEvent.modifierFlags.contains(.command) {
+                                if isSelected {
+                                    selectedIDs.remove(recording.id)
+                                } else {
+                                    selectedIDs.insert(recording.id)
+                                }
                             } else {
-                                selectedIDs.insert(recording.id)
+                                selectedIDs = [recording.id]
                             }
-                        } else {
-                            selectedIDs = [recording.id]
+                        }
+                        .contextMenu { recordingContextMenu(for: recording) }
+                        .draggable(recording.fileURL) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "video.fill")
+                                    .font(.system(size: 11))
+                                Text(recording.title)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(VoomTheme.backgroundSecondary)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+
+                        // Transcript search matches
+                        if !searchText.isEmpty {
+                            ForEach(matchedSegments(for: recording), id: \.id) { segment in
+                                Button {
+                                    selectedIDs = [recording.id]
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        NotificationCenter.default.post(
+                                            name: .seekToTimestamp,
+                                            object: nil,
+                                            userInfo: ["timestamp": segment.startTime]
+                                        )
+                                    }
+                                } label: {
+                                    HStack(alignment: .top, spacing: 6) {
+                                        Text(formatMatchTimestamp(segment.startTime))
+                                            .font(.system(size: 10, design: .monospaced))
+                                            .foregroundStyle(VoomTheme.accentOrange)
+                                            .frame(width: 36, alignment: .trailing)
+
+                                        Text(highlightedText(segment.text, query: searchText))
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(VoomTheme.textSecondary)
+                                            .lineLimit(2)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 3)
+                                    .padding(.leading, 16)
+                                }
+                                .buttonStyle(.plain)
+                                .contentShape(Rectangle())
+                            }
                         }
                     }
-                    .contextMenu { recordingContextMenu(for: recording) }
                 }
             }
         }
+    }
+
+    // MARK: - Transcript Search Helpers
+
+    private func matchedSegments(for recording: Recording) -> [TranscriptEntry] {
+        guard !searchText.isEmpty, recording.isTranscribed else { return [] }
+        let query = searchText.lowercased()
+        return Array(
+            recording.transcriptSegments
+                .filter { $0.text.lowercased().contains(query) }
+                .prefix(3)
+        )
+    }
+
+    private func formatMatchTimestamp(_ seconds: TimeInterval) -> String {
+        let m = Int(seconds) / 60
+        let s = Int(seconds) % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    private func highlightedText(_ text: String, query: String) -> AttributedString {
+        var attributed = AttributedString(text)
+        let lowered = text.lowercased()
+        let queryLowered = query.lowercased()
+        var searchStart = lowered.startIndex
+        while let range = lowered.range(of: queryLowered, range: searchStart..<lowered.endIndex) {
+            let attrStart = AttributedString.Index(range.lowerBound, within: attributed)
+            let attrEnd = AttributedString.Index(range.upperBound, within: attributed)
+            if let attrStart, let attrEnd {
+                attributed[attrStart..<attrEnd].font = .system(size: 11, weight: .bold)
+                attributed[attrStart..<attrEnd].foregroundColor = .white
+            }
+            searchStart = range.upperBound
+        }
+        return attributed
     }
 
     // MARK: - Stats Bar

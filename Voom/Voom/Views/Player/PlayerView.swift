@@ -55,6 +55,9 @@ struct PlayerView: View {
     @State private var trimStart: TimeInterval = 0
     @State private var trimEnd: TimeInterval = 0
     @State private var cutRegions: [CutRegion] = []
+    @State private var showClipExtraction = false
+    @State private var showTranscriptEdit = false
+    @State private var showPrivacyBlur = false
 
     private let speeds: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
@@ -251,6 +254,11 @@ struct PlayerView: View {
         }
         .onChange(of: showCaptions) { _, show in
             if !show { playerWrapperRef?.updateCaption(nil) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .seekToTimestamp)) { notification in
+            if let timestamp = notification.userInfo?["timestamp"] as? TimeInterval {
+                player?.seek(to: CMTime(seconds: timestamp, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+            }
         }
     }
 
@@ -721,6 +729,58 @@ struct PlayerView: View {
                 .sheet(isPresented: $showFillerSheet) {
                     FillerWordSheet(recordingID: recording.id, isPresented: $showFillerSheet)
                 }
+
+                ToolPillButton(
+                    icon: "sparkles",
+                    label: "AI Clips"
+                ) {
+                    showClipExtraction = true
+                }
+                .sheet(isPresented: $showClipExtraction) {
+                    ClipExtractionSheet(recordingID: recording.id, isPresented: $showClipExtraction)
+                }
+
+                ToolPillButton(
+                    icon: "text.badge.minus",
+                    label: "Edit Text",
+                    isActive: showTranscriptEdit
+                ) {
+                    showTranscriptEdit = true
+                }
+                .sheet(isPresented: $showTranscriptEdit) {
+                    TranscriptEditView(recordingID: recording.id, isPresented: $showTranscriptEdit)
+                }
+            }
+
+            ToolPillButton(
+                icon: "eye.slash",
+                label: "Blur"
+            ) {
+                showPrivacyBlur = true
+            }
+            .sheet(isPresented: $showPrivacyBlur) {
+                PrivacyBlurSheet(recordingID: recording.id, isPresented: $showPrivacyBlur)
+            }
+
+            if recording.isTranscribed {
+                Menu {
+                    ForEach(TranscriptExporter.Format.allCases, id: \.self) { format in
+                        Button(format.rawValue) {
+                            Task {
+                                let content = await TranscriptExporter.shared.export(
+                                    segments: recording.transcriptSegments,
+                                    format: format
+                                )
+                                let name = recording.title.replacingOccurrences(of: " ", with: "_")
+                                await TranscriptExporter.shared.saveToFile(content, format: format, suggestedName: name)
+                            }
+                        }
+                    }
+                } label: {
+                    ToolPillButton(icon: "doc.text", label: "Export") {}
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
 
             if isExportingGIF {

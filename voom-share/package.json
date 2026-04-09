@@ -8,6 +8,6 @@
     "db:init": "npx wrangler d1 execute voom-share-db --file=./schema.sql"
   },
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "wrangler": "^4.81.1"
   }
 }

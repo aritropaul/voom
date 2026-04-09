@@ -1,0 +1,563 @@
+---
+import Base from '../layouts/Base.astro';
+import LoadingState from '../components/LoadingState.astro';
+import PasswordGate from '../components/PasswordGate.astro';
+import ExpiredView from '../components/ExpiredView.astro';
+---
+
+<Base title="Voom">
+  <LoadingState />
+  <PasswordGate />
+  <ExpiredView />
+
+  <div id="share-content" style="display:none">
+    <!-- Hero: full-viewport blurred video background -->
+    <div class="hero" id="hero">
+      <div class="hero-bg">
+        <video id="hero-video" autoplay muted loop playsinline></video>
+      </div>
+      <div class="hero-gradient"></div>
+      <div class="hero-content">
+        <img class="hero-icon" src="/icon-64.png" alt="Voom" />
+        <div class="hero-main">
+          <h1 class="hero-title" id="hero-title"></h1>
+          <p class="hero-summary" id="hero-summary"></p>
+          <button class="hero-play" id="hero-play-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><polygon points="7,3 21,12 7,21"/></svg>
+            Play recording
+          </button>
+        </div>
+        <div class="hero-meta" id="hero-meta"></div>
+      </div>
+    </div>
+
+    <!-- Content sections: always visible below hero -->
+    <div class="content-sections" id="content-container"></div>
+
+    <!-- Player modal: opens when Play clicked -->
+    <div class="player-modal" id="player-modal">
+      <div class="player-backdrop" id="player-backdrop"></div>
+      <div class="player-modal-inner">
+        <button class="player-close" id="player-close">&times;</button>
+        <div class="player-section" id="player-section">
+          <video id="player" preload="metadata" playsinline></video>
+          <div class="big-play" id="big-play">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21"/></svg>
+          </div>
+          <div class="caption-overlay hidden" id="captions"><span></span></div>
+          <div class="progress-bar-bottom" id="progress-bottom"><div class="fill" id="progress-fill"></div></div>
+          <div class="controls" id="controls">
+            <button id="ctrl-play" title="Play/Pause">
+              <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21"/></svg>
+              <svg id="icon-pause" width="20" height="20" viewBox="0 0 24 24" fill="#fff" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
+            </button>
+            <span class="time-display" id="time-display">0:00 / 0:00</span>
+            <div class="seekbar-container" id="seekbar">
+              <div class="seekbar-track">
+                <div class="seekbar-buffered" id="seekbar-buffered"></div>
+                <div class="seekbar-fill" id="seekbar-fill"></div>
+              </div>
+              <div class="seekbar-thumb" id="seekbar-thumb"></div>
+            </div>
+            <div class="volume-group">
+              <button id="ctrl-mute" title="Mute (M)">
+                <svg id="icon-vol" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                <svg id="icon-mute" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+              </button>
+              <div class="volume-slider"><input type="range" id="volume-range" min="0" max="1" step="0.05" value="1"></div>
+            </div>
+            <div style="position:relative">
+              <button class="speed-btn" id="ctrl-speed" title="Playback speed">1x</button>
+              <div class="speed-menu" id="speed-menu">
+                <button data-speed="0.5">0.5x</button>
+                <button data-speed="1" class="active">1x</button>
+                <button data-speed="1.25">1.25x</button>
+                <button data-speed="1.5">1.5x</button>
+                <button data-speed="2">2x</button>
+              </div>
+            </div>
+            <button id="ctrl-fs" title="Fullscreen (F)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Copied!</div>
+</Base>
+
+<script>
+  import {
+    fetchShareData,
+    verifyPassword,
+    isShareData,
+    isPasswordRequired,
+    isExpired,
+    formatDuration,
+    formatDate,
+    formatTimestamp,
+    escapeHTML,
+  } from '../scripts/api';
+  import type { ShareData, Segment, Chapter } from '../scripts/api';
+  import { initPlayer } from '../scripts/player';
+  import { initReactions } from '../scripts/reactions';
+  import { initComments } from '../scripts/comments';
+
+  const path = window.location.pathname;
+  const shareCode = path.split('/').pop() || '';
+
+  const loadingEl = document.getElementById('loading-state')!;
+  const passwordEl = document.getElementById('password-gate')!;
+  const expiredEl = document.getElementById('expired-view')!;
+  const contentEl = document.getElementById('share-content')!;
+
+  function showView(view: 'loading' | 'password' | 'expired' | 'content') {
+    loadingEl.style.display = view === 'loading' ? '' : 'none';
+    passwordEl.style.display = view === 'password' ? '' : 'none';
+    expiredEl.style.display = view === 'expired' ? '' : 'none';
+    contentEl.style.display = view === 'content' ? '' : 'none';
+  }
+
+  async function loadShare() {
+    const data = await fetchShareData(shareCode);
+
+    if (isExpired(data)) {
+      showView('expired');
+      document.title = 'Recording Not Found — Voom';
+      return;
+    }
+
+    if (isPasswordRequired(data)) {
+      document.title = data.title + ' — Voom';
+      showView('password');
+      setupPassword();
+      return;
+    }
+
+    if (isShareData(data)) {
+      renderShare(data);
+    }
+  }
+
+  function setupPassword() {
+    const pwInput = document.getElementById('pw-input') as HTMLInputElement;
+    const pwError = document.getElementById('pw-error')!;
+    const pwSubmit = document.getElementById('pw-submit') as HTMLButtonElement;
+
+    async function verify() {
+      pwError.style.display = 'none';
+      pwSubmit.textContent = 'Verifying...';
+      pwSubmit.disabled = true;
+
+      const ok = await verifyPassword(shareCode, pwInput.value);
+      if (ok) {
+        showView('loading');
+        await loadShare();
+      } else {
+        pwError.style.display = 'block';
+        pwSubmit.textContent = 'Unlock';
+        pwSubmit.disabled = false;
+        pwInput.focus();
+        pwInput.select();
+      }
+    }
+
+    pwSubmit.addEventListener('click', verify);
+    pwInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') verify();
+    });
+    pwInput.focus();
+  }
+
+  function renderShare(data: ShareData) {
+    const { video, segments, chapters, shareCode: code } = data;
+    document.title = video.title + ' — Voom';
+
+    const hasTranscript = segments.length > 0;
+    const viewStr = video.view_count === 1 ? '1 view' : `${video.view_count.toLocaleString()} views`;
+
+    // --- Hero: blurred background video ---
+    const heroVideo = document.getElementById('hero-video') as HTMLVideoElement;
+    heroVideo.src = `/v/${code}`;
+    heroVideo.poster = `/thumb/${code}`;
+
+    document.getElementById('hero-title')!.textContent = video.title;
+
+    const heroSummary = document.getElementById('hero-summary')!;
+    if (video.summary) {
+      heroSummary.textContent = video.summary;
+    } else {
+      heroSummary.style.display = 'none';
+    }
+
+    // Hero meta
+    const metaParts = [
+      formatDuration(video.duration),
+      formatDate(video.created_at),
+      viewStr,
+    ];
+    if (video.width > 0) metaParts.push(`${video.width} × ${video.height}`);
+
+    const heroMeta = document.getElementById('hero-meta')!;
+    heroMeta.innerHTML = metaParts
+      .map((p, i) => i > 0 ? `<span class="dot"></span><span>${p}</span>` : `<span>${p}</span>`)
+      .join('');
+
+    // --- Setup player video source ---
+    const vid = document.getElementById('player') as HTMLVideoElement;
+    vid.poster = `/thumb/${code}`;
+    const source = document.createElement('source');
+    source.src = `/v/${code}`;
+    source.type = 'video/mp4';
+    vid.appendChild(source);
+
+    if (hasTranscript) {
+      const track = document.createElement('track');
+      track.kind = 'captions';
+      track.src = `/vtt/${code}`;
+      track.srclang = 'en';
+      track.label = 'English';
+      track.default = true;
+      vid.appendChild(track);
+
+      // Add CC button
+      const ccBtn = document.createElement('button');
+      ccBtn.className = 'cc-ctrl on';
+      ccBtn.id = 'cc-btn';
+      ccBtn.title = 'Toggle captions (C)';
+      ccBtn.textContent = 'CC';
+      const fsBtn = document.getElementById('ctrl-fs')!;
+      fsBtn.parentNode!.insertBefore(ccBtn, fsBtn);
+    }
+
+    // CTA overlay
+    if (video.cta_url) {
+      const ctaDiv = document.createElement('div');
+      ctaDiv.className = 'cta-overlay';
+      ctaDiv.id = 'cta-overlay';
+      ctaDiv.innerHTML = `<a href="${escapeHTML(video.cta_url)}" target="_blank" rel="noopener">${escapeHTML(video.cta_text || 'Learn More')}</a><button class="cta-replay" id="cta-replay">Replay</button>`;
+      document.getElementById('player-section')!.appendChild(ctaDiv);
+    }
+
+    // --- Build content sections (always visible below hero) ---
+    const container = document.getElementById('content-container')!;
+    let html = '';
+
+    // Metadata
+    html += `<div class="metadata">
+      <div class="meta-row">
+        <h1>${escapeHTML(video.title)}</h1>
+        <button class="copy-link-btn" id="copy-link-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Copy link
+        </button>
+      </div>
+      <div class="stats">
+        <span>${formatDuration(video.duration)}</span>
+        <span>${viewStr}</span>
+        <span>${formatDate(video.created_at)}</span>
+        ${video.width > 0 ? `<span>${video.width} × ${video.height}</span>` : ''}
+      </div>
+      ${video.summary ? `<p class="summary">${escapeHTML(video.summary)}</p>` : ''}
+    </div>`;
+
+    // Chapters
+    if (chapters.length > 0) {
+      html += `<div class="chapters-section surface-card">
+        <div class="section-header"><span class="label">Chapters</span></div>
+        <div class="chapters-list">
+          ${chapters.map(c => `<div class="chapter-row" data-time="${c.timestamp}">
+            <span class="timestamp">${formatTimestamp(c.timestamp)}</span>
+            <span class="chapter-title">${escapeHTML(c.title)}</span>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }
+
+    // Reactions
+    html += `<div class="reactions-bar" id="reactions-bar">
+      <button class="react-btn" data-emoji="👍"><span class="emoji">👍</span><span class="count" id="rc-0"></span></button>
+      <button class="react-btn" data-emoji="❤️"><span class="emoji">❤️</span><span class="count" id="rc-1"></span></button>
+      <button class="react-btn" data-emoji="😂"><span class="emoji">😂</span><span class="count" id="rc-2"></span></button>
+      <button class="react-btn" data-emoji="😮"><span class="emoji">😮</span><span class="count" id="rc-3"></span></button>
+      <button class="react-btn" data-emoji="🔥"><span class="emoji">🔥</span><span class="count" id="rc-4"></span></button>
+      <button class="react-btn" data-emoji="👏"><span class="emoji">👏</span><span class="count" id="rc-5"></span></button>
+    </div>`;
+
+    // Transcript
+    if (hasTranscript) {
+      html += `<div class="transcript-section surface-card">
+        <div class="section-header"><span class="label">Transcript</span></div>
+        <div class="transcript-list scroll-container" id="transcript-list">
+          ${segments.map(s => `<div class="transcript-row" data-start="${s.start_time}">
+            <span class="timestamp">${formatTimestamp(s.start_time)}</span>
+            <span class="seg-content">
+              ${s.speaker ? `<span class="speaker-label">${escapeHTML(s.speaker)}</span>` : ''}
+              <span class="text">${escapeHTML(s.text)}</span>
+            </span>
+            <button class="copy-ts" title="Copy link to this timestamp" data-time="${s.start_time}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </button>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }
+
+    // Comments
+    html += `<div class="comments-section surface-card">
+      <div class="section-header"><span class="label">Comments</span></div>
+      <div class="comment-list scroll-container" id="comment-list"></div>
+      <div class="comment-form" id="comment-form">
+        <input type="text" id="comment-name" placeholder="Your name" maxlength="100">
+        <textarea id="comment-text" placeholder="Add a comment..." maxlength="2000"></textarea>
+        <button id="comment-submit">Post Comment</button>
+      </div>
+    </div>`;
+
+    container.innerHTML = html;
+    showView('content');
+
+    // --- Player Modal ---
+    const modal = document.getElementById('player-modal')!;
+    const backdrop = document.getElementById('player-backdrop')!;
+    const closeBtn = document.getElementById('player-close')!;
+
+    function openModal() {
+      modal.classList.add('open');
+      document.body.style.overflow = 'hidden';
+      vid.play();
+    }
+
+    function closeModal() {
+      modal.classList.remove('open');
+      document.body.style.overflow = '';
+      vid.pause();
+    }
+
+    document.getElementById('hero-play-btn')!.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal.classList.contains('open')) {
+        closeModal();
+      }
+    });
+
+    // If ?t= param, open modal directly
+    const params = new URLSearchParams(window.location.search);
+    const startTime = parseFloat(params.get('t') || '0');
+    if (startTime > 0) {
+      vid.addEventListener('loadedmetadata', () => {
+        vid.currentTime = startTime;
+      }, { once: true });
+      openModal();
+    }
+
+    // Initialize player (pass modal open check for keyboard shortcuts)
+    initPlayer({
+      shareCode: code,
+      segments,
+      chapters,
+      hasCTA: !!video.cta_url,
+    });
+
+    initReactions(code, () => vid.currentTime || 0);
+
+    initComments(
+      code,
+      () => vid.currentTime || 0,
+      (t: number) => {
+        vid.currentTime = t;
+        openModal();
+      },
+    );
+
+    // Chapter/transcript clicks open modal at timestamp
+    container.querySelectorAll('.chapter-row').forEach(el => {
+      el.addEventListener('click', () => {
+        const t = parseFloat((el as HTMLElement).dataset.time || '0');
+        vid.currentTime = t;
+        openModal();
+      });
+    });
+
+    container.querySelectorAll('.transcript-row').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if ((e.target as Element).closest('.copy-ts')) return;
+        const t = parseFloat((el as HTMLElement).dataset.start || '0');
+        vid.currentTime = t;
+        openModal();
+      });
+    });
+  }
+
+  loadShare().catch(() => {
+    showView('expired');
+  });
+</script>
+
+<style is:global>
+  /* Player styles */
+  .player-section {
+    width: 100%;
+    border-radius: var(--radius-l);
+    position: relative;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .player-section video { display: block; width: 100%; background: #000; }
+
+  .big-play {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 72px; height: 72px; border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; opacity: 1; transition: opacity 0.2s, transform 0.15s; z-index: 3;
+  }
+  .big-play svg { margin-left: 4px; }
+  .player-section.playing .big-play { opacity: 0; }
+  .player-section:hover .big-play { opacity: 1; }
+  .player-section.playing:hover .big-play { opacity: 0; }
+  .player-section.hide-cursor { cursor: none; }
+
+  .progress-bar-bottom {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 3px; background: rgba(255, 255, 255, 0.1);
+    z-index: 3; pointer-events: none;
+  }
+  .progress-bar-bottom .fill {
+    height: 100%; background: var(--text-primary);
+    width: 0%; transition: width 0.1s linear;
+  }
+
+  .controls {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 0 12px 8px; display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7) 40%, rgba(0, 0, 0, 0.85));
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    opacity: 0; transition: opacity 0.25s; z-index: 4; pointer-events: none;
+  }
+  .controls.visible { opacity: 1; pointer-events: auto; }
+  .controls button {
+    background: none; border: none; color: rgba(255, 255, 255, 0.85);
+    cursor: pointer; padding: 6px; display: flex; align-items: center;
+    justify-content: center; border-radius: 4px; transition: color 0.15s;
+  }
+  .controls button:hover { color: #fff; }
+
+  .seekbar-container { flex: 1; display: flex; align-items: center; height: 32px; position: relative; cursor: pointer; }
+  .seekbar-track { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; position: relative; transition: height 0.15s; }
+  .seekbar-container:hover .seekbar-track { height: 6px; }
+  .seekbar-buffered { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
+  .seekbar-fill { position: absolute; top: 0; left: 0; height: 100%; background: #fff; border-radius: 2px; }
+  .seekbar-thumb { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: #fff; transform: translate(-50%, -50%); opacity: 0; transition: opacity 0.15s; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); }
+  .seekbar-container:hover .seekbar-thumb { opacity: 1; }
+  .seekbar-marker { position: absolute; top: 0; width: 2px; height: 100%; background: rgba(255, 255, 255, 0.4); border-radius: 1px; pointer-events: none; z-index: 1; }
+
+  .time-display { font-family: var(--font-mono); font-size: 11px; color: rgba(255, 255, 255, 0.7); white-space: nowrap; user-select: none; }
+  .volume-group { display: flex; align-items: center; gap: 2px; }
+  .volume-slider { width: 0; overflow: hidden; transition: width 0.2s; display: flex; align-items: center; }
+  .volume-group:hover .volume-slider { width: 60px; }
+  .volume-slider input[type=range] { width: 56px; height: 4px; -webkit-appearance: none; appearance: none; background: rgba(255, 255, 255, 0.2); border-radius: 2px; outline: none; cursor: pointer; }
+  .volume-slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; cursor: pointer; }
+
+  .speed-btn { font-family: var(--font-mono); font-size: 11px; min-width: 32px; position: relative; }
+  .speed-menu { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: rgba(20, 20, 20, 0.95); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 4px 0; display: none; flex-direction: column; min-width: 64px; margin-bottom: 8px; }
+  .speed-menu.open { display: flex; }
+  .speed-menu button { padding: 6px 12px; font-family: var(--font-mono); font-size: 11px; text-align: center; color: rgba(255, 255, 255, 0.7); white-space: nowrap; }
+  .speed-menu button:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+  .speed-menu button.active { color: #fff; }
+
+  .cc-ctrl { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+  .cc-ctrl.on { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+
+  .caption-overlay { position: absolute; bottom: 56px; left: 0; right: 0; text-align: center; pointer-events: none; padding: 0 10%; transition: opacity 0.2s; z-index: 3; }
+  .caption-overlay span { display: inline-block; padding: 6px 16px; border-radius: var(--radius-s); background: rgba(0, 0, 0, 0.7); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: #fff; font-size: 15px; font-weight: 500; line-height: 1.4; }
+  .caption-overlay.hidden { opacity: 0; }
+
+  .cta-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.85); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 16px; z-index: 5; }
+  .cta-overlay.visible { display: flex; }
+  .cta-overlay a { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: #fff; color: #000; font-size: 15px; font-weight: 600; border-radius: var(--radius-m); text-decoration: none; transition: opacity 0.15s; }
+  .cta-overlay a:hover { opacity: 0.85; }
+  .cta-replay { background: none !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; color: #fff !important; font-size: 13px !important; padding: 10px 20px !important; }
+
+  /* Metadata */
+  .metadata { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .meta-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-s); }
+  h1 { font-size: 18px; font-weight: 550; line-height: 1.3; letter-spacing: -0.02em; color: var(--text-primary); }
+  .stats { display: flex; gap: var(--space-s); font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; flex-wrap: wrap; }
+  .summary { font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin-top: 4px; }
+  .copy-link-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-s); padding: 5px 12px; color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; }
+  .copy-link-btn:hover { background: var(--surface-hover); color: var(--text-primary); border-color: var(--border-hover); }
+
+  /* Chapters */
+  .chapters-section { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .chapters-list { display: flex; flex-direction: column; gap: 2px; }
+  .chapter-row { display: grid; grid-template-columns: 56px 1fr; align-items: baseline; cursor: pointer; padding: 8px var(--space-xs); border-radius: var(--radius-s); transition: background 0.15s; margin: 0 calc(-1 * var(--space-xs)); }
+  .chapter-row:hover { background: var(--surface-hover); }
+  .chapter-row:hover .chapter-title { color: var(--text-primary); }
+  .chapter-title { font-size: 14px; line-height: 1.4; color: var(--text-secondary); transition: color 0.15s; }
+  .chapter-row.active .chapter-title { color: var(--text-primary); }
+  .chapter-row.active .timestamp { color: var(--text-primary); }
+
+  /* Reactions */
+  .reactions-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .react-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 8px 14px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; }
+  .react-btn:hover { background: var(--surface-hover); border-color: var(--border-hover); }
+  .emoji { font-size: 16px; }
+  .count { font-size: 11px; }
+  .reaction-bubble { position: absolute; pointer-events: none; font-size: 24px; animation: floatUp 1.5s ease-out forwards; z-index: 10; }
+  @keyframes floatUp { 0% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-80px); } }
+
+  /* Transcript */
+  .transcript-section { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .transcript-list { display: flex; flex-direction: column; max-height: 420px; overflow-y: auto; }
+  .transcript-row { display: grid; grid-template-columns: 56px 1fr 28px; align-items: baseline; cursor: pointer; padding: 8px var(--space-xs); border-radius: var(--radius-s); transition: background 0.15s; position: relative; margin: 0 calc(-1 * var(--space-xs)); }
+  .transcript-row:hover { background: var(--surface-hover); }
+  .seg-content { display: flex; flex-direction: column; gap: 2px; }
+  .speaker-label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-tertiary); }
+  .transcript-row:hover .text { color: var(--text-primary); }
+  .timestamp { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+  .text { font-size: 14px; line-height: 1.6; color: var(--text-secondary); transition: color 0.15s; }
+  .transcript-row.active { background: rgba(255, 255, 255, 0.03); }
+  .transcript-row.active .text { color: var(--text-primary); }
+  .transcript-row.active .timestamp { color: var(--text-secondary); }
+  .copy-ts { opacity: 0; background: none; border: none; color: var(--text-tertiary); cursor: pointer; padding: 2px; transition: opacity 0.15s, color 0.15s; align-self: center; }
+  .transcript-row:hover .copy-ts { opacity: 1; }
+  .copy-ts:hover { color: var(--text-primary); }
+
+  /* Comments */
+  .comments-section { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .comment-list { display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto; }
+  .comment { display: flex; flex-direction: column; gap: 4px; padding: var(--space-xs); background: var(--surface-hover); border-radius: var(--radius-m); }
+  .comment-header { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+  .comment-author { font-weight: 500; color: var(--text-primary); }
+  .comment-ts { font-family: var(--font-mono); cursor: pointer; transition: color 0.15s; }
+  .comment-ts:hover { color: var(--text-primary); }
+  .comment-text { font-size: 14px; line-height: 1.5; color: var(--text-primary); }
+  .comment-form { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .comment-form input, .comment-form textarea { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-s); padding: 10px 14px; color: #fff; font-size: 13px; font-family: inherit; outline: none; resize: vertical; transition: border-color 0.15s; }
+  .comment-form input:focus, .comment-form textarea:focus { border-color: var(--border-hover); }
+  .comment-form textarea { min-height: 60px; }
+  .comment-form button { align-self: flex-end; padding: 8px 18px; background: #fff; color: #000; border: none; border-radius: var(--radius-s); font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+  .comment-form button:hover { opacity: 0.85; }
+
+  @media (max-width: 600px) {
+    .player-section { border-radius: var(--radius-m); }
+    h1 { font-size: 17px; }
+    .transcript-list { max-height: 360px; }
+    .caption-overlay { bottom: 44px; padding: 0 16px; }
+    .caption-overlay span { font-size: 13px; }
+    .big-play { width: 56px; height: 56px; }
+    .big-play svg { width: 24px; height: 24px; margin-left: 3px; }
+    .volume-group:hover .volume-slider { width: 0; }
+    .meta-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  }
+</style>

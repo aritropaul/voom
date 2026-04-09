@@ -14,6 +14,8 @@ struct ControlPanelView: View {
     @State private var durationTimer: Timer?
     @State private var errorMessage: String?
     @State private var isRecordHovered = false
+    @State private var showSavePreset = false
+    @State private var presetName = ""
 
     let onOpenLibrary: () -> Void
     let onQuit: () -> Void
@@ -95,6 +97,27 @@ struct ControlPanelView: View {
                     Task { await stopRecording() }
                 }
             }
+            .alert("Save Preset", isPresented: $showSavePreset) {
+                TextField("Preset name", text: $presetName)
+                Button("Save") {
+                    guard !presetName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                    let preset = RecordingPreset(
+                        name: presetName.trimmingCharacters(in: .whitespaces),
+                        recordingMode: appState.recordingMode,
+                        isCameraEnabled: appState.isCameraEnabled,
+                        isMicEnabled: appState.isMicEnabled,
+                        isSystemAudioEnabled: appState.isSystemAudioEnabled,
+                        pipPosition: appState.pipPosition
+                    )
+                    PresetStore.shared.add(preset)
+                    presetName = ""
+                }
+                Button("Cancel", role: .cancel) {
+                    presetName = ""
+                }
+            } message: {
+                Text("Enter a name for this recording configuration.")
+            }
     }
 
     // MARK: - Bar Content
@@ -124,6 +147,46 @@ struct ControlPanelView: View {
         iconButton(icon: "square.grid.2x2", dimmed: true) {
             onOpenLibrary()
         }
+
+        // Presets
+        Menu {
+            let presetStore = PresetStore.shared
+            ForEach(presetStore.presets) { preset in
+                Button(preset.name) {
+                    appState.recordingMode = preset.recordingMode
+                    appState.isCameraEnabled = preset.isCameraEnabled
+                    appState.isMicEnabled = preset.isMicEnabled
+                    appState.isSystemAudioEnabled = preset.isSystemAudioEnabled
+                    appState.pipPosition = preset.pipPosition
+                }
+            }
+
+            if !presetStore.presets.isEmpty {
+                Divider()
+            }
+
+            Button("Save Current as Preset...") {
+                showSavePreset = true
+            }
+
+            if !presetStore.presets.isEmpty {
+                Menu("Manage...") {
+                    ForEach(presetStore.presets) { preset in
+                        Button("Delete \"\(preset.name)\"", role: .destructive) {
+                            presetStore.delete(preset)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 12))
+                .foregroundStyle(VoomTheme.textSecondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
 
         divider
 

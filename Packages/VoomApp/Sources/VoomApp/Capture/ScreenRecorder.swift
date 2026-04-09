@@ -37,6 +37,9 @@ public actor ScreenRecorder {
         self.hadSystemAudio = systemAudioEnabled
         self.hadMicAudio = micEnabled
 
+        // Start cursor tracking
+        await InputTracker.shared.startTracking()
+
         let storage = RecordingStorage.shared
         let outputURL = await storage.newRecordingURL()
 
@@ -213,6 +216,9 @@ public actor ScreenRecorder {
         let resolution = await storage.videoResolution(at: url)
         let fileSize = await storage.fileSize(at: url)
 
+        // Stop cursor tracking and save events
+        let cursorEvents = await InputTracker.shared.stopTracking()
+
         var recording = Recording(
             title: url.deletingPathExtension().lastPathComponent,
             fileURL: url,
@@ -224,6 +230,17 @@ public actor ScreenRecorder {
             hasSystemAudio: hasSystemAudio,
             hasMicAudio: hasMicAudio
         )
+
+        // Write cursor events sidecar
+        if !cursorEvents.isEmpty {
+            let sidecarURL = url.deletingPathExtension().appendingPathExtension("cursor.json")
+            do {
+                try await InputTracker.shared.writeEvents(cursorEvents, sidecarURL: sidecarURL)
+                recording.cursorEventsURL = sidecarURL
+            } catch {
+                // Non-fatal — continue without cursor data
+            }
+        }
 
         let thumbURL = await storage.generateThumbnail(for: url, recordingID: recording.id)
         recording.thumbnailURL = thumbURL

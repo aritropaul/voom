@@ -1,0 +1,45 @@
+---
+---
+
+<div class="reactions-bar" id="reactions-bar">
+  <button class="react-btn" data-emoji="👍"><span class="emoji">👍</span><span class="count" id="rc-0"></span></button>
+  <button class="react-btn" data-emoji="❤️"><span class="emoji">❤️</span><span class="count" id="rc-1"></span></button>
+  <button class="react-btn" data-emoji="😂"><span class="emoji">😂</span><span class="count" id="rc-2"></span></button>
+  <button class="react-btn" data-emoji="😮"><span class="emoji">😮</span><span class="count" id="rc-3"></span></button>
+  <button class="react-btn" data-emoji="🔥"><span class="emoji">🔥</span><span class="count" id="rc-4"></span></button>
+  <button class="react-btn" data-emoji="👏"><span class="emoji">👏</span><span class="count" id="rc-5"></span></button>
+</div>
+
+<style>
+  .reactions-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .react-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .react-btn:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.15); }
+  .emoji { font-size: 16px; }
+  .count { font-size: 11px; }
+
+  :global(.reaction-bubble) {
+    position: absolute;
+    pointer-events: none;
+    font-size: 24px;
+    animation: floatUp 1.5s ease-out forwards;
+    z-index: 10;
+  }
+
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-80px); }
+  }
+</style>

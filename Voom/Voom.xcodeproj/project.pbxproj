@@ -36,6 +36,9 @@
 		AB52FEA7E24C83286D60D0E0 /* ChapterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC24AAAF50FB392D2C36351C /* ChapterView.swift */; };
 		E14BCD5FB42BE4CD9C358BAA /* FillerWordSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71AB4284447814B1D09F3494 /* FillerWordSheet.swift */; };
 		B2D4F6A8C0E2D4F6A8B0C2E4 /* ShareSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C3D5E7F9B2A4C6E8D0F1A3 /* ShareSettingsSheet.swift */; };
+		F7A3B5C8D1E4F6A9B2C5D8E1 /* ClipExtractionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D1F4A7B3C6E9D2F5A8B1C4 /* ClipExtractionSheet.swift */; };
+		A2B4C6D8E0F2A4B6C8D0E2F4 /* TranscriptEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C5D7E9F1A3B5C7D9E1F3A5 /* TranscriptEditView.swift */; };
+		C4D6E8F0A2B4D6F8A0C2E4B6 /* PrivacyBlurSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E7F9A1C3B5D7E9F1A3B5C7 /* PrivacyBlurSheet.swift */; };
 		36882B0EA506A4CD702A8DD7 /* FolderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F09AAD33B5DD0F4B37D50D7 /* FolderRow.swift */; };
 		3583B5CB28528F88B818C029 /* CreateFolderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B8F0625718DC1FB5B11915 /* CreateFolderSheet.swift */; };
 		EB030D819B4963073A112855 /* StitchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B99777057266A65C2DA21A6 /* StitchSheet.swift */; };
@@ -78,6 +81,9 @@
 		EC24AAAF50FB392D2C36351C /* ChapterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterView.swift; sourceTree = "<group>"; };
 		71AB4284447814B1D09F3494 /* FillerWordSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordSheet.swift; sourceTree = "<group>"; };
 		A1C3D5E7F9B2A4C6E8D0F1A3 /* ShareSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSettingsSheet.swift; sourceTree = "<group>"; };
+		E8D1F4A7B3C6E9D2F5A8B1C4 /* ClipExtractionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipExtractionSheet.swift; sourceTree = "<group>"; };
+		B3C5D7E9F1A3B5C7D9E1F3A5 /* TranscriptEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptEditView.swift; sourceTree = "<group>"; };
+		D5E7F9A1C3B5D7E9F1A3B5C7 /* PrivacyBlurSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyBlurSheet.swift; sourceTree = "<group>"; };
 		9F09AAD33B5DD0F4B37D50D7 /* FolderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderRow.swift; sourceTree = "<group>"; };
 		A5B8F0625718DC1FB5B11915 /* CreateFolderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFolderSheet.swift; sourceTree = "<group>"; };
 		9B99777057266A65C2DA21A6 /* StitchSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StitchSheet.swift; sourceTree = "<group>"; };
@@ -181,6 +187,9 @@
 				EC24AAAF50FB392D2C36351C /* ChapterView.swift */,
 				71AB4284447814B1D09F3494 /* FillerWordSheet.swift */,
 				A1C3D5E7F9B2A4C6E8D0F1A3 /* ShareSettingsSheet.swift */,
+				E8D1F4A7B3C6E9D2F5A8B1C4 /* ClipExtractionSheet.swift */,
+				B3C5D7E9F1A3B5C7D9E1F3A5 /* TranscriptEditView.swift */,
+				D5E7F9A1C3B5D7E9F1A3B5C7 /* PrivacyBlurSheet.swift */,
 			);
 			path = Player;
 			sourceTree = "<group>";
@@ -365,6 +374,9 @@
 				AB52FEA7E24C83286D60D0E0 /* ChapterView.swift in Sources */,
 				E14BCD5FB42BE4CD9C358BAA /* FillerWordSheet.swift in Sources */,
 				B2D4F6A8C0E2D4F6A8B0C2E4 /* ShareSettingsSheet.swift in Sources */,
+				F7A3B5C8D1E4F6A9B2C5D8E1 /* ClipExtractionSheet.swift in Sources */,
+				A2B4C6D8E0F2A4B6C8D0E2F4 /* TranscriptEditView.swift in Sources */,
+				C4D6E8F0A2B4D6F8A0C2E4B6 /* PrivacyBlurSheet.swift in Sources */,
 				36882B0EA506A4CD702A8DD7 /* FolderRow.swift in Sources */,
 				3583B5CB28528F88B818C029 /* CreateFolderSheet.swift in Sources */,
 				EB030D819B4963073A112855 /* StitchSheet.swift in Sources */,

@@ -1,0 +1,76 @@
+---
+import type { Segment } from '../scripts/api';
+import { formatTimestamp, escapeHTML } from '../scripts/api';
+
+interface Props {
+  segments: Segment[];
+}
+
+const { segments } = Astro.props;
+---
+
+{segments.length > 0 && (
+  <div class="transcript-section">
+    <div class="section-header">
+      <span class="label">Transcript</span>
+    </div>
+    <div class="transcript-list scroll-container" id="transcript-list">
+      {segments.map(s => (
+        <div class="transcript-row" data-start={s.start_time}>
+          <span class="timestamp">{formatTimestamp(s.start_time)}</span>
+          <span class="seg-content">
+            {s.speaker && <span class="speaker-label">{s.speaker}</span>}
+            <span class="text">{s.text}</span>
+          </span>
+          <button class="copy-ts" title="Copy link to this timestamp" data-time={s.start_time}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </button>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
+<style>
+  .transcript-section { display: flex; flex-direction: column; gap: var(--space-s); }
+  .transcript-list { display: flex; flex-direction: column; gap: var(--space-s); max-height: 480px; overflow-y: auto; }
+  .transcript-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 28px;
+    align-items: baseline;
+    cursor: pointer;
+    padding: 4px 0;
+    transition: opacity 0.15s;
+    position: relative;
+  }
+  .seg-content { display: flex; flex-direction: column; gap: 2px; }
+  .speaker-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+  .transcript-row:hover .text { color: var(--text-main); }
+  .timestamp { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+  .text { font-size: 15px; line-height: 1.6; color: var(--text-muted); transition: color 0.2s; }
+  .transcript-row.active .text { color: var(--text-main); }
+  .transcript-row.active .timestamp { color: var(--text-main); }
+  .copy-ts {
+    opacity: 0;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+    transition: opacity 0.15s, color 0.15s;
+    align-self: center;
+  }
+  .transcript-row:hover .copy-ts { opacity: 1; }
+  .copy-ts:hover { color: var(--text-main); }
+
+  @media (max-width: 600px) {
+    .transcript-list { max-height: 360px; }
+  }
+</style>
