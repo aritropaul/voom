@@ -134,9 +134,30 @@ export function formatDuration(seconds: number): string {
 }
 
 export function formatTimestamp(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// Turn mm:ss / h:mm:ss timestamps written inside comment text into clickable
+// seek links. MUST be called on already-HTML-escaped text (output of escapeHTML):
+// the regex only sees real colons (escaped entities can't be mistaken for them),
+// and the href/data are built from parsed integers, never from user input — so the
+// returned string is safe to assign via innerHTML. Links beyond duration stay plain.
+const TIMESTAMP_RE = /(?<!\d)(?:(\d+):)?([0-5]?\d):([0-5]\d)(?!\d)/g;
+
+export function linkifyTimestamps(escapedText: string, duration: number): string {
+  return escapedText.replace(TIMESTAMP_RE, (match, hStr, mStr, sStr) => {
+    const h = hStr !== undefined ? parseInt(hStr, 10) : 0;
+    const m = parseInt(mStr, 10);
+    const s = parseInt(sStr, 10);
+    const t = h * 3600 + m * 60 + s;
+    if (!duration || t > duration) return match;
+    return `<a class="ts-link" data-t="${t}" role="button" tabindex="0">${match}</a>`;
+  });
 }
 
 export function formatDate(isoString: string): string {
