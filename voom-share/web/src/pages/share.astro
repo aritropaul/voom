@@ -40,6 +40,7 @@ import ExpiredView from '../components/ExpiredView.astro';
       <div class="player-backdrop" id="player-backdrop"></div>
       <div class="player-modal-inner">
         <button class="player-close" id="player-close">&times;</button>
+        <div class="player-stage">
         <div class="player-section" id="player-section">
           <video id="player" preload="metadata" playsinline></video>
           <div class="big-play" id="big-play">
@@ -81,6 +82,25 @@ import ExpiredView from '../components/ExpiredView.astro';
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
             </button>
           </div>
+        </div>
+        <aside class="player-comments" id="player-comments">
+          <div class="pc-header">
+            <span class="label">Comments</span>
+            <span class="pc-count" id="comment-count"></span>
+          </div>
+          <div class="comment-list scroll-container" id="comment-list"></div>
+          <div class="comment-form" id="comment-form">
+            <input type="text" id="comment-name" placeholder="Your name" maxlength="100">
+            <textarea id="comment-text" placeholder="Add a comment at this moment…" maxlength="2000"></textarea>
+            <div class="comment-form-footer">
+              <button class="comment-ts-pill" id="comment-ts-pill" type="button" title="The moment this comment links to — click to use the current time">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+                <span id="comment-ts-label">Commenting at 0:00</span>
+              </button>
+              <button id="comment-submit">Post Comment</button>
+            </div>
+          </div>
+        </aside>
         </div>
       </div>
     </div>
@@ -306,22 +326,8 @@ import ExpiredView from '../components/ExpiredView.astro';
       </div>`;
     }
 
-    // Comments
-    html += `<div class="comments-section">
-      <div class="section-header"><span class="label">Comments</span></div>
-      <div class="comment-list scroll-container" id="comment-list"></div>
-      <div class="comment-form" id="comment-form">
-        <input type="text" id="comment-name" placeholder="Your name" maxlength="100">
-        <textarea id="comment-text" placeholder="Add a comment..." maxlength="2000"></textarea>
-        <div class="comment-form-footer">
-          <button class="comment-ts-pill" id="comment-ts-pill" type="button" title="The moment this comment links to — click to use the current time">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
-            <span id="comment-ts-label">Commenting at 0:00</span>
-          </button>
-          <button id="comment-submit">Post Comment</button>
-        </div>
-      </div>
-    </div>`;
+    // Comments now live in the player sidebar (#player-comments) so viewers
+    // can watch and comment on the same moment at once.
 
     container.innerHTML = html;
     showView('content');
@@ -341,6 +347,13 @@ import ExpiredView from '../components/ExpiredView.astro';
       modal.classList.remove('open');
       document.body.style.overflow = '';
       vid.pause();
+    }
+
+    // Seek to a time, opening the player first if it isn't already open
+    // (keeps the current play state when it's already open).
+    function seek(t: number) {
+      vid.currentTime = t;
+      if (!modal.classList.contains('open')) openModal();
     }
 
     document.getElementById('hero-play-btn')!.addEventListener('click', openModal);
@@ -373,23 +386,19 @@ import ExpiredView from '../components/ExpiredView.astro';
 
     initReactions(code, () => vid.currentTime || 0);
 
-    initComments(code, vid, openModal);
+    initComments(code, vid, seek);
 
-    // Chapter/transcript clicks open modal at timestamp
+    // Chapter/transcript clicks open the player at that timestamp
     container.querySelectorAll('.chapter-row').forEach(el => {
       el.addEventListener('click', () => {
-        const t = parseFloat((el as HTMLElement).dataset.time || '0');
-        vid.currentTime = t;
-        openModal();
+        seek(parseFloat((el as HTMLElement).dataset.time || '0'));
       });
     });
 
     container.querySelectorAll('.transcript-row').forEach(el => {
       el.addEventListener('click', (e) => {
         if ((e.target as Element).closest('.copy-ts')) return;
-        const t = parseFloat((el as HTMLElement).dataset.start || '0');
-        vid.currentTime = t;
-        openModal();
+        seek(parseFloat((el as HTMLElement).dataset.start || '0'));
       });
     });
   }
@@ -401,9 +410,9 @@ import ExpiredView from '../components/ExpiredView.astro';
 
 <style is:global>
   :root {
-    --comment-accent: #f5a623;
-    --comment-accent-soft: rgba(245, 166, 35, 0.12);
-    --comment-accent-soft-hover: rgba(245, 166, 35, 0.2);
+    --comment-accent: rgba(255, 255, 255, 0.9);
+    --comment-accent-soft: rgba(255, 255, 255, 0.05);
+    --comment-accent-soft-hover: rgba(255, 255, 255, 0.1);
   }
 
   /* Player styles */
@@ -417,6 +426,64 @@ import ExpiredView from '../components/ExpiredView.astro';
     cursor: pointer;
   }
   .player-section video { display: block; width: 100%; background: #000; }
+
+  /* ── Two-pane workspace: video + comments sidebar ── */
+  .player-stage {
+    display: flex;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
+    overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+    /* both panes share this height; video pane is 16:9 of its width, capped to 86vh */
+    height: min(86vh, calc((min(96vw, 1320px) - 380px) * 0.5625));
+  }
+  .player-stage .player-section {
+    flex: 1 1 auto; min-width: 0;
+    border: none; border-radius: 0; box-shadow: none;
+  }
+  .player-stage .player-section video { width: 100%; height: 100%; object-fit: contain; }
+
+  .player-comments {
+    flex: 0 0 380px;
+    height: 100%;
+    display: flex; flex-direction: column; min-height: 0;
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+  }
+  .pc-header {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 16px 18px 12px; flex-shrink: 0;
+  }
+  .pc-header .label { font-size: 10px; letter-spacing: 2.5px; color: var(--text-quaternary); }
+  .pc-count { font-family: var(--font-mono); font-size: 10px; color: var(--text-quaternary); }
+  .player-comments .comment-list {
+    flex: 1 1 auto; min-height: 0; max-height: none;
+    padding: 0 8px 8px; gap: 2px;
+    scrollbar-gutter: stable both-edges;
+  }
+  .comment.active { background: var(--surface); }
+  .comment.active .comment-author { color: var(--text-primary); }
+  .comment.active .comment-text { color: var(--text-primary); }
+  .player-comments .comment-form {
+    flex-shrink: 0;
+    border: none; border-top: 1px solid var(--border); border-radius: 0;
+    background: var(--bg); padding: 12px 16px 14px; gap: 8px;
+  }
+
+  @media (max-width: 860px) {
+    .player-modal-inner { width: 94vw; }
+    .player-stage { flex-direction: column; height: auto; max-height: 92vh; }
+    .player-stage .player-section video { max-height: 42vh; }
+    .player-comments {
+      flex: 1 1 auto; height: auto; min-height: 0; max-height: 50vh;
+      border-left: none; border-top: 1px solid var(--border);
+    }
+  }
+  @media (max-width: 600px) {
+    .player-modal-inner { width: 100vw; }
+    .player-stage .player-section video { max-height: 38vh; }
+  }
 
   .big-play {
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -470,7 +537,7 @@ import ExpiredView from '../components/ExpiredView.astro';
   /* ── Seekbar comment markers ── */
   .comment-marker {
     position: absolute; top: 50%; left: 0;
-    width: 11px; height: 11px; border-radius: 50%;
+    width: 10px; height: 10px; border-radius: 50%;
     background: var(--comment-accent); border: 2px solid #000;
     transform: translate(-50%, -50%); transform-origin: center;
     padding: 0; margin: 0; cursor: pointer; z-index: 3;
@@ -492,7 +559,7 @@ import ExpiredView from '../components/ExpiredView.astro';
   .comment-marker-tip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: rgba(18, 18, 20, 0.97); }
   .tip-row { display: flex; flex-direction: column; gap: 2px; }
   .tip-row + .tip-row { padding-top: 6px; border-top: 1px solid var(--border); }
-  .tip-meta { font-family: var(--font-mono); font-size: 10px; color: var(--comment-accent); }
+  .tip-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .tip-text { font-size: 12px; line-height: 1.4; color: var(--text-primary); }
   .tip-more { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); }
 
@@ -607,73 +674,65 @@ import ExpiredView from '../components/ExpiredView.astro';
   .transcript-row:hover .copy-ts { opacity: 1; }
   .copy-ts:hover { color: var(--text-primary); background: var(--surface-hover); }
 
-  /* ── Comments ── */
-  .comments-section { display: flex; flex-direction: column; gap: 20px; }
-  .comment-list {
-    display: flex; flex-direction: column; gap: 16px; max-height: 400px; overflow-y: auto;
-    mask-image: linear-gradient(to bottom, black 92%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, black 92%, transparent 100%);
-  }
+  /* ── Comments (editorial rows, monochrome — matches transcript/chapters) ── */
+  .comment-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
   .comment {
-    display: flex; flex-direction: column; gap: 8px;
-    padding: 16px; background: var(--surface);
-    border: 1px solid var(--border); border-radius: var(--radius-l);
-    transition: border-color 0.2s;
+    display: flex; flex-direction: column; gap: 5px;
+    padding: 10px 12px; border-radius: var(--radius-m);
+    background: transparent; border: none;
+    transition: background 0.18s;
   }
-  .comment:hover { border-color: var(--border-hover); }
-  .comment-header { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-tertiary); }
-  .comment-author { font-weight: 600; color: var(--text-primary); font-size: 13px; }
+  .comment:hover { background: var(--surface); }
+  .comment-header { display: flex; align-items: center; gap: 8px; }
+  .comment-author { font-weight: 600; color: var(--text-primary); font-size: 13px; letter-spacing: -0.01em; }
   .comment-ts {
-    display: inline-flex; align-items: center; gap: 5px; line-height: 1;
-    font-family: var(--font-mono); font-size: 11px; cursor: pointer;
-    color: var(--comment-accent); background: var(--comment-accent-soft);
-    border: 1px solid transparent; border-radius: 100px;
-    padding: 3px 9px 3px 8px; transition: all 0.15s; font-variant-numeric: tabular-nums;
+    display: inline-flex; align-items: center; gap: 4px; line-height: 1;
+    font-family: var(--font-mono); font-size: 10px; cursor: pointer;
+    color: var(--text-tertiary); background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border); border-radius: var(--radius-s);
+    padding: 3px 7px; transition: all 0.15s;
+    font-variant-numeric: tabular-nums; letter-spacing: 0.5px;
   }
-  .comment-ts svg { opacity: 0.9; flex-shrink: 0; }
-  .comment-ts:hover { border-color: var(--comment-accent); background: var(--comment-accent-soft-hover); }
+  .comment-ts svg { opacity: 0.7; flex-shrink: 0; }
+  .comment-ts:hover { color: var(--text-primary); border-color: var(--border-hover); background: var(--surface-hover); }
   .comment-date { font-family: var(--font-mono); font-size: 10px; color: var(--text-quaternary); margin-left: auto; }
-  .comment-empty { font-size: 13px; color: var(--text-tertiary); padding: 4px 2px; }
-  .comment-text { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
+  .comment-empty { font-size: 13px; color: var(--text-tertiary); padding: 8px 2px; }
+  .comment-text { font-size: 13.5px; line-height: 1.6; color: var(--text-secondary); }
   .comment-text .ts-link {
-    color: var(--comment-accent); cursor: pointer; text-decoration: none;
-    border-bottom: 1px solid transparent; font-variant-numeric: tabular-nums;
+    color: var(--text-primary); cursor: pointer; text-decoration: none;
+    border-bottom: 1px solid var(--border-hover); font-variant-numeric: tabular-nums;
   }
-  .comment-text .ts-link:hover { border-bottom-color: var(--comment-accent); }
-  .comment-form {
-    display: flex; flex-direction: column; gap: 12px;
-    padding: 20px; background: var(--surface);
-    border: 1px solid var(--border); border-radius: var(--radius-l);
-  }
+  .comment-text .ts-link:hover { border-bottom-color: var(--text-primary); }
+  .comment-form { display: flex; flex-direction: column; gap: 8px; }
   .comment-form input, .comment-form textarea {
     background: var(--bg); border: 1px solid var(--border);
-    border-radius: var(--radius-m); padding: 12px 16px;
-    color: var(--text-primary); font-size: 14px; font-family: inherit;
+    border-radius: var(--radius-m); padding: 9px 12px;
+    color: var(--text-primary); font-size: 13px; font-family: inherit;
     outline: none; resize: vertical; transition: border-color 0.2s;
   }
   .comment-form input::placeholder, .comment-form textarea::placeholder { color: var(--text-quaternary); }
   .comment-form input:focus, .comment-form textarea:focus { border-color: var(--border-hover); }
-  .comment-form textarea { min-height: 72px; }
-  .comment-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .comment-form textarea { min-height: 60px; }
+  .comment-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .comment-ts-pill {
-    display: inline-flex; align-items: center; gap: 6px;
+    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
     background: transparent; border: 1px solid var(--border); border-radius: 100px;
-    padding: 7px 14px; cursor: pointer; color: var(--text-secondary);
-    font-family: var(--font-mono); font-size: 11px; transition: all 0.2s; font-variant-numeric: tabular-nums;
+    padding: 6px 12px; cursor: pointer; color: var(--text-tertiary);
+    font-family: var(--font-mono); font-size: 10px; transition: all 0.2s; font-variant-numeric: tabular-nums;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .comment-ts-pill svg { color: var(--text-tertiary); transition: color 0.2s; flex-shrink: 0; }
-  .comment-ts-pill:hover { border-color: var(--border-hover); color: var(--text-primary); }
-  .comment-ts-pill:hover svg { color: var(--text-secondary); }
-  .comment-ts-pill.locked { border-color: var(--comment-accent); color: var(--comment-accent); background: var(--comment-accent-soft); }
-  .comment-ts-pill.locked svg { color: var(--comment-accent); }
+  .comment-ts-pill svg { color: var(--text-quaternary); transition: color 0.2s; flex-shrink: 0; }
+  .comment-ts-pill:hover { border-color: var(--border-hover); color: var(--text-secondary); }
+  .comment-ts-pill.locked { border-color: var(--border-hover); color: var(--text-primary); background: var(--surface-hover); }
+  .comment-ts-pill.locked svg { color: var(--text-primary); }
   #comment-submit {
-    padding: 10px 24px; background: #fff; color: #000; border: none;
-    border-radius: 100px; font-size: 13px; font-weight: 600;
+    padding: 8px 18px; background: #fff; color: #000; border: none;
+    border-radius: 100px; font-size: 12px; font-weight: 600;
     cursor: pointer; transition: all 0.2s; letter-spacing: -0.01em; flex-shrink: 0;
   }
-  #comment-submit:hover { opacity: 0.9; transform: translateY(-1px); }
+  #comment-submit:hover { opacity: 0.9; }
   #comment-submit:active { transform: translateY(0); }
-  #comment-submit:disabled { opacity: 0.6; cursor: default; transform: none; }
+  #comment-submit:disabled { opacity: 0.5; cursor: default; }
 
   /* ── Section Headers ── */
   .content-sections .section-header { padding-bottom: 4px; }

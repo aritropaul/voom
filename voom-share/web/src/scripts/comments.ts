@@ -17,12 +17,13 @@ interface Cluster {
 export function initComments(
   shareCode: string,
   vid: HTMLVideoElement,
-  openModal: () => void,
+  seek: (t: number) => void,
 ) {
   const commentList = document.getElementById('comment-list')!;
   const commentName = document.getElementById('comment-name') as HTMLInputElement;
   const commentText = document.getElementById('comment-text') as HTMLTextAreaElement;
   const commentSubmit = document.getElementById('comment-submit') as HTMLButtonElement;
+  const commentCount = document.getElementById('comment-count');
   const tsPill = document.getElementById('comment-ts-pill') as HTMLButtonElement | null;
   const tsPillLabel = document.getElementById('comment-ts-label');
 
@@ -34,8 +35,7 @@ export function initComments(
   let comments: Comment[] = [];
 
   function seekTo(t: number) {
-    vid.currentTime = t;
-    openModal();
+    seek(t);
   }
 
   // ── Composer timestamp pill ─────────────────────────────────────────────
@@ -74,6 +74,7 @@ export function initComments(
   // ── Comment list ────────────────────────────────────────────────────────
   function renderList() {
     const duration = vid.duration || 0;
+    if (commentCount) commentCount.textContent = comments.length ? String(comments.length) : '';
     if (comments.length === 0) {
       commentList.innerHTML = '<div class="comment-empty">No comments yet — be the first.</div>';
       return;
@@ -207,6 +208,27 @@ export function initComments(
     ro.observe(track);
   }
   vid.addEventListener('loadedmetadata', () => { renderList(); renderMarkers(); });
+
+  // ── Active comment during playback ──────────────────────────────────────
+  // Highlight the comment at the playhead and keep it in view, but back off for
+  // a few seconds after the viewer scrolls manually so we don't fight them.
+  let lastUserScroll = 0;
+  ['wheel', 'touchmove'].forEach(ev =>
+    commentList.addEventListener(ev, () => { lastUserScroll = performance.now(); }, { passive: true }),
+  );
+  function highlightActive() {
+    const t = vid.currentTime || 0;
+    const els = commentList.querySelectorAll('.comment');
+    let active: Element | null = null;
+    els.forEach(el => {
+      if (parseFloat((el as HTMLElement).dataset.t || '0') <= t + 0.3) active = el;
+    });
+    els.forEach(el => el.classList.toggle('active', el === active));
+    if (active && performance.now() - lastUserScroll > 4000) {
+      (active as HTMLElement).scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+  vid.addEventListener('timeupdate', highlightActive);
 
   // ── Load ─────────────────────────────────────────────────────────────────
   renderList();
