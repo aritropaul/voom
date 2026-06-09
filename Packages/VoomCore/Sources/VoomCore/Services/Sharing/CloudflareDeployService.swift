@@ -345,29 +345,39 @@ public actor CloudflareDeployService {
 
     // MARK: - Step 5: Run Migrations
 
+    // Migrations bundled in WorkerBundle, applied in order. Keep in sync with
+    // voom-share/migrations/ via scripts/build-selfhost-worker.mjs.
+    private let migrationResources = ["migration_0002", "migration_0003", "migration_0004", "migration_0005"]
+
     private func runMigrations(accountID: String, apiToken: String, databaseID: String) async throws {
-        guard let migrationURL = Bundle.main.url(forResource: "migration_0002", withExtension: "sql", subdirectory: "WorkerBundle"),
-              let migrationSQL = try? String(contentsOf: migrationURL, encoding: .utf8) else {
-            throw CloudflareDeployError.missingWorkerBundle
-        }
+        for resource in migrationResources {
+            guard let migrationURL = Bundle.main.url(forResource: resource, withExtension: "sql", subdirectory: "WorkerBundle"),
+                  let migrationSQL = try? String(contentsOf: migrationURL, encoding: .utf8) else {
+                throw CloudflareDeployError.missingWorkerBundle
+            }
 
-        // Split into individual statements and execute each one
-        // ALTERs will fail if columns already exist — we catch and skip those
-        let statements = migrationSQL
-            .components(separatedBy: ";")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && !$0.hasPrefix("--") }
+            // Strip full-line comments first, then split into statements. (Splitting
+            // first would fold a leading `-- comment` line into the next statement and
+            // drop it via the prefix check.) ALTERs that hit existing columns are caught below.
+            let statements = migrationSQL
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("--") }
+                .joined(separator: "\n")
+                .components(separatedBy: ";")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
 
-        for statement in statements {
-            do {
-                try await executeD1SQL(accountID: accountID, apiToken: apiToken, databaseID: databaseID, sql: statement)
-            } catch {
-                // ALTER TABLE ADD COLUMN will fail if column already exists — that's fine
-                let msg = error.localizedDescription.lowercased()
-                if msg.contains("duplicate column") || msg.contains("already exists") {
-                    continue
+            for statement in statements {
+                do {
+                    try await executeD1SQL(accountID: accountID, apiToken: apiToken, databaseID: databaseID, sql: statement)
+                } catch {
+                    // ALTER TABLE ADD COLUMN will fail if column already exists — that's fine
+                    let msg = error.localizedDescription.lowercased()
+                    if msg.contains("duplicate column") || msg.contains("already exists") {
+                        continue
+                    }
+                    throw error
                 }
-                throw error
             }
         }
     }
