@@ -28,8 +28,7 @@ public actor TranscriptionService {
 
         logger.notice("[Voom] Loading FluidAudio ASR models...")
         let models = try await AsrModels.downloadAndLoad()
-        let manager = AsrManager()
-        try await manager.initialize(models: models)
+        let manager = AsrManager(models: models)
         self.asrManager = manager
         isModelLoaded = true
         logger.notice("[Voom] FluidAudio ASR models loaded successfully")
@@ -45,7 +44,9 @@ public actor TranscriptionService {
         }
 
         logger.notice("[Voom] Starting transcription: \(audioURL.lastPathComponent)")
-        let result = try await asrManager.transcribe(audioURL)
+        // FluidAudio 0.15: transcribe drives an explicit, caller-owned TDT decoder state.
+        var decoderState = try TdtDecoderState(decoderLayers: await asrManager.decoderLayerCount)
+        let result = try await asrManager.transcribe(audioURL, decoderState: &decoderState)
         logger.notice("[Voom] Transcription complete: \(result.text.count) chars, \(result.tokenTimings?.count ?? 0) tokens")
 
         let segments = segmentsFromTokenTimings(result)
