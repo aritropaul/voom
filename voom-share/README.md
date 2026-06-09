@@ -31,6 +31,20 @@ openssl rand -hex 32
 In Voom: **Settings → Sharing → Self-Host**, paste your worker URL
 (`https://voom-share.<your-subdomain>.workers.dev`) and the `API_SECRET` you set.
 
+## Custom domain (optional)
+
+Want share links on your own domain (`https://share.yourdomain.com/s/…`) instead
+of `*.workers.dev`?
+
+1. The domain's zone must be on your Cloudflare account.
+2. Worker → **Settings → Domains & Routes → Add → Custom Domain** →
+   `share.yourdomain.com`. Cloudflare provisions the DNS record and certificate.
+3. In Voom, paste `https://share.yourdomain.com` (instead of the `workers.dev`
+   URL) when you connect.
+
+That's it — the worker derives every share link from the host it's reached on, so
+all new links use your domain automatically.
+
 ## Manual deploy
 
 ```sh

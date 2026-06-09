@@ -250,3 +250,25 @@ jobs:
             dist/Voom.dmg
             dist/appcast.xml
           generate_release_notes: true
+
+      # Bump the Homebrew cask (aritropaul/homebrew-voom). Best-effort: skipped
+      # until a HOMEBREW_TAP_TOKEN secret (a PAT with repo scope on the tap) is set.
+      - name: Update Homebrew cask
+        if: github.event_name == 'push'
+        continue-on-error: true
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "No HOMEBREW_TAP_TOKEN set — skipping cask update."
+            exit 0
+          fi
+          VERSION="${{ steps.tag.outputs.version_number }}"
+          SHA=$(shasum -a 256 dist/Voom.dmg | awk '{print $1}')
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/aritropaul/homebrew-voom.git" tap
+          sed -i '' -E "s/version \"[^\"]*\"/version \"$VERSION\"/" tap/Casks/voom.rb
+          sed -i '' -E "s/sha256 \"[^\"]*\"/sha256 \"$SHA\"/" tap/Casks/voom.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "voom $VERSION" && git push
