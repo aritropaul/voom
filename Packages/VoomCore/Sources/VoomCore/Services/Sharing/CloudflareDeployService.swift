@@ -176,6 +176,47 @@ public actor CloudflareDeployService {
         }
     }
 
+    // MARK: - Connection Check
+
+    /// Validates a self-host worker URL + API secret by calling the worker's
+    /// authenticated health endpoint. Throws a descriptive error on failure.
+    public func verifyConnection(workerURL: String, apiSecret: String) async throws {
+        let base = workerURL
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: "\(base)/api/health") else {
+            throw CloudflareDeployError.apiError("That doesn't look like a valid URL.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiSecret.trimmingCharacters(in: .whitespacesAndNewlines))",
+                         forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            throw CloudflareDeployError.apiError("Couldn't reach the worker. Check the URL and your connection.")
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw CloudflareDeployError.apiError("Unexpected response from the worker.")
+        }
+        switch http.statusCode {
+        case 200:
+            struct Health: Decodable { let ok: Bool?; let app: String? }
+            let health = try? JSONDecoder().decode(Health.self, from: data)
+            guard health?.ok == true, health?.app == "voom" else {
+                throw CloudflareDeployError.apiError("That URL responded, but it isn't a Voom worker.")
+            }
+        case 401:
+            throw CloudflareDeployError.apiError("The API secret is incorrect for this worker.")
+        default:
+            throw CloudflareDeployError.apiError("Worker returned HTTP \(http.statusCode).")
+        }
+    }
+
     // MARK: - Step Runner
 
     private func runStep(_ stepID: String, progress: DeployProgress, action: () async throws -> Void) async throws {

@@ -196,6 +196,11 @@ export default {
         return errorResponse('Unauthorized', 401);
       }
 
+      // Connection check used by the desktop app to validate a worker URL + secret.
+      if (path === '/api/health' && request.method === 'GET') {
+        return jsonResponse({ ok: true, app: 'voom' });
+      }
+
       if (path === '/api/upload' && request.method === 'POST') {
         return handleUpload(request, env);
       }

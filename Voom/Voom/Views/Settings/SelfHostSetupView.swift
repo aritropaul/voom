@@ -6,29 +6,41 @@ struct SelfHostSetupView: View {
     @AppStorage("ShareWorkerBaseURL") private var workerBaseURL = ""
     @AppStorage("ShareAPISecret") private var apiSecret = ""
 
+    // Primary: Deploy to Cloudflare → connect with worker URL + API secret
+    @State private var workerURLInput = ""
+    @State private var apiSecretInput = ""
+    @State private var isConnecting = false
+    @State private var connectError: String?
+    @State private var didConnect = false
+
+    // Advanced: API-token auto-provision
+    @State private var showAdvanced = false
     @State private var apiToken = ""
     @State private var progress = DeployProgress()
 
-    private enum Phase {
-        case input, deploying, success, failed
-    }
+    private let deployURL = "https://deploy.workers.cloudflare.com/?url=https://github.com/aritropaul/voom/tree/main/voom-share"
 
-    private var phase: Phase {
-        if progress.isComplete { return .success }
+    private enum TokenPhase { case input, deploying, failed }
+    private var tokenPhase: TokenPhase {
         if progress.hasFailed { return .failed }
         if progress.isDeploying { return .deploying }
         return .input
     }
 
+    private var isBusy: Bool { isConnecting || progress.isDeploying }
+
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().foregroundStyle(VoomTheme.borderSubtle)
-            content
+            ScrollView {
+                content.padding(VoomTheme.spacingLG)
+            }
         }
-        .frame(width: 420)
+        .frame(width: 440)
+        .frame(maxHeight: 580)
         .background(VoomTheme.backgroundPrimary)
-        .interactiveDismissDisabled(phase == .deploying)
+        .interactiveDismissDisabled(isBusy)
     }
 
     // MARK: - Header
@@ -39,12 +51,12 @@ struct SelfHostSetupView: View {
                 Text("Self-Host Setup")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(VoomTheme.textPrimary)
-                Text("Deploy to your Cloudflare account")
+                Text("Run sharing on your own Cloudflare account")
                     .font(VoomTheme.fontCaption())
                     .foregroundStyle(VoomTheme.textTertiary)
             }
             Spacer()
-            if phase != .deploying {
+            if !isBusy {
                 Button { dismiss() } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(VoomTheme.textTertiary)
@@ -60,65 +72,149 @@ struct SelfHostSetupView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch phase {
-        case .input:
-            inputPhase
-        case .deploying:
-            deployPhase
-        case .success:
-            successPhase
-        case .failed:
-            failedPhase
+        if didConnect {
+            successView
+        } else if showAdvanced {
+            advancedFlow
+        } else {
+            primaryFlow
         }
     }
 
-    // MARK: - Input Phase
+    // MARK: - Primary: Deploy to Cloudflare
 
-    private var inputPhase: some View {
+    private var primaryFlow: some View {
         VStack(alignment: .leading, spacing: VoomTheme.spacingLG) {
-            // Step 1 instruction
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    stepBadge(1)
-                    Text("Create an API token on Cloudflare")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(VoomTheme.textPrimary)
-                }
+            Text("Voom's sharing backend is a single Cloudflare Worker. Deploy it to your account in one click — it's always free and you own the data.")
+                .font(.system(size: 11))
+                .foregroundStyle(VoomTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Required permissions:")
-                        .font(.system(size: 10))
-                        .foregroundStyle(VoomTheme.textTertiary)
-                    VStack(alignment: .leading, spacing: 2) {
-                        permissionRow("Account — Read")
-                        permissionRow("Workers Scripts — Edit")
-                        permissionRow("D1 — Edit")
-                        permissionRow("R2 Storage — Edit")
-                    }
-                }
-
-                Button {
-                    NSWorkspace.shared.open(URL(string: "https://dash.cloudflare.com/profile/api-tokens")!)
-                } label: {
-                    HStack(spacing: 4) {
-                        Text("Open Cloudflare Dashboard")
-                            .font(.system(size: 11, weight: .medium))
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 9, weight: .semibold))
+            // Step 1 — deploy
+            stepBlock(1, "Deploy the worker") {
+                Text("Provisions a fresh database and storage bucket in your account.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(VoomTheme.textTertiary)
+                Link(destination: URL(string: deployURL)!) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "bolt.fill").font(.system(size: 9, weight: .semibold))
+                        Text("Deploy to Cloudflare").font(.system(size: 11, weight: .medium))
+                        Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .semibold))
                     }
                 }
                 .controlSize(.small)
                 .padding(.top, 2)
             }
 
-            // Step 2: paste token
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    stepBadge(2)
-                    Text("Paste your API token")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(VoomTheme.textPrimary)
+            // Step 2 — secret
+            stepBlock(2, "Set an API secret") {
+                Text("When prompted during deploy, set a Secret named ")
+                    .font(.system(size: 10)).foregroundStyle(VoomTheme.textTertiary)
+                + Text("API_SECRET").font(.system(size: 10, design: .monospaced)).foregroundStyle(VoomTheme.textSecondary)
+                + Text(". Generate one with:").font(.system(size: 10)).foregroundStyle(VoomTheme.textTertiary)
+                Text("openssl rand -hex 32")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(VoomTheme.textSecondary)
+                    .textSelection(.enabled)
+                    .padding(.horizontal, VoomTheme.spacingSM)
+                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(VoomTheme.backgroundTertiary)
+                    .clipShape(RoundedRectangle(cornerRadius: VoomTheme.radiusSmall))
+            }
+
+            // Step 3 — connect
+            stepBlock(3, "Connect Voom") {
+                Text("Paste your worker URL and the secret you set.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(VoomTheme.textTertiary)
+                TextField("https://voom-share.<you>.workers.dev", text: $workerURLInput)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .disableAutocorrection(true)
+                SecureField("API_SECRET", text: $apiSecretInput)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+            }
+
+            if let connectError {
+                errorBanner(connectError)
+            }
+
+            HStack {
+                Button("Advanced: use an API token") { showAdvanced = true }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10))
+                    .foregroundStyle(VoomTheme.textTertiary)
+                Spacer()
+                Button {
+                    connect()
+                } label: {
+                    if isConnecting {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Connect")
+                    }
                 }
+                .keyboardShortcut(.defaultAction)
+                .disabled(isConnecting
+                          || workerURLInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                          || apiSecretInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    // MARK: - Advanced: API-token auto-provision
+
+    @ViewBuilder
+    private var advancedFlow: some View {
+        switch tokenPhase {
+        case .input: tokenInput
+        case .deploying: tokenProgress
+        case .failed: tokenFailed
+        }
+    }
+
+    private var tokenInput: some View {
+        VStack(alignment: .leading, spacing: VoomTheme.spacingLG) {
+            Button {
+                showAdvanced = false
+                connectError = nil
+            } label: {
+                HStack(spacing: 3) {
+                    Image(systemName: "chevron.left").font(.system(size: 9, weight: .semibold))
+                    Text("Back").font(.system(size: 10))
+                }
+                .foregroundStyle(VoomTheme.textTertiary)
+            }
+            .buttonStyle(.plain)
+
+            Text("Provision everything automatically with a scoped API token.")
+                .font(.system(size: 11))
+                .foregroundStyle(VoomTheme.textSecondary)
+
+            stepBlock(1, "Create an API token on Cloudflare") {
+                Text("Required permissions:")
+                    .font(.system(size: 10)).foregroundStyle(VoomTheme.textTertiary)
+                VStack(alignment: .leading, spacing: 2) {
+                    permissionRow("Account — Read")
+                    permissionRow("Workers Scripts — Edit")
+                    permissionRow("D1 — Edit")
+                    permissionRow("R2 Storage — Edit")
+                }
+                Button {
+                    NSWorkspace.shared.open(URL(string: "https://dash.cloudflare.com/profile/api-tokens")!)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Open Cloudflare Dashboard").font(.system(size: 11, weight: .medium))
+                        Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .semibold))
+                    }
+                }
+                .controlSize(.small)
+                .padding(.top, 2)
+            }
+
+            stepBlock(2, "Paste your API token") {
                 SecureField("Paste token here", text: $apiToken)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))
@@ -129,14 +225,76 @@ struct SelfHostSetupView: View {
 
             HStack {
                 Spacer()
-                Button("Deploy") {
-                    startDeploy()
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Deploy") { startTokenDeploy() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(apiToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .padding(VoomTheme.spacingLG)
+    }
+
+    private var tokenProgress: some View {
+        VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
+            ForEach(progress.steps) { step in stepRow(step) }
+        }
+    }
+
+    private var tokenFailed: some View {
+        VStack(alignment: .leading, spacing: VoomTheme.spacingLG) {
+            VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
+                ForEach(progress.steps) { step in stepRow(step) }
+            }
+            if let error = progress.errorMessage { errorBanner(error) }
+            HStack {
+                Button("Back") { progress.reset(); showAdvanced = false }
+                Spacer()
+                Button("Retry") { progress.reset(); startTokenDeploy() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
+    // MARK: - Success
+
+    private var successView: some View {
+        VStack(spacing: VoomTheme.spacingLG) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 32))
+                .foregroundStyle(VoomTheme.accentGreen)
+            VStack(spacing: 6) {
+                Text("Connected")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(VoomTheme.textPrimary)
+                if !workerBaseURL.isEmpty {
+                    Text(workerBaseURL)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(VoomTheme.textSecondary)
+                        .textSelection(.enabled)
+                }
+            }
+            Text("Your shares will be hosted on this worker.")
+                .font(VoomTheme.fontCaption())
+                .foregroundStyle(VoomTheme.textTertiary)
+                .multilineTextAlignment(.center)
+            Button("Done") { dismiss() }
+                .keyboardShortcut(.defaultAction)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, VoomTheme.spacingLG)
+    }
+
+    // MARK: - Reusable bits
+
+    @ViewBuilder
+    private func stepBlock<Content: View>(_ number: Int, _ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                stepBadge(number)
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(VoomTheme.textPrimary)
+            }
+            VStack(alignment: .leading, spacing: 4) { content() }
+        }
     }
 
     private func stepBadge(_ number: Int) -> some View {
@@ -159,107 +317,30 @@ struct SelfHostSetupView: View {
         }
     }
 
-    // MARK: - Deploy Phase
-
-    private var deployPhase: some View {
-        VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
-            ForEach(progress.steps) { step in
-                stepRow(step)
-            }
-        }
-        .padding(VoomTheme.spacingLG)
+    private func errorBanner(_ message: String) -> some View {
+        Text(message)
+            .font(.system(size: 11))
+            .foregroundStyle(VoomTheme.accentRed)
+            .padding(VoomTheme.spacingSM)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(VoomTheme.accentRed.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: VoomTheme.radiusSmall))
     }
-
-    // MARK: - Success Phase
-
-    private var successPhase: some View {
-        VStack(spacing: VoomTheme.spacingLG) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(VoomTheme.accentGreen)
-
-            VStack(spacing: 6) {
-                Text("Deployment Complete")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(VoomTheme.textPrimary)
-
-                if let url = progress.workerURL {
-                    Text(url)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(VoomTheme.textSecondary)
-                        .textSelection(.enabled)
-                }
-            }
-
-            Text("Worker URL and API secret have been saved to your settings.")
-                .font(VoomTheme.fontCaption())
-                .foregroundStyle(VoomTheme.textTertiary)
-                .multilineTextAlignment(.center)
-
-            Button("Done") {
-                dismiss()
-            }
-            .keyboardShortcut(.defaultAction)
-        }
-        .padding(VoomTheme.spacingXL)
-    }
-
-    // MARK: - Failed Phase
-
-    private var failedPhase: some View {
-        VStack(alignment: .leading, spacing: VoomTheme.spacingLG) {
-            VStack(alignment: .leading, spacing: VoomTheme.spacingSM) {
-                ForEach(progress.steps) { step in
-                    stepRow(step)
-                }
-            }
-
-            if let error = progress.errorMessage {
-                Text(error)
-                    .font(.system(size: 11))
-                    .foregroundStyle(VoomTheme.accentRed)
-                    .padding(VoomTheme.spacingSM)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(VoomTheme.accentRed.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: VoomTheme.radiusSmall))
-            }
-
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                Spacer()
-                Button("Retry") {
-                    progress.reset()
-                    startDeploy()
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(VoomTheme.spacingLG)
-    }
-
-    // MARK: - Step Row
 
     private func stepRow(_ step: DeployStep) -> some View {
         HStack(spacing: VoomTheme.spacingSM) {
             Group {
                 switch step.status {
                 case .pending:
-                    Image(systemName: "circle")
-                        .foregroundStyle(VoomTheme.textQuaternary)
+                    Image(systemName: "circle").foregroundStyle(VoomTheme.textQuaternary)
                 case .inProgress:
-                    ProgressView()
-                        .controlSize(.small)
+                    ProgressView().controlSize(.small)
                 case .completed:
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(VoomTheme.accentGreen)
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(VoomTheme.accentGreen)
                 case .skipped:
-                    Image(systemName: "arrow.right.circle.fill")
-                        .foregroundStyle(VoomTheme.accentOrange)
+                    Image(systemName: "arrow.right.circle.fill").foregroundStyle(VoomTheme.accentOrange)
                 case .failed:
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(VoomTheme.accentRed)
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(VoomTheme.accentRed)
                 }
             }
             .font(.system(size: 12))
@@ -290,7 +371,28 @@ struct SelfHostSetupView: View {
 
     // MARK: - Actions
 
-    private func startDeploy() {
+    private func connect() {
+        let url = workerURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let secret = apiSecretInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty, !secret.isEmpty else { return }
+        isConnecting = true
+        connectError = nil
+        Task {
+            do {
+                try await CloudflareDeployService.shared.verifyConnection(workerURL: url, apiSecret: secret)
+                let normalized = url.hasSuffix("/") ? String(url.dropLast()) : url
+                workerBaseURL = normalized
+                apiSecret = secret
+                isConnecting = false
+                didConnect = true
+            } catch {
+                isConnecting = false
+                connectError = error.localizedDescription
+            }
+        }
+    }
+
+    private func startTokenDeploy() {
         Task {
             do {
                 let result = try await CloudflareDeployService.shared.deploy(
@@ -299,8 +401,9 @@ struct SelfHostSetupView: View {
                 )
                 workerBaseURL = result.workerURL
                 apiSecret = result.apiSecret
+                didConnect = true
             } catch {
-                // Error state is already set by the service via progress
+                // Error state is set on `progress` by the service.
             }
         }
     }
