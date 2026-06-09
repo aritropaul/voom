@@ -8,11 +8,98 @@ function generateShareCode() {
   return Array.from(bytes, b => SHARE_CODE_CHARS[b % SHARE_CODE_CHARS.length]).join('');
 }
 
+// --- Self-bootstrap: runtime schema migration ---
+// When deployed via the "Deploy to Cloudflare" button, D1 is auto-provisioned
+// empty, so the worker migrates its own schema at runtime on first request.
+// Authentication uses the API_SECRET set during deploy (dashboard or prompt).
+
+const SCHEMA_VERSION = 1;
+
+// Consolidated current schema (base schema.sql + migrations 0002-0005). All
+// statements are idempotent, so this is safe on both fresh (button-deployed)
+// and existing (token-deployed) databases.
+const SCHEMA_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS videos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    share_code TEXT UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    duration REAL NOT NULL DEFAULT 0,
+    width INTEGER NOT NULL DEFAULT 0,
+    height INTEGER NOT NULL DEFAULT 0,
+    has_webcam INTEGER NOT NULL DEFAULT 0,
+    file_size INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    upload_completed INTEGER NOT NULL DEFAULT 0,
+    view_count INTEGER NOT NULL DEFAULT 0,
+    password_hash TEXT,
+    cta_url TEXT,
+    cta_text TEXT,
+    last_notified_view_count INTEGER NOT NULL DEFAULT 0,
+    is_meeting INTEGER NOT NULL DEFAULT 0,
+    summary TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_videos_share_code ON videos(share_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_videos_expires_at ON videos(expires_at)`,
+  `CREATE TABLE IF NOT EXISTS transcript_segments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    start_time REAL NOT NULL,
+    end_time REAL NOT NULL,
+    text TEXT NOT NULL,
+    speaker TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_transcript_video_id ON transcript_segments(video_id)`,
+  `CREATE TABLE IF NOT EXISTS reactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    timestamp REAL NOT NULL,
+    emoji TEXT NOT NULL,
+    client_ip TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_reactions_video_id ON reactions(video_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_reactions_ip ON reactions(video_id, client_ip)`,
+  `CREATE TABLE IF NOT EXISTS comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    timestamp REAL NOT NULL,
+    author_name TEXT NOT NULL DEFAULT 'Anonymous',
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    client_ip TEXT NOT NULL DEFAULT ''
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_comments_video_id ON comments(video_id)`,
+  `CREATE TABLE IF NOT EXISTS chapters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    timestamp REAL NOT NULL,
+    title TEXT NOT NULL
+  )`,
+];
+
+let schemaReady = false;
+
+async function ensureSchema(env) {
+  if (schemaReady) return;
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT)`).run();
+  const row = await env.DB.prepare(`SELECT value FROM _meta WHERE key = 'schema_version'`).first();
+  const current = row ? parseInt(row.value, 10) : 0;
+  if (current < SCHEMA_VERSION) {
+    await env.DB.batch(SCHEMA_STATEMENTS.map(sql => env.DB.prepare(sql)));
+    await env.DB.prepare(
+      `INSERT INTO _meta (key, value) VALUES ('schema_version', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+    ).bind(String(SCHEMA_VERSION)).run();
+  }
+  schemaReady = true;
+}
+
 function isAuthorized(request, env) {
   const auth = request.headers.get('Authorization');
   if (!auth) return false;
   const [scheme, token] = auth.split(' ');
-  return scheme === 'Bearer' && token === env.API_SECRET;
+  return scheme === 'Bearer' && !!token && token === env.API_SECRET;
 }
 
 function jsonResponse(data, status = 200) {
@@ -90,6 +177,8 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
+
+    await ensureSchema(env);
 
     // API routes (authenticated)
     if (path.startsWith('/api/')) {
@@ -272,6 +361,7 @@ export default {
   },
 
   async scheduled(event, env) {
+    await ensureSchema(env);
     await cleanupExpired(env);
   },
 };

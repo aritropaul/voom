@@ -1,0 +1,7 @@
+# The shared secret Voom uses to authenticate with this worker.
+# During the Deploy to Cloudflare flow you'll be prompted to set secrets — paste
+# a value here. Or set it later: Worker → Settings → Variables and Secrets → add
+# a Secret named API_SECRET.
+#
+# Generate a strong value with:  openssl rand -hex 32
+API_SECRET=

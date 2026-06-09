@@ -1,0 +1,33 @@
+{
+  // ── For the "Deploy to Cloudflare" button / fresh self-hosters ONLY ──
+  // Bindings are intentionally ID-less so Cloudflare auto-provisions a fresh D1
+  // database and R2 bucket in the DEPLOYER's account. The worker creates its own
+  // schema at runtime, so no migrations need to run.
+  //
+  // wrangler picks JSON config over wrangler.toml, so a bare `wrangler deploy`
+  // here uses THIS file. The maintainer's own worker (with real resource IDs)
+  // lives in wrangler.toml — always deploy it with `npm run deploy`
+  // (== `wrangler deploy --config wrangler.toml`), never a bare `wrangler deploy`.
+  "name": "voom-share",
+  "main": "src/index.js",
+  "compatibility_date": "2024-01-01",
+  "assets": {
+    "directory": "./web/dist",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "voom-share-db"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "VIDEOS_BUCKET",
+      "bucket_name": "voom-videos"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 3 * * *"]
+  }
+}
