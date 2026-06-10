@@ -21,6 +21,9 @@ Voom/Voom.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/
 # Node
 voom-share/node_modules/
 
+# Wrangler local state (any directory)
+.wrangler/
+
 # Build artifacts
 build/
 dist/

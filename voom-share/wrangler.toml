@@ -1,6 +1,7 @@
 name = "voom-share"
 main = "src/index.js"
-compatibility_date = "2024-01-01"
+# Keep in sync with wrangler.jsonc and CloudflareDeployService.swift.
+compatibility_date = "2024-11-01"
 
 [assets]
 directory = "web/dist"

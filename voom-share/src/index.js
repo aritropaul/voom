@@ -13,9 +13,9 @@ function generateShareCode() {
 // empty, so the worker migrates its own schema at runtime on first request.
 // Authentication uses the API_SECRET set during deploy (dashboard or prompt).
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
-// Consolidated current schema (base schema.sql + migrations 0002-0005). All
+// Consolidated current schema (base schema.sql + migrations 0002-0006). All
 // statements are idempotent, so this is safe on both fresh (button-deployed)
 // and existing (token-deployed) databases.
 const SCHEMA_STATEMENTS = [
@@ -37,7 +37,8 @@ const SCHEMA_STATEMENTS = [
     cta_text TEXT,
     last_notified_view_count INTEGER NOT NULL DEFAULT 0,
     is_meeting INTEGER NOT NULL DEFAULT 0,
-    summary TEXT
+    summary TEXT,
+    password_salt TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS idx_videos_share_code ON videos(share_code)`,
   `CREATE INDEX IF NOT EXISTS idx_videos_expires_at ON videos(expires_at)`,
@@ -76,7 +77,33 @@ const SCHEMA_STATEMENTS = [
     timestamp REAL NOT NULL,
     title TEXT NOT NULL
   )`,
+  `CREATE INDEX IF NOT EXISTS idx_chapters_video_id ON chapters(video_id)`,
+  `CREATE TABLE IF NOT EXISTS password_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id INTEGER NOT NULL,
+    client_ip TEXT NOT NULL,
+    attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_password_attempts ON password_attempts(video_id, client_ip, attempted_at)`,
 ];
+
+// Incremental migrations for databases that are already at an older version.
+// SCHEMA_STATEMENTS only covers fresh databases (CREATE TABLE IF NOT EXISTS
+// cannot add columns to existing tables), so any change that ALTERs an
+// existing table MUST appear here under a bumped SCHEMA_VERSION.
+const SCHEMA_MIGRATIONS = {
+  2: [
+    `CREATE INDEX IF NOT EXISTS idx_chapters_video_id ON chapters(video_id)`,
+    `ALTER TABLE videos ADD COLUMN password_salt TEXT`,
+    `CREATE TABLE IF NOT EXISTS password_attempts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      video_id INTEGER NOT NULL,
+      client_ip TEXT NOT NULL,
+      attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_password_attempts ON password_attempts(video_id, client_ip, attempted_at)`,
+  ],
+};
 
 let schemaReady = false;
 
@@ -86,7 +113,22 @@ async function ensureSchema(env) {
   const row = await env.DB.prepare(`SELECT value FROM _meta WHERE key = 'schema_version'`).first();
   const current = row ? parseInt(row.value, 10) : 0;
   if (current < SCHEMA_VERSION) {
-    await env.DB.batch(SCHEMA_STATEMENTS.map(sql => env.DB.prepare(sql)));
+    if (current === 0) {
+      // Fresh database: the consolidated schema already reflects every migration.
+      await env.DB.batch(SCHEMA_STATEMENTS.map(sql => env.DB.prepare(sql)));
+    } else {
+      // Existing database: apply each migration step in order. ALTER TABLE
+      // is not idempotent, so tolerate duplicate-column errors from re-runs.
+      for (let v = current + 1; v <= SCHEMA_VERSION; v++) {
+        for (const sql of SCHEMA_MIGRATIONS[v] || []) {
+          try {
+            await env.DB.prepare(sql).run();
+          } catch (e) {
+            if (!/duplicate column|already exists/i.test(e.message || '')) throw e;
+          }
+        }
+      }
+    }
     await env.DB.prepare(
       `INSERT INTO _meta (key, value) VALUES ('schema_version', ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`
@@ -95,11 +137,36 @@ async function ensureSchema(env) {
   schemaReady = true;
 }
 
+// Constant-time string comparison — avoids leaking match length via timing.
+function timingSafeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  let diff = ab.length ^ bb.length;
+  const len = Math.max(ab.length, bb.length);
+  for (let i = 0; i < len; i++) {
+    diff |= (ab[i % ab.length] ?? 0) ^ (bb[i % bb.length] ?? 0);
+  }
+  return diff === 0;
+}
+
+async function sha256Hex(input) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function generateSalt() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
 function isAuthorized(request, env) {
   const auth = request.headers.get('Authorization');
   if (!auth) return false;
   const [scheme, token] = auth.split(' ');
-  return scheme === 'Bearer' && !!token && token === env.API_SECRET;
+  return scheme === 'Bearer' && !!token && timingSafeEqual(token, env.API_SECRET);
 }
 
 function jsonResponse(data, status = 200) {
@@ -137,7 +204,7 @@ async function verifyPasswordAuth(request, env, shareCode, video) {
   const authToken = cookies[`voom_auth_${shareCode}`];
   if (!authToken) return false;
   const expected = await generateAuthToken(shareCode, video.expires_at, env.API_SECRET);
-  return authToken === expected;
+  return timingSafeEqual(authToken, expected);
 }
 
 function formatDuration(seconds) {
@@ -175,6 +242,27 @@ function formatTimestamp(seconds) {
 
 export default {
   async fetch(request, env) {
+    try {
+      return await handleRequest(request, env);
+    } catch (e) {
+      // D1/R2 transient failures and bugs land here instead of surfacing as
+      // opaque Workers runtime errors. Keep the response app-shaped (JSON).
+      console.error('unhandled error', request.method, new URL(request.url).pathname, e.message, e.stack);
+      return errorResponse('Internal error', 500);
+    }
+  },
+
+  async scheduled(event, env) {
+    try {
+      await ensureSchema(env);
+      await cleanupExpired(env);
+    } catch (e) {
+      console.error('cron cleanup failed', e.message, e.stack);
+    }
+  },
+};
+
+async function handleRequest(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -363,13 +451,7 @@ export default {
 
     // Fall through to static assets
     return env.ASSETS.fetch(request);
-  },
-
-  async scheduled(event, env) {
-    await ensureSchema(env);
-    await cleanupExpired(env);
-  },
-};
+}
 
 // --- API Handlers ---
 
@@ -379,14 +461,30 @@ async function handleUpload(request, env) {
 
   if (!title) return errorResponse('title is required');
 
+  // CTA links render as <a href> on the share page — only allow web URLs so a
+  // stored javascript:/data: URL can never reach that sink.
+  if (cta_url && !/^https?:\/\//i.test(cta_url)) {
+    return errorResponse('cta_url must be an http(s) URL');
+  }
+
   const shareCode = generateShareCode();
   const expiresAt = new Date(Date.now() + EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
+  // Store password hashes salted: hash = SHA256(salt + clientHash). The client
+  // sends SHA256(password) so the raw password never leaves the user's machine;
+  // salting server-side makes a leaked D1 dump useless against rainbow tables.
+  let storedHash = null;
+  let salt = null;
+  if (password_hash) {
+    salt = generateSalt();
+    storedHash = await sha256Hex(salt + password_hash);
+  }
+
   await env.DB.prepare(
-    `INSERT INTO videos (share_code, title, duration, width, height, has_webcam, file_size, expires_at, password_hash, cta_url, cta_text)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO videos (share_code, title, duration, width, height, has_webcam, file_size, expires_at, password_hash, password_salt, cta_url, cta_text)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
-    .bind(shareCode, title, duration || 0, width || 0, height || 0, hasWebcam ? 1 : 0, fileSize || 0, expiresAt, password_hash || null, cta_url || null, cta_text || null)
+    .bind(shareCode, title, duration || 0, width || 0, height || 0, hasWebcam ? 1 : 0, fileSize || 0, expiresAt, storedHash, salt, cta_url || null, cta_text || null)
     .run();
 
   const baseUrl = new URL(request.url).origin;
@@ -482,12 +580,16 @@ async function handleMetadata(request, env, shareCode) {
   const body = await request.json();
   const { segments, title, summary, chapters, isMeeting } = body;
 
+  // Chunk inserts so a multi-hour transcript can't exceed D1 batch limits.
+  const BATCH_CHUNK = 100;
   if (segments && segments.length > 0) {
     const stmt = env.DB.prepare(
       'INSERT INTO transcript_segments (video_id, start_time, end_time, text, speaker) VALUES (?, ?, ?, ?, ?)'
     );
     const batch = segments.map(seg => stmt.bind(video.id, seg.startTime, seg.endTime, seg.text, seg.speaker || null));
-    await env.DB.batch(batch);
+    for (let i = 0; i < batch.length; i += BATCH_CHUNK) {
+      await env.DB.batch(batch.slice(i, i + BATCH_CHUNK));
+    }
   }
 
   if (chapters && chapters.length > 0) {
@@ -495,7 +597,9 @@ async function handleMetadata(request, env, shareCode) {
       'INSERT INTO chapters (video_id, timestamp, title) VALUES (?, ?, ?)'
     );
     const batch = chapters.map(ch => stmt.bind(video.id, ch.timestamp, ch.title));
-    await env.DB.batch(batch);
+    for (let i = 0; i < batch.length; i += BATCH_CHUNK) {
+      await env.DB.batch(batch.slice(i, i + BATCH_CHUNK));
+    }
   }
 
   // Update title, summary, is_meeting, and mark upload complete
@@ -528,15 +632,27 @@ async function handleDelete(env, shareCode) {
   const video = await env.DB.prepare('SELECT id FROM videos WHERE share_code = ?').bind(shareCode).first();
   if (!video) return errorResponse('Video not found', 404);
 
-  await env.VIDEOS_BUCKET.delete(`videos/${shareCode}.mp4`);
-  await env.VIDEOS_BUCKET.delete(`thumbnails/${shareCode}.jpg`);
-  await env.DB.prepare('DELETE FROM chapters WHERE video_id = ?').bind(video.id).run();
-  await env.DB.prepare('DELETE FROM reactions WHERE video_id = ?').bind(video.id).run();
-  await env.DB.prepare('DELETE FROM comments WHERE video_id = ?').bind(video.id).run();
-  await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
-  await env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(video.id).run();
+  await Promise.all([
+    env.VIDEOS_BUCKET.delete(`videos/${shareCode}.mp4`),
+    env.VIDEOS_BUCKET.delete(`thumbnails/${shareCode}.jpg`),
+  ]);
+  await env.DB.batch(deleteVideoStatements(env, video.id));
 
   return jsonResponse({ ok: true });
+}
+
+// One round-trip delete of a video and all child rows. Explicit child deletes
+// rather than relying on ON DELETE CASCADE: legacy self-host databases were
+// created from a base schema without cascade on every table.
+function deleteVideoStatements(env, videoId) {
+  return [
+    env.DB.prepare('DELETE FROM chapters WHERE video_id = ?').bind(videoId),
+    env.DB.prepare('DELETE FROM reactions WHERE video_id = ?').bind(videoId),
+    env.DB.prepare('DELETE FROM comments WHERE video_id = ?').bind(videoId),
+    env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(videoId),
+    env.DB.prepare('DELETE FROM password_attempts WHERE video_id = ?').bind(videoId),
+    env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(videoId),
+  ];
 }
 
 // --- Video Streaming ---
@@ -561,18 +677,30 @@ async function handleVideoStream(request, env, shareCode) {
 
   let object;
   if (rangeHeader) {
-    const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
-    if (match) {
-      const start = parseInt(match[1], 10);
-      const end = match[2] ? parseInt(match[2], 10) : undefined;
-      object = await env.VIDEOS_BUCKET.get(key, {
-        range: { offset: start, length: end !== undefined ? end - start + 1 : undefined },
-      });
+    const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
+    if (match && (match[1] || match[2])) {
+      const suffix = !match[1]; // "bytes=-N" — last N bytes
+      let r2Range;
+      if (suffix) {
+        r2Range = { suffix: parseInt(match[2], 10) };
+      } else {
+        const start = parseInt(match[1], 10);
+        const end = match[2] ? parseInt(match[2], 10) : undefined;
+        r2Range = { offset: start, length: end !== undefined ? end - start + 1 : undefined };
+      }
+
+      try {
+        object = await env.VIDEOS_BUCKET.get(key, { range: r2Range });
+      } catch (e) {
+        // R2 throws on an unsatisfiable range (e.g. offset past end of object).
+        return new Response('Range not satisfiable', { status: 416 });
+      }
 
       if (!object) return new Response('Not found', { status: 404 });
 
-      const totalSize = object.size;
-      const actualEnd = end !== undefined ? end : totalSize - 1;
+      const totalSize = object.size; // R2Object.size is the full stored object size
+      const start = suffix ? Math.max(0, totalSize - r2Range.suffix) : r2Range.offset;
+      const actualEnd = !suffix && r2Range.length !== undefined ? start + r2Range.length - 1 : totalSize - 1;
 
       return new Response(object.body, {
         status: 206,
@@ -660,16 +788,16 @@ async function handleShareData(request, env, shareCode) {
     }
   }
 
-  // Increment view count
-  await env.DB.prepare('UPDATE videos SET view_count = view_count + 1 WHERE id = ?').bind(video.id).run();
-
-  const segments = await env.DB.prepare(
-    'SELECT start_time, end_time, text, speaker FROM transcript_segments WHERE video_id = ? ORDER BY start_time'
-  ).bind(video.id).all();
-
-  const chapters = await env.DB.prepare(
-    'SELECT timestamp, title FROM chapters WHERE video_id = ? ORDER BY timestamp'
-  ).bind(video.id).all();
+  // View-count bump and the two reads are independent — run them together.
+  const [, segments, chapters] = await Promise.all([
+    env.DB.prepare('UPDATE videos SET view_count = view_count + 1 WHERE id = ?').bind(video.id).run(),
+    env.DB.prepare(
+      'SELECT start_time, end_time, text, speaker FROM transcript_segments WHERE video_id = ? ORDER BY start_time'
+    ).bind(video.id).all(),
+    env.DB.prepare(
+      'SELECT timestamp, title FROM chapters WHERE video_id = ? ORDER BY timestamp'
+    ).bind(video.id).all(),
+  ]);
 
   return jsonResponse({
     video: {
@@ -704,6 +832,28 @@ async function handleOGPage(request, env, shareCode) {
   if (isExpired) return new Response('Not found', { status: 404 });
 
   const baseUrl = new URL(request.url).origin;
+
+  // Don't leak title/summary/thumbnail of password-protected videos to
+  // crawlers — the OG path has no way to present the password gate.
+  if (video.password_hash) {
+    const lockedHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Protected video — Voom</title>
+<meta property="og:title" content="Protected video">
+<meta property="og:type" content="video.other">
+<meta property="og:url" content="${baseUrl}/s/${shareCode}">
+<meta property="og:site_name" content="Voom">
+<meta property="og:description" content="This recording is password protected.">
+</head>
+<body><p>This recording is password protected.</p></body>
+</html>`;
+    return new Response(lockedHtml, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' },
+    });
+  }
+
   const desc = video.summary ? escapeHTML(video.summary) : `${formatTimestamp(video.duration)} screen recording`;
 
   const html = `<!DOCTYPE html>
@@ -751,14 +901,17 @@ async function cleanupExpired(env) {
   ).all();
 
   for (const video of expired.results || []) {
-    await env.VIDEOS_BUCKET.delete(`videos/${video.share_code}.mp4`);
-    await env.VIDEOS_BUCKET.delete(`thumbnails/${video.share_code}.jpg`);
-    await env.DB.prepare('DELETE FROM chapters WHERE video_id = ?').bind(video.id).run();
-    await env.DB.prepare('DELETE FROM reactions WHERE video_id = ?').bind(video.id).run();
-    await env.DB.prepare('DELETE FROM comments WHERE video_id = ?').bind(video.id).run();
-    await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
-    await env.DB.prepare('DELETE FROM videos WHERE id = ?').bind(video.id).run();
+    await Promise.all([
+      env.VIDEOS_BUCKET.delete(`videos/${video.share_code}.mp4`),
+      env.VIDEOS_BUCKET.delete(`thumbnails/${video.share_code}.jpg`),
+    ]);
+    await env.DB.batch(deleteVideoStatements(env, video.id));
   }
+
+  // Drop stale password rate-limit rows so the table can't grow unboundedly.
+  await env.DB.prepare(
+    "DELETE FROM password_attempts WHERE datetime(attempted_at) < datetime('now', '-1 day')"
+  ).run();
 }
 
 // --- Password Verification ---
@@ -770,21 +923,41 @@ async function handleVerifyPassword(request, env, shareCode) {
 
   if (!video || !video.password_hash) return errorResponse('Not found', 404);
 
+  // Brute-force protection: 10 attempts per IP per video per 5 minutes.
+  const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const recent = await env.DB.prepare(
+    "SELECT COUNT(*) as cnt FROM password_attempts WHERE video_id = ? AND client_ip = ? AND datetime(attempted_at) > datetime('now', '-5 minutes')"
+  ).bind(video.id, clientIP).first();
+  if (recent && recent.cnt >= 10) return errorResponse('Too many attempts — try again later', 429);
+
   const body = await request.json();
   const password = body.password || '';
 
-  // Hash the provided password with SHA-256 and compare
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  // The browser sends the raw password (HTTPS); the app stored it as a salted
+  // hash of SHA256(password). Legacy rows (pre-salt) hold bare SHA256(password).
+  const clientHash = await sha256Hex(password);
+  let matches;
+  if (video.password_salt) {
+    matches = timingSafeEqual(await sha256Hex(video.password_salt + clientHash), video.password_hash);
+  } else {
+    matches = timingSafeEqual(clientHash, video.password_hash);
+    // Lazy upgrade: re-store the legacy unsalted hash as salted on success.
+    if (matches) {
+      const salt = generateSalt();
+      const upgraded = await sha256Hex(salt + clientHash);
+      await env.DB.prepare('UPDATE videos SET password_hash = ?, password_salt = ? WHERE id = ?')
+        .bind(upgraded, salt, video.id).run();
+    }
+  }
 
-  if (hashHex !== video.password_hash) {
+  if (!matches) {
+    await env.DB.prepare(
+      'INSERT INTO password_attempts (video_id, client_ip) VALUES (?, ?)'
+    ).bind(video.id, clientIP).run();
     return jsonResponse({ error: 'Incorrect password' }, 403);
   }
 
-  // Generate HMAC token instead of using raw hash
+  // Issue an HMAC session token (never the stored hash).
   const authToken = await generateAuthToken(shareCode, video.expires_at, env.API_SECRET);
   const expires = new Date(video.expires_at + 'Z');
 
@@ -792,7 +965,7 @@ async function handleVerifyPassword(request, env, shareCode) {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Set-Cookie': `voom_auth_${shareCode}=${authToken}; Path=/; Expires=${expires.toUTCString()}; SameSite=Lax; Secure`,
+      'Set-Cookie': `voom_auth_${shareCode}=${authToken}; Path=/; Expires=${expires.toUTCString()}; HttpOnly; SameSite=Lax; Secure`,
     },
   });
 }
@@ -917,6 +1090,7 @@ async function handleCheckViews(request, env) {
   const body = await request.json();
   const { shareCodes } = body;
   if (!Array.isArray(shareCodes) || shareCodes.length === 0) return errorResponse('shareCodes required');
+  if (shareCodes.length > 90) return errorResponse('Too many shareCodes (max 90)');
 
   const placeholders = shareCodes.map(() => '?').join(',');
   const results = await env.DB.prepare(
@@ -942,23 +1116,28 @@ async function handleOGImage(env, shareCode) {
 
   if (!video) return new Response('Not found', { status: 404 });
 
-  // Serve uploaded thumbnail if available
-  const thumb = await env.VIDEOS_BUCKET.get(`thumbnails/${shareCode}.jpg`);
-  if (thumb) {
-    return new Response(thumb.body, {
-      status: 200,
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Cache-Control': 'public, max-age=86400',
-      },
-    });
+  // Serve uploaded thumbnail if available \u2014 but never for password-protected
+  // videos, whose poster frame may itself be sensitive.
+  if (!video.password_hash) {
+    const thumb = await env.VIDEOS_BUCKET.get(`thumbnails/${shareCode}.jpg`);
+    if (thumb) {
+      return new Response(thumb.body, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'Cache-Control': 'public, max-age=86400',
+        },
+      });
+    }
   }
 
   // Fallback SVG
+  const locked = !!video.password_hash;
   const duration = formatDuration(video.duration);
   const date = formatDate(video.created_at);
-  const title = video.title.length > 60 ? video.title.substring(0, 57) + '...' : video.title;
-  const res = video.width > 0 ? `${video.width}\u00d7${video.height}` : '';
+  const rawTitle = locked ? 'Protected video' : video.title;
+  const title = rawTitle.length > 60 ? rawTitle.substring(0, 57) + '...' : rawTitle;
+  const res = !locked && video.width > 0 ? `${video.width}\u00d7${video.height}` : '';
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <rect width="1200" height="630" fill="#000"/>
@@ -975,31 +1154,10 @@ async function handleOGImage(env, shareCode) {
     headers: {
       'Content-Type': 'image/svg+xml',
       'Cache-Control': 'public, max-age=86400',
+      'X-Content-Type-Options': 'nosniff',
     },
   });
 }
 
-// --- Embed Player ---
-
-async function handleEmbed(request, env, shareCode) {
-  const video = await env.DB.prepare(
-    "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
-  )
-    .bind(shareCode)
-    .first();
-  if (!video) return new Response('Not found', { status: 404 });
-
-  const baseUrl = new URL(request.url).origin;
-  const html = `<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<style>*{margin:0;padding:0}html,body{width:100%;height:100%;background:#000;overflow:hidden}video{width:100%;height:100%;object-fit:contain}</style>
-</head><body>
-<video controls autoplay playsinline poster="${baseUrl}/og/${shareCode}">
-<source src="${baseUrl}/v/${shareCode}" type="video/mp4">
-</video>
-</body></html>`;
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' },
-  });
-}
+// Exported for unit tests only — the worker runtime uses none of these exports.
+export { generateShareCode, escapeHTML, parseCookies, timingSafeEqual, sha256Hex, generateSalt, formatVTTTime, SHARE_CODE_CHARS, SHARE_CODE_LENGTH };

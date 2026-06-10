@@ -5,9 +5,13 @@
   "scripts": {
     "dev": "npx wrangler dev --config wrangler.toml",
     "deploy": "npx wrangler deploy --config wrangler.toml",
-    "db:init": "npx wrangler d1 execute voom-share-db --file=./schema.sql"
+    "db:init": "npx wrangler d1 execute voom-share-db --file=./schema.sql",
+    "test": "vitest run",
+    "build:selfhost": "node scripts/build-selfhost-worker.mjs"
   },
   "devDependencies": {
-    "wrangler": "^4.81.1"
+    "@cloudflare/vitest-pool-workers": "^0.9.12",
+    "vitest": "^3.2.0",
+    "wrangler": "^4.98.0"
   }
 }

@@ -8,9 +8,13 @@
   // here uses THIS file. The maintainer's own worker (with real resource IDs)
   // lives in wrangler.toml — always deploy it with `npm run deploy`
   // (== `wrangler deploy --config wrangler.toml`), never a bare `wrangler deploy`.
-  "name": "voom-share",
+  //
+  // The name is intentionally DIFFERENT from wrangler.toml's "voom-share" so a
+  // bare `wrangler deploy` run on the maintainer's account can never overwrite
+  // the production worker — it creates a separate one instead.
+  "name": "voom-share-selfhost",
   "main": "src/index.js",
-  "compatibility_date": "2024-01-01",
+  "compatibility_date": "2024-11-01",
   "assets": {
     "directory": "./web/dist",
     "binding": "ASSETS"
