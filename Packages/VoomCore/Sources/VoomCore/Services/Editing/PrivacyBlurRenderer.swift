@@ -73,29 +73,47 @@ public actor PrivacyBlurRenderer {
 
         // Process video frames
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            // Resume exactly once: the ready-callback can fire again after a
+            // failure path has already finished the input.
+            var finished = false
+            let finish: () -> Void = {
+                guard !finished else { return }
+                finished = true
+                videoInput.markAsFinished()
+                continuation.resume()
+            }
             videoInput.requestMediaDataWhenReady(on: DispatchQueue(label: "com.voom.blur.video")) {
                 while videoInput.isReadyForMoreMediaData {
+                    guard !finished else { return }
+
+                    // A failed writer never becomes ready again — without this
+                    // check the continuation would leak and finalize would hang.
+                    if writer.status == .failed || reader.status == .failed {
+                        finish()
+                        return
+                    }
+
                     guard let sampleBuffer = videoOutput.copyNextSampleBuffer() else {
-                        videoInput.markAsFinished()
-                        continuation.resume()
+                        finish()
                         return
                     }
 
                     let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
                     let timeSeconds = CMTimeGetSeconds(presentationTime)
 
+                    // Non-video sample buffers have no image buffer — skip them
+                    // instead of crashing on a force unwrap.
+                    guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                        continue
+                    }
+
                     // Check which regions are active
                     let activeRegions = regions.filter { $0.isActive(at: timeSeconds) }
 
                     if activeRegions.isEmpty {
                         // No blur needed, pass through
-                        adaptor.append(CMSampleBufferGetImageBuffer(sampleBuffer)!, withPresentationTime: presentationTime)
+                        adaptor.append(pixelBuffer, withPresentationTime: presentationTime)
                     } else {
-                        // Apply blur
-                        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                            adaptor.append(CMSampleBufferGetImageBuffer(sampleBuffer)!, withPresentationTime: presentationTime)
-                            continue
-                        }
 
                         var image = CIImage(cvPixelBuffer: pixelBuffer)
 
@@ -134,11 +152,22 @@ public actor PrivacyBlurRenderer {
         // Copy audio
         for (audioOutput, audioInput) in audioInputs {
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                var finished = false
+                let finish: () -> Void = {
+                    guard !finished else { return }
+                    finished = true
+                    audioInput.markAsFinished()
+                    continuation.resume()
+                }
                 audioInput.requestMediaDataWhenReady(on: DispatchQueue(label: "com.voom.blur.audio")) {
                     while audioInput.isReadyForMoreMediaData {
+                        guard !finished else { return }
+                        if writer.status == .failed || reader.status == .failed {
+                            finish()
+                            return
+                        }
                         guard let buffer = audioOutput.copyNextSampleBuffer() else {
-                            audioInput.markAsFinished()
-                            continuation.resume()
+                            finish()
                             return
                         }
                         audioInput.append(buffer)
@@ -151,6 +180,9 @@ public actor PrivacyBlurRenderer {
 
         if writer.status == .failed {
             throw writer.error ?? BlurError.writeFailed
+        }
+        if reader.status == .failed {
+            throw reader.error ?? BlurError.writeFailed
         }
 
         progress?(1.0)

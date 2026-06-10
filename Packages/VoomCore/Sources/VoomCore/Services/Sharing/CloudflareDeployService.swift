@@ -388,7 +388,7 @@ public actor CloudflareDeployService {
 
     // Migrations bundled in WorkerBundle, applied in order. Keep in sync with
     // voom-share/migrations/ via scripts/build-selfhost-worker.mjs.
-    private let migrationResources = ["migration_0002", "migration_0003", "migration_0004", "migration_0005"]
+    private let migrationResources = ["migration_0002", "migration_0003", "migration_0004", "migration_0005", "migration_0006"]
 
     private func runMigrations(accountID: String, apiToken: String, databaseID: String) async throws {
         for resource in migrationResources {
@@ -545,7 +545,7 @@ public actor CloudflareDeployService {
 
     private func setCronSchedule(accountID: String, apiToken: String) async throws {
         let body = try JSONSerialization.data(withJSONObject: [
-            ["cron": "0 0 * * *"]
+            ["cron": "0 3 * * *"]  // keep in sync with wrangler.toml / wrangler.jsonc
         ])
         let request = cfRequest(
             path: "/accounts/\(accountID)/workers/scripts/\(scriptName)/schedules",

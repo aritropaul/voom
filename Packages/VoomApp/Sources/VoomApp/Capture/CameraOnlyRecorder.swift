@@ -76,23 +76,33 @@ public actor CameraOnlyRecorder {
         }
     }
 
-    public func stopRecording() async -> UUID? {
+    public func stopRecording() async throws -> UUID? {
         if let camera = cameraCapture {
             await camera.setVideoFrameHandler(nil)
         }
 
+        var finalizeError: Error?
         if let writer = videoWriter {
-            await writer.finalize()
+            do {
+                try await writer.finalize()
+            } catch {
+                finalizeError = error
+            }
         }
         videoWriter = nil
 
         let outputURL = await MainActor.run { stateProvider.currentRecordingURL }
         if let outputURL {
+            if finalizeError != nil {
+                let duration = await RecordingStorage.shared.videoDuration(at: outputURL)
+                guard duration > 0 else { throw finalizeError! }
+            }
             return await saveRecording(
                 at: outputURL,
                 hasMicAudio: hadMicAudio
             )
         }
+        if let finalizeError { throw finalizeError }
         return nil
     }
 
@@ -102,10 +112,6 @@ public actor CameraOnlyRecorder {
 
     public func resume() {
         isPaused = false
-    }
-
-    nonisolated public func getIsPaused() -> Bool {
-        false
     }
 
     public func appendVideoFrame(_ pixelBuffer: CVPixelBuffer, at time: CMTime) {
@@ -141,7 +147,7 @@ public actor CameraOnlyRecorder {
         }
 
         // Auto-transcribe if audio available
-        let autoTranscribeEnabled = UserDefaults.standard.object(forKey: "AutoTranscribe") == nil ? true : UserDefaults.standard.bool(forKey: "AutoTranscribe")
+        let autoTranscribeEnabled = AppDefaults.autoTranscribeEnabled
         if autoTranscribeEnabled && hasMicAudio {
             await MainActor.run {
                 RecordingStore.shared.autoTranscribe(recordingID: recordingID, fileURL: url)

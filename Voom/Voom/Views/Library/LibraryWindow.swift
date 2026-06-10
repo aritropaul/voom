@@ -29,6 +29,7 @@ struct LibraryWindow: View {
     @Environment(RecordingStore.self) private var store
     @State private var selectedIDs: Set<UUID> = []
     @State private var searchText = ""
+    @State private var debouncedSearchText = ""
     @State private var didPickUpInitialSelection = false
     @State private var showDeleteConfirmation = false
     @State private var showUnshareConfirmation = false
@@ -60,11 +61,11 @@ struct LibraryWindow: View {
             }
         }
 
-        // Search filter
-        if !searchText.isEmpty {
+        // Search filter (debounced — transcript scan is O(recordings × segments))
+        if !debouncedSearchText.isEmpty {
             result = result.filter { recording in
-                recording.title.localizedCaseInsensitiveContains(searchText) ||
-                recording.transcriptSegments.contains { $0.text.localizedCaseInsensitiveContains(searchText) }
+                recording.title.localizedCaseInsensitiveContains(debouncedSearchText) ||
+                recording.transcriptSegments.contains { $0.text.localizedCaseInsensitiveContains(debouncedSearchText) }
             }
         }
         return result
@@ -194,6 +195,16 @@ struct LibraryWindow: View {
         .frame(minWidth: 900, minHeight: 540)
         .toolbar(removing: .title)
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .task(id: searchText) {
+            // Debounce keystrokes before running the full-transcript scan.
+            if searchText.isEmpty {
+                debouncedSearchText = ""
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled else { return }
+            debouncedSearchText = searchText
+        }
         .onAppear {
             Task { @MainActor in
                 for window in NSApp.windows where window.title.contains("Library") {
@@ -594,7 +605,7 @@ struct LibraryWindow: View {
                         .padding(.vertical, 2)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(isSelected ? Color.white.opacity(0.08) : isHovered ? Color.white.opacity(0.04) : Color.clear)
+                                .fill(isSelected ? VoomTheme.backgroundSelected : isHovered ? VoomTheme.backgroundHover : Color.clear)
                         )
                         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .onHover { hovering in
@@ -956,6 +967,7 @@ struct LibraryWindow: View {
             await MainActor.run { store.add(recording) }
         } catch {
             logger.error("[Voom] Stitch failed: \(error)")
+            toast.error("Stitch failed: \(error.localizedDescription)")
         }
     }
 
@@ -1032,15 +1044,7 @@ struct LibraryWindow: View {
     private func shareViaLink(_ recording: Recording) {
         Task {
             do {
-                let result = try await ShareService.shared.share(recording: recording)
-                var updated = recording
-                updated.shareURL = result.shareURL
-                updated.shareCode = result.shareCode
-                updated.shareExpiresAt = result.expiresAt
-                store.update(updated)
-
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(result.shareURL.absoluteString, forType: .string)
+                try await ShareCoordinator.shareAndCopyLink(recording)
                 toast.success("Uploaded & link copied!", icon: "link.badge.plus")
             } catch {
                 toast.error("Share failed: \(error.localizedDescription)")
@@ -1049,20 +1053,15 @@ struct LibraryWindow: View {
     }
 
     private func copyShareLink(_ recording: Recording) {
-        guard let url = recording.shareURL else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(url.absoluteString, forType: .string)
-        toast.success("Link copied!")
+        if ShareCoordinator.copyLink(recording) {
+            toast.success("Link copied!")
+        }
     }
 
     private func renewShareLink(_ recording: Recording) {
-        guard let code = recording.shareCode else { return }
         Task {
             do {
-                let newExpiry = try await ShareService.shared.renew(shareCode: code)
-                var updated = recording
-                updated.shareExpiresAt = newExpiry
-                store.update(updated)
+                try await ShareCoordinator.renew(recording)
                 toast.success("Link renewed!", icon: "arrow.clockwise")
             } catch {
                 toast.error("Renew failed: \(error.localizedDescription)")
@@ -1071,15 +1070,9 @@ struct LibraryWindow: View {
     }
 
     private func removeShareLink(_ recording: Recording) {
-        guard let code = recording.shareCode else { return }
         Task {
             do {
-                try await ShareService.shared.deleteShare(shareCode: code)
-                var updated = recording
-                updated.shareURL = nil
-                updated.shareCode = nil
-                updated.shareExpiresAt = nil
-                store.update(updated)
+                try await ShareCoordinator.removeShare(recording)
                 toast.success("Link removed", icon: "link.badge.plus")
             } catch {
                 toast.error("Unshare failed: \(error.localizedDescription)")
@@ -1280,9 +1273,9 @@ struct SidebarNavRow: View {
 
     private var backgroundColor: Color {
         if isSelected {
-            return Color.white.opacity(0.08)
+            return VoomTheme.backgroundSelected
         } else if isHovered {
-            return Color.white.opacity(0.04)
+            return VoomTheme.backgroundHover
         }
         return Color.clear
     }
@@ -1299,7 +1292,7 @@ struct HeaderIconButtonStyle: ButtonStyle {
             .padding(6)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(configuration.isPressed ? Color.white.opacity(0.08) : isHovered ? Color.white.opacity(0.06) : Color.clear)
+                    .fill(configuration.isPressed ? VoomTheme.backgroundSelected : isHovered ? Color.white.opacity(0.06) : Color.clear)
             )
             .onHover { isHovered = $0 }
             .animation(.easeInOut(duration: 0.15), value: isHovered)

@@ -102,7 +102,7 @@ func cmdRecord(_ args: [String]) async {
             await waitForInterrupt()
         }
 
-        let id = await recorder.stopRecording()
+        let id = try await recorder.stopRecording()
         let recording: Recording? = await MainActor.run {
             RecordingStore.shared.load()
             if let id { return RecordingStore.shared.recording(for: id) }

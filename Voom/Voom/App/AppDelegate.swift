@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.notice("[Voom] AppDelegate.applicationDidFinishLaunching called")
         AppDelegate.shared = self
+        RecordingSessionController.shared.configure(appState: appState)
         updaterController.updater.automaticallyChecksForUpdates = false
         // Disable macOS window restoration so onboarding doesn't reappear
         UserDefaults.standard.set(false, forKey: "NSQuitAlwaysKeepsWindows")
@@ -186,6 +187,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
+    }
+
+    /// Quit guard: an in-flight recording is silently stopped and saved before
+    /// the process exits — quitting must never cost the user a recording.
+    /// Bounded at 15s so a hung finalize can't make quit impossible.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task { @MainActor in
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    await RecordingSessionController.shared.stopForQuit()
+                }
+                group.addTask {
+                    try? await Task.sleep(for: .seconds(15))
+                }
+                await group.next()
+                group.cancelAll()
+            }
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func configureMeetingDetection() async {

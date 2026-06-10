@@ -1,14 +1,16 @@
 import Foundation
+import VoomCore
 
-/// UserDefaults-backed configuration for AI provider integration.
+/// Configuration for AI provider integration. The API key lives in the
+/// Keychain; non-secret preferences stay in UserDefaults.
 public enum AIConfig {
     private static let apiKeyKey = "AIAPIKey"
     private static let selectedModelKey = "AISelectedModel"
     private static let selectedProviderKey = "AISelectedProvider"
 
     public static var apiKey: String {
-        get { UserDefaults.standard.string(forKey: apiKeyKey) ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: apiKeyKey) }
+        get { KeychainStore.migratingFromDefaults(apiKeyKey) }
+        set { KeychainStore.set(newValue, for: apiKeyKey) }
     }
 
     public static var selectedModel: String {

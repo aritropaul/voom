@@ -6,7 +6,6 @@ struct ShareSettingsSheet: View {
     @Environment(RecordingStore.self) private var store
     @Binding var isPresented: Bool
     @State private var uploadTracker = ShareUploadTracker.shared
-    @State private var pipelineProgress = SharePipelineProgress.shared
     @State private var toast = ToastManager.shared
     @State private var sharePassword = ""
     @State private var ctaURLString = ""
@@ -88,15 +87,7 @@ struct ShareSettingsSheet: View {
                 .font(VoomTheme.fontHeadline())
                 .foregroundStyle(VoomTheme.textPrimary)
 
-            if pipelineProgress.isOptimizing(recording.id) {
-                HStack(spacing: VoomTheme.spacingSM) {
-                    ProgressView(value: pipelineProgress.progress(for: recording.id) ?? 0)
-                        .tint(VoomTheme.accentOrange)
-                    Text("Optimizing...")
-                        .font(VoomTheme.fontCaption())
-                        .foregroundStyle(VoomTheme.textSecondary)
-                }
-            } else if uploadTracker.isUploading(recording.id) {
+            if uploadTracker.isUploading(recording.id) {
                 HStack(spacing: VoomTheme.spacingSM) {
                     ProgressView(value: uploadTracker.progress(for: recording.id) ?? 0)
                         .tint(VoomTheme.accentGreen)
@@ -139,7 +130,7 @@ struct ShareSettingsSheet: View {
                 voomPrimaryButton("Upload & Share", icon: "arrow.up.circle.fill") {
                     Task { await shareViaLink() }
                 }
-                .disabled(pipelineProgress.isOptimizing(recording.id) || uploadTracker.isUploading(recording.id))
+                .disabled(uploadTracker.isUploading(recording.id))
             }
         }
     }
@@ -315,15 +306,7 @@ struct ShareSettingsSheet: View {
 
     private func shareViaLink() async {
         do {
-            let result = try await ShareService.shared.share(recording: recording)
-            var updated = recording
-            updated.shareURL = result.shareURL
-            updated.shareCode = result.shareCode
-            updated.shareExpiresAt = result.expiresAt
-            store.update(updated)
-
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(result.shareURL.absoluteString, forType: .string)
+            try await ShareCoordinator.shareAndCopyLink(recording)
             toast.success("Uploaded & link copied!", icon: "link.badge.plus")
         } catch {
             toast.error("Share failed: \(error.localizedDescription)")
@@ -331,14 +314,8 @@ struct ShareSettingsSheet: View {
     }
 
     private func removeShareLink() async {
-        guard let code = recording.shareCode else { return }
         do {
-            try await ShareService.shared.deleteShare(shareCode: code)
-            var updated = recording
-            updated.shareURL = nil
-            updated.shareCode = nil
-            updated.shareExpiresAt = nil
-            store.update(updated)
+            try await ShareCoordinator.removeShare(recording)
             toast.success("Link removed", icon: "link.badge.plus")
         } catch {
             toast.error("Unshare failed: \(error.localizedDescription)")

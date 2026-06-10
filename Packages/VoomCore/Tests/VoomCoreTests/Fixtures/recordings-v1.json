@@ -1,0 +1,25 @@
+[
+  {
+    "id": "11111111-2222-3333-4444-555555555555",
+    "title": "Voom-2025-01-15-093000",
+    "createdAt": 758555000,
+    "duration": 42.5,
+    "fileURL": "file:///Users/test/Movies/Voom/Voom-2025-01-15-093000.mp4",
+    "fileSize": 10485760,
+    "width": 2880,
+    "height": 1800,
+    "hasWebcam": false,
+    "hasSystemAudio": true,
+    "hasMicAudio": true,
+    "isTranscribed": true,
+    "isTranscribing": false,
+    "transcriptSegments": [
+      {
+        "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        "startTime": 0,
+        "endTime": 4.2,
+        "text": "Hello from version one"
+      }
+    ]
+  }
+]

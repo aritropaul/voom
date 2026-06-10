@@ -4,7 +4,6 @@ import VoomCore
 struct SelfHostSetupView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("ShareWorkerBaseURL") private var workerBaseURL = ""
-    @AppStorage("ShareAPISecret") private var apiSecret = ""
 
     // Primary: Deploy to Cloudflare → connect with worker URL + API secret
     @State private var workerURLInput = ""
@@ -382,7 +381,7 @@ struct SelfHostSetupView: View {
                 try await CloudflareDeployService.shared.verifyConnection(workerURL: url, apiSecret: secret)
                 let normalized = url.hasSuffix("/") ? String(url.dropLast()) : url
                 workerBaseURL = normalized
-                apiSecret = secret
+                ShareConfig.apiSecret = secret
                 isConnecting = false
                 didConnect = true
             } catch {
@@ -400,7 +399,7 @@ struct SelfHostSetupView: View {
                     progress: progress
                 )
                 workerBaseURL = result.workerURL
-                apiSecret = result.apiSecret
+                ShareConfig.apiSecret = result.apiSecret
                 didConnect = true
             } catch {
                 // Error state is set on `progress` by the service.

@@ -166,7 +166,7 @@ public actor ScreenRecorder {
         }
     }
 
-    public func stopRecording() async -> UUID? {
+    public func stopRecording() async throws -> UUID? {
         if let stream {
             try? await stream.stopCapture()
         }
@@ -178,9 +178,14 @@ public actor ScreenRecorder {
         cameraCapture = nil
         ownsCamera = false
 
+        var finalizeError: Error?
         if let writer = videoWriter, let output = streamOutput {
             output.duplicateLastFrameIfNeeded()
-            await writer.finalize()
+            do {
+                try await writer.finalize()
+            } catch {
+                finalizeError = error
+            }
         }
         videoWriter = nil
         streamOutput = nil
@@ -188,6 +193,12 @@ public actor ScreenRecorder {
 
         let outputURL = await MainActor.run { stateProvider.currentRecordingURL }
         if let outputURL {
+            // If finalize failed, salvage what we can: a file that still reports
+            // a playable duration is worth keeping; a dead file is not a recording.
+            if finalizeError != nil {
+                let duration = await RecordingStorage.shared.videoDuration(at: outputURL)
+                guard duration > 0 else { throw finalizeError! }
+            }
             return await saveRecording(
                 at: outputURL,
                 hasWebcam: hadWebcam,
@@ -195,6 +206,7 @@ public actor ScreenRecorder {
                 hasMicAudio: hadMicAudio
             )
         }
+        if let finalizeError { throw finalizeError }
         return nil
     }
 
@@ -251,7 +263,7 @@ public actor ScreenRecorder {
         }
 
         // Auto-transcribe in background if audio is available and setting is enabled
-        let autoTranscribeEnabled = UserDefaults.standard.object(forKey: "AutoTranscribe") == nil ? true : UserDefaults.standard.bool(forKey: "AutoTranscribe")
+        let autoTranscribeEnabled = AppDefaults.autoTranscribeEnabled
         if autoTranscribeEnabled && (hasSystemAudio || hasMicAudio) {
             await MainActor.run {
                 RecordingStore.shared.autoTranscribe(recordingID: recordingID, fileURL: url)
@@ -262,62 +274,7 @@ public actor ScreenRecorder {
     }
 }
 
-// MARK: - MicTimeAdjuster
-
-public final class MicTimeAdjuster: @unchecked Sendable {
-    private var firstTime: CMTime?
-    private var pauseStartTime: CMTime?
-    private var accumulatedPause: CMTime = .zero
-    private let lock = NSLock()
-
-    public init() {}
-
-    public func notifyPause() {
-        lock.lock()
-        if pauseStartTime == nil, let _ = firstTime {
-            pauseStartTime = CMClockGetTime(CMClockGetHostTimeClock())
-        }
-        lock.unlock()
-    }
-
-    public func notifyResume() {
-        lock.lock()
-        if let pauseStart = pauseStartTime {
-            let now = CMClockGetTime(CMClockGetHostTimeClock())
-            accumulatedPause = CMTimeAdd(accumulatedPause, CMTimeSubtract(now, pauseStart))
-            pauseStartTime = nil
-        }
-        lock.unlock()
-    }
-
-    public func retime(_ buffer: CMSampleBuffer) -> CMSampleBuffer? {
-        let timestamp = CMSampleBufferGetPresentationTimeStamp(buffer)
-        lock.lock()
-        if firstTime == nil {
-            firstTime = timestamp
-        }
-        guard let base = firstTime else { lock.unlock(); return nil }
-        let pauseOffset = accumulatedPause
-        lock.unlock()
-
-        let adjusted = CMTimeSubtract(CMTimeSubtract(timestamp, base), pauseOffset)
-        guard adjusted.seconds >= 0 else { return nil }
-        var timing = CMSampleTimingInfo(
-            duration: CMSampleBufferGetDuration(buffer),
-            presentationTimeStamp: adjusted,
-            decodeTimeStamp: .invalid
-        )
-        var newBuffer: CMSampleBuffer?
-        CMSampleBufferCreateCopyWithNewTiming(
-            allocator: nil,
-            sampleBuffer: buffer,
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleBufferOut: &newBuffer
-        )
-        return newBuffer
-    }
-}
+// MicTimeAdjuster lives in VoomCore (shared with MeetingRecorder).
 
 // MARK: - StreamOutput
 

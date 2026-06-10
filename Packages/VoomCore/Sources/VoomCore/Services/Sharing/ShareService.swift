@@ -10,9 +10,11 @@ public enum ShareConfig {
         set { UserDefaults.standard.set(newValue, forKey: "ShareWorkerBaseURL") }
     }
 
+    /// Stored in the Keychain (migrating any legacy UserDefaults value) —
+    /// this token grants full upload/delete control over the share worker.
     public static var apiSecret: String {
-        get { UserDefaults.standard.string(forKey: "ShareAPISecret") ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: "ShareAPISecret") }
+        get { KeychainStore.migratingFromDefaults("ShareAPISecret") }
+        set { KeychainStore.set(newValue, for: "ShareAPISecret") }
     }
 
     public static var isConfigured: Bool {
@@ -125,25 +127,17 @@ public actor ShareService {
         guard ShareConfig.isConfigured else { throw ShareError.notConfigured }
 
         let tracker = await ShareUploadTracker.shared
-        let pipelineProgress = await SharePipelineProgress.shared
-
-        // Step 0: Optimize video for web
-        var uploadFileURL = recording.fileURL
-        var optimizedURL: URL?
-        var optimizedFileSize: Int64?
-
-        // Upload raw file directly (HEVC supported by modern browsers, avoids re-encoding bottleneck)
-        await pipelineProgress.complete(for: recording.id)
 
         await tracker.startUpload(for: recording.id)
 
         do {
-            // Step 1: Request upload slot (use optimized file size if available)
-            let uploadResponse = try await requestUpload(recording: recording, fileSize: optimizedFileSize)
+            // Step 1: Request upload slot
+            let uploadResponse = try await requestUpload(recording: recording)
 
-            // Step 2: Upload video file
+            // Step 2: Upload the raw file directly (HEVC plays in all modern
+            // browsers; re-encoding was removed as an upload bottleneck)
             try await uploadVideo(
-                fileURL: uploadFileURL,
+                fileURL: recording.fileURL,
                 uploadURL: uploadResponse.uploadURL,
                 recordingID: recording.id
             )
@@ -168,11 +162,6 @@ public actor ShareService {
 
             await tracker.completeUpload(for: recording.id)
 
-            // Cleanup temp file
-            if let tempURL = optimizedURL {
-                try? FileManager.default.removeItem(at: tempURL)
-            }
-
             guard let shareURL = URL(string: uploadResponse.shareURL) else {
                 throw ShareError.invalidResponse
             }
@@ -180,10 +169,6 @@ public actor ShareService {
             let expiresAt = parseDate(uploadResponse.expiresAt)
             return (shareURL, uploadResponse.shareCode, expiresAt)
         } catch {
-            // Cleanup temp file on error
-            if let tempURL = optimizedURL {
-                try? FileManager.default.removeItem(at: tempURL)
-            }
             await tracker.failUpload(for: recording.id, error: error.localizedDescription)
             throw error
         }
@@ -192,7 +177,7 @@ public actor ShareService {
     public func renew(shareCode: String) async throws -> Date {
         guard ShareConfig.isConfigured else { throw ShareError.notConfigured }
 
-        var request = URLRequest(url: apiURL("/api/renew/\(shareCode)"))
+        var request = try URLRequest(url: apiURL("/api/renew/\(shareCode)"))
         request.httpMethod = "POST"
         applyAuth(&request)
 
@@ -206,7 +191,7 @@ public actor ShareService {
     public func deleteShare(shareCode: String) async throws {
         guard ShareConfig.isConfigured else { throw ShareError.notConfigured }
 
-        var request = URLRequest(url: apiURL("/api/delete/\(shareCode)"))
+        var request = try URLRequest(url: apiURL("/api/delete/\(shareCode)"))
         request.httpMethod = "DELETE"
         applyAuth(&request)
 
@@ -220,8 +205,8 @@ public actor ShareService {
 
     // MARK: - Private Helpers
 
-    private func requestUpload(recording: Recording, fileSize: Int64? = nil) async throws -> UploadResponse {
-        var request = URLRequest(url: apiURL("/api/upload"))
+    private func requestUpload(recording: Recording) async throws -> UploadResponse {
+        var request = try URLRequest(url: apiURL("/api/upload"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(&request)
@@ -232,7 +217,7 @@ public actor ShareService {
             "width": recording.width,
             "height": recording.height,
             "hasWebcam": recording.hasWebcam,
-            "fileSize": fileSize ?? recording.fileSize,
+            "fileSize": recording.fileSize,
         ]
 
         // Password protection: SHA-256 hash before sending
@@ -281,10 +266,11 @@ public actor ShareService {
         }
 
         let fileHandle = try FileHandle(forReadingFrom: fileURL)
+        defer { try? fileHandle.close() }
         let totalSize = Int(try FileManager.default.attributesOfItem(atPath: fileURL.path(percentEncoded: false))[.size] as? Int64 ?? 0)
 
         // Start multipart upload
-        var startReq = URLRequest(url: apiURL("/api/upload-multipart/\(shareCode)"))
+        var startReq = try URLRequest(url: apiURL("/api/upload-multipart/\(shareCode)"))
         startReq.httpMethod = "POST"
         applyAuth(&startReq)
 
@@ -306,7 +292,7 @@ public actor ShareService {
                 try fileHandle.seek(toOffset: UInt64(offset))
                 let chunk = fileHandle.readData(ofLength: chunkSize)
 
-                var partReq = URLRequest(url: apiURL("/api/upload-part/\(shareCode)/\(uploadId)/\(partNumber)"))
+                var partReq = try URLRequest(url: apiURL("/api/upload-part/\(shareCode)/\(uploadId)/\(partNumber)"))
                 partReq.httpMethod = "PUT"
                 partReq.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
                 partReq.timeoutInterval = 300
@@ -331,7 +317,7 @@ public actor ShareService {
             }
 
             // Complete multipart upload
-            var completeReq = URLRequest(url: apiURL("/api/upload-complete/\(shareCode)/\(uploadId)"))
+            var completeReq = try URLRequest(url: apiURL("/api/upload-complete/\(shareCode)/\(uploadId)"))
             completeReq.httpMethod = "POST"
             completeReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
             applyAuth(&completeReq)
@@ -347,14 +333,14 @@ public actor ShareService {
     }
 
     private func abortMultipartUpload(shareCode: String, uploadId: String) async throws {
-        var request = URLRequest(url: apiURL("/api/upload-abort/\(shareCode)/\(uploadId)"))
+        var request = try URLRequest(url: apiURL("/api/upload-abort/\(shareCode)/\(uploadId)"))
         request.httpMethod = "POST"
         applyAuth(&request)
         _ = try? await URLSession.shared.data(for: request)
     }
 
     private func uploadThumbnail(thumbURL: URL, shareCode: String) async throws {
-        var request = URLRequest(url: apiURL("/api/upload-thumbnail/\(shareCode)"))
+        var request = try URLRequest(url: apiURL("/api/upload-thumbnail/\(shareCode)"))
         request.httpMethod = "PUT"
         request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
         applyAuth(&request)
@@ -365,7 +351,7 @@ public actor ShareService {
     }
 
     private func postMetadata(shareCode: String, title: String, summary: String?, segments: [TranscriptEntry], chapters: [Chapter]?, isMeeting: Bool?) async throws {
-        var request = URLRequest(url: apiURL("/api/metadata/\(shareCode)"))
+        var request = try URLRequest(url: apiURL("/api/metadata/\(shareCode)"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         applyAuth(&request)
@@ -398,8 +384,11 @@ public actor ShareService {
         try validateResponse(response, data: data)
     }
 
-    private func apiURL(_ path: String) -> URL {
-        URL(string: ShareConfig.workerBaseURL + path)!
+    private func apiURL(_ path: String) throws -> URL {
+        guard let url = URL(string: ShareConfig.workerBaseURL + path) else {
+            throw ShareError.serverError("Invalid worker URL — check the Share settings")
+        }
+        return url
     }
 
     private func applyAuth(_ request: inout URLRequest) {

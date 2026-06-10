@@ -1,0 +1,89 @@
+import Testing
+import CoreMedia
+@testable import VoomCore
+
+/// `adjustTranscript` keeps transcript timestamps in sync with the video
+/// after cut sections are removed — the overlap math here is exactly the kind
+/// of regression that ships silently without tests.
+struct VideoEditorAdjustTranscriptTests {
+
+    private func entry(_ start: Double, _ end: Double, _ text: String = "x") -> TranscriptEntry {
+        TranscriptEntry(startTime: start, endTime: end, text: text)
+    }
+
+    private func range(_ start: Double, _ end: Double) -> CMTimeRange {
+        CMTimeRange(
+            start: CMTime(seconds: start, preferredTimescale: 600),
+            end: CMTime(seconds: end, preferredTimescale: 600)
+        )
+    }
+
+    @Test func removalBeforeSegmentShiftsItLeft() async {
+        let result = await VideoEditor.shared.adjustTranscript(
+            segments: [entry(10, 12)],
+            removals: [range(0, 4)]
+        )
+        #expect(result.count == 1)
+        #expect(abs(result[0].startTime - 6) < 0.01)
+        #expect(abs(result[0].endTime - 8) < 0.01)
+    }
+
+    @Test func segmentInsideRemovalIsDropped() async {
+        let result = await VideoEditor.shared.adjustTranscript(
+            segments: [entry(5, 6), entry(20, 21)],
+            removals: [range(4, 8)]
+        )
+        #expect(result.count == 1)
+        #expect(abs(result[0].startTime - 16) < 0.01)
+    }
+
+    @Test func removalOverlappingSegmentStartUsesPartialOffset() async {
+        // Removal 8-12 overlaps a 10-14 segment: only the 8→10 part shifts it.
+        let result = await VideoEditor.shared.adjustTranscript(
+            segments: [entry(10, 14)],
+            removals: [range(8, 12)]
+        )
+        #expect(result.count == 1)
+        #expect(abs(result[0].startTime - 8) < 0.01)
+    }
+
+    @Test func multipleRemovalsAccumulate() async {
+        let result = await VideoEditor.shared.adjustTranscript(
+            segments: [entry(30, 32)],
+            removals: [range(0, 5), range(10, 15)]
+        )
+        #expect(result.count == 1)
+        #expect(abs(result[0].startTime - 20) < 0.01)
+        #expect(abs(result[0].endTime - 22) < 0.01)
+    }
+
+    @Test func removalEndingExactlyAtSegmentStartShiftsFully() async {
+        let result = await VideoEditor.shared.adjustTranscript(
+            segments: [entry(10, 12)],
+            removals: [range(5, 10)]
+        )
+        #expect(result.count == 1)
+        #expect(abs(result[0].startTime - 5) < 0.01)
+    }
+
+    @Test func noRemovalsLeavesSegmentsUntouched() async {
+        let result = await VideoEditor.shared.adjustTranscript(
+            segments: [entry(1, 2), entry(3, 4)],
+            removals: []
+        )
+        #expect(result.count == 2)
+        #expect(result[0].startTime == 1)
+        #expect(result[1].endTime == 4)
+    }
+
+    @Test func timesNeverGoNegative() async {
+        // Removal larger than everything before the segment.
+        let result = await VideoEditor.shared.adjustTranscript(
+            segments: [entry(2, 3)],
+            removals: [range(0, 2)]
+        )
+        #expect(result.count == 1)
+        #expect(result[0].startTime >= 0)
+        #expect(result[0].endTime >= result[0].startTime)
+    }
+}

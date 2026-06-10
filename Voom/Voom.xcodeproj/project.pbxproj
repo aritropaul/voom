@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		3041DE022F55337E00D61F1F /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = A10009001 /* WhisperKit */; };
 		A10009010 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A10009011 /* Sparkle */; };
 		B1A2C3D4E5F6A7B8C9D0E1F2 /* VoomCore in Frameworks */ = {isa = PBXBuildFile; productRef = C2B3D4E5F6A7B8C9D0E1F2A3 /* VoomCore */; };
 		A10001001 /* VoomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002001 /* VoomApp.swift */; };
@@ -16,12 +15,12 @@
 		A10001005 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002005 /* PlayerView.swift */; };
 		E1F2A3B4C5D6E7F8A9B0C1D2 /* VoomAppLib in Frameworks */ = {isa = PBXBuildFile; productRef = D4E5F6A7B8C9D0E1F2A3B4C5 /* VoomApp */; };
 		A10001014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10002014 /* Assets.xcassets */; };
-		A10001015 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002017 /* CameraPreviewView.swift */; };
 		A10001016 /* NativePlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002018 /* NativePlayerView.swift */; };
 		A10001017 /* RecordingOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002019 /* RecordingOverlay.swift */; };
 		A10001018 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002020 /* AppDelegate.swift */; };
 		A10001019 /* ControlPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002021 /* ControlPanelView.swift */; };
 		A10001020 /* ControlPanelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10002022 /* ControlPanelManager.swift */; };
+		3E7B2C9A41D85F60B12A4C7E /* RecordingSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F4D6E1B83A20C57D94B3F8A /* RecordingSessionController.swift */; };
 		A10009021 /* CountdownOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009020 /* CountdownOverlay.swift */; };
 		A10009031 /* DisplayPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009030 /* DisplayPicker.swift */; };
 		A10009061 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10009060 /* SettingsView.swift */; };
@@ -60,12 +59,12 @@
 		A10002014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10002015 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10002016 /* Voom.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Voom.entitlements; sourceTree = "<group>"; };
-		A10002017 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 		A10002018 /* NativePlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativePlayerView.swift; sourceTree = "<group>"; };
 		A10002019 /* RecordingOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingOverlay.swift; sourceTree = "<group>"; };
 		A10002020 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A10002021 /* ControlPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanelView.swift; sourceTree = "<group>"; };
 		A10002022 /* ControlPanelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPanelManager.swift; sourceTree = "<group>"; };
+		9F4D6E1B83A20C57D94B3F8A /* RecordingSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingSessionController.swift; sourceTree = "<group>"; };
 		A10003000 /* Voom.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Voom.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10009020 /* CountdownOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownOverlay.swift; sourceTree = "<group>"; };
 		A10009030 /* DisplayPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayPicker.swift; sourceTree = "<group>"; };
@@ -100,7 +99,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3041DE022F55337E00D61F1F /* WhisperKit in Frameworks */,
 				A10009010 /* Sparkle in Frameworks */,
 				B1A2C3D4E5F6A7B8C9D0E1F2 /* VoomCore in Frameworks */,
 				E1F2A3B4C5D6E7F8A9B0C1D2 /* VoomAppLib in Frameworks */,
@@ -146,7 +144,6 @@
 			children = (
 				A10005019 /* Components */,
 				A10005009 /* Panel */,
-				A10005004 /* MenuBar */,
 				A10005005 /* Library */,
 				A10005006 /* Player */,
 				A10005008 /* Overlay */,
@@ -154,14 +151,6 @@
 				A10005018 /* Onboarding */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		A10005004 /* MenuBar */ = {
-			isa = PBXGroup;
-			children = (
-				A10002017 /* CameraPreviewView.swift */,
-			);
-			path = MenuBar;
 			sourceTree = "<group>";
 		};
 		A10005005 /* Library */ = {
@@ -212,6 +201,7 @@
 			children = (
 				A10002021 /* ControlPanelView.swift */,
 				A10002022 /* ControlPanelManager.swift */,
+				9F4D6E1B83A20C57D94B3F8A /* RecordingSessionController.swift */,
 				5C9D1E3F4A6B8C0D2E5F7A9B /* MeetingPanelManager.swift */,
 			);
 			path = Panel;
@@ -279,7 +269,6 @@
 			);
 			name = Voom;
 			packageProductDependencies = (
-				A10009001 /* WhisperKit */,
 				A10009011 /* Sparkle */,
 				C2B3D4E5F6A7B8C9D0E1F2A3 /* VoomCore */,
 				D4E5F6A7B8C9D0E1F2A3B4C5 /* VoomApp */,
@@ -316,7 +305,6 @@
 			);
 			mainGroup = A10005000;
 			packageReferences = (
-				A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */,
 				A10009012 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				D3E4F5A6B7C8D9E0F1A2B3C4 /* XCLocalSwiftPackageReference "../Packages/VoomCore" */,
 				F4A5B6C7D8E9F0A1B2C3D4E5 /* XCLocalSwiftPackageReference "../Packages/VoomApp" */,
@@ -355,9 +343,9 @@
 				A10001018 /* AppDelegate.swift in Sources */,
 				A10001019 /* ControlPanelView.swift in Sources */,
 				A10001020 /* ControlPanelManager.swift in Sources */,
+				3E7B2C9A41D85F60B12A4C7E /* RecordingSessionController.swift in Sources */,
 				A10001004 /* LibraryWindow.swift in Sources */,
 				A10001005 /* PlayerView.swift in Sources */,
-				A10001015 /* CameraPreviewView.swift in Sources */,
 				A10001016 /* NativePlayerView.swift in Sources */,
 				A10001017 /* RecordingOverlay.swift in Sources */,
 				A10009021 /* CountdownOverlay.swift in Sources */,
@@ -554,7 +542,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 2J3WW2KWBU;
-				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Voom/Resources/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
@@ -618,14 +606,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/argmaxinc/WhisperKit.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.9.0;
-			};
-		};
 		A10009012 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
@@ -645,11 +625,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		A10009001 /* WhisperKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A10009000 /* XCRemoteSwiftPackageReference "WhisperKit" */;
-			productName = WhisperKit;
-		};
 		A10009011 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A10009012 /* XCRemoteSwiftPackageReference "Sparkle" */;

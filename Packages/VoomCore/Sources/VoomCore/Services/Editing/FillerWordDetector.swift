@@ -58,8 +58,8 @@ public actor FillerWordDetector {
                 }
             }
 
-            // Multi-word fillers
-            let multiWordFillers = ["you know", "I mean", "kind of", "sort of", "okay so"]
+            // Multi-word fillers (lowercased — `text` is lowercased above)
+            let multiWordFillers = ["you know", "i mean", "kind of", "sort of", "okay so"]
             for filler in multiWordFillers {
                 var searchRange = text.startIndex..<text.endIndex
                 while let range = text.range(of: filler, range: searchRange) {

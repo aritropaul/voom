@@ -2,7 +2,10 @@ import Foundation
 @preconcurrency import ScreenCaptureKit
 import AVFoundation
 import AppKit
+import os
 import VoomCore
+
+private let recorderLogger = Logger(subsystem: "com.voom.app", category: "MeetingRecorder")
 
 // MARK: - AudioReferenceWriter
 
@@ -33,6 +36,9 @@ public final class AudioReferenceWriter: @unchecked Sendable {
             self.assetWriter = writer
             self.audioInput = input
         } catch {
+            // Diarization silently degrades to mixed-audio without this file —
+            // make the cause findable in the logs.
+            recorderLogger.error("[Voom] AudioReferenceWriter init failed for \(outputURL.lastPathComponent): \(error.localizedDescription)")
             self.assetWriter = nil
             self.audioInput = nil
         }
@@ -73,7 +79,7 @@ public actor MeetingRecorder {
     private var streamOutput: MeetingStreamOutput?
     private var videoWriter: VideoWriter?
     private var cameraCapture: CameraCapture?
-    private var micTimeAdjuster: MeetingMicTimeAdjuster?
+    private var micTimeAdjuster: MicTimeAdjuster?
     private let stateProvider: any RecordingStateProvider
     private var isPaused = false
     private var micRefWriter: AudioReferenceWriter?
@@ -163,7 +169,7 @@ public actor MeetingRecorder {
             self.micReferenceURL = micRefURL
 
             let writerRef = writer
-            let micTimer = MeetingMicTimeAdjuster()
+            let micTimer = MicTimeAdjuster()
             self.micTimeAdjuster = micTimer
             let outputRef = output
             let camera = CameraCapture()
@@ -190,7 +196,7 @@ public actor MeetingRecorder {
         }
     }
 
-    public func stopRecording() async -> UUID? {
+    public func stopRecording() async throws -> UUID? {
         if let stream {
             try? await stream.stopCapture()
         }
@@ -201,9 +207,14 @@ public actor MeetingRecorder {
         }
         cameraCapture = nil
 
+        var finalizeError: Error?
         if let writer = videoWriter, let output = streamOutput {
             output.duplicateLastFrameIfNeeded()
-            await writer.finalize()
+            do {
+                try await writer.finalize()
+            } catch {
+                finalizeError = error
+            }
         }
         videoWriter = nil
         streamOutput = nil
@@ -221,8 +232,13 @@ public actor MeetingRecorder {
 
         let outputURL = await MainActor.run { stateProvider.currentRecordingURL }
         if let outputURL {
+            if finalizeError != nil {
+                let duration = await RecordingStorage.shared.videoDuration(at: outputURL)
+                guard duration > 0 else { throw finalizeError! }
+            }
             return await saveRecording(at: outputURL)
         }
+        if let finalizeError { throw finalizeError }
         return nil
     }
 
@@ -267,7 +283,7 @@ public actor MeetingRecorder {
         }
 
         // Auto-transcribe meetings with speaker diarization
-        let autoTranscribeEnabled = UserDefaults.standard.object(forKey: "AutoTranscribe") == nil ? true : UserDefaults.standard.bool(forKey: "AutoTranscribe")
+        let autoTranscribeEnabled = AppDefaults.autoTranscribeEnabled
         if autoTranscribeEnabled {
             let capturedID = recordingID
             let capturedURL = url
@@ -446,57 +462,4 @@ public final class MeetingStreamOutput: NSObject, SCStreamOutput, @unchecked Sen
     }
 }
 
-// MARK: - MeetingMicTimeAdjuster
-
-public final class MeetingMicTimeAdjuster: @unchecked Sendable {
-    private var firstTime: CMTime?
-    private var pauseStartTime: CMTime?
-    private var accumulatedPause: CMTime = .zero
-    private let lock = NSLock()
-
-    public init() {}
-
-    public func notifyPause() {
-        lock.lock()
-        if pauseStartTime == nil, let _ = firstTime {
-            pauseStartTime = CMClockGetTime(CMClockGetHostTimeClock())
-        }
-        lock.unlock()
-    }
-
-    public func notifyResume() {
-        lock.lock()
-        if let pauseStart = pauseStartTime {
-            let now = CMClockGetTime(CMClockGetHostTimeClock())
-            accumulatedPause = CMTimeAdd(accumulatedPause, CMTimeSubtract(now, pauseStart))
-            pauseStartTime = nil
-        }
-        lock.unlock()
-    }
-
-    public func retime(_ buffer: CMSampleBuffer) -> CMSampleBuffer? {
-        let timestamp = CMSampleBufferGetPresentationTimeStamp(buffer)
-        lock.lock()
-        if firstTime == nil { firstTime = timestamp }
-        guard let base = firstTime else { lock.unlock(); return nil }
-        let pauseOffset = accumulatedPause
-        lock.unlock()
-
-        let adjusted = CMTimeSubtract(CMTimeSubtract(timestamp, base), pauseOffset)
-        guard adjusted.seconds >= 0 else { return nil }
-        var timing = CMSampleTimingInfo(
-            duration: CMSampleBufferGetDuration(buffer),
-            presentationTimeStamp: adjusted,
-            decodeTimeStamp: .invalid
-        )
-        var newBuffer: CMSampleBuffer?
-        CMSampleBufferCreateCopyWithNewTiming(
-            allocator: nil,
-            sampleBuffer: buffer,
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleBufferOut: &newBuffer
-        )
-        return newBuffer
-    }
-}
+// MicTimeAdjuster lives in VoomCore (shared with ScreenRecorder).

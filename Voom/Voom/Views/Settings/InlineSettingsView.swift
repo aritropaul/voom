@@ -12,14 +12,15 @@ struct InlineSettingsView: View {
     let headerContent: AnyView?
     let onScrollStateChange: ((Bool) -> Void)?
     @AppStorage("ShareWorkerBaseURL") private var workerBaseURL = ""
-    @AppStorage("ShareAPISecret") private var apiSecret = ""
+    // Secrets live in the Keychain (ShareConfig/AIConfig), not UserDefaults.
+    @State private var apiSecret = ShareConfig.apiSecret
     @AppStorage("AutoTranscribe") private var autoTranscribe = true
     @AppStorage("GlobalHotkeyEnabled") private var globalHotkeyEnabled = true
     @AppStorage("ViewNotificationsEnabled") private var viewNotificationsEnabled = true
     @AppStorage("RecordingDirectory") private var recordingDirectory = ""
     @AppStorage("LaunchAtLogin") private var launchAtLogin = false
     @AppStorage("MeetingDetectionEnabled") private var meetingDetectionEnabled = false
-    @AppStorage("AIAPIKey") private var aiAPIKey = ""
+    @State private var aiAPIKey = AIConfig.apiKey
     @AppStorage("AISelectedProvider") private var aiSelectedProvider = AIProvider.defaultProvider.rawValue
     @AppStorage("AISelectedModel") private var aiSelectedModel = AIProvider.defaultModel.id
     @State private var testStatus: TestStatus = .idle
@@ -104,7 +105,11 @@ struct InlineSettingsView: View {
                 aiSelectedModel = AIProvider.defaultModel(for: provider).id
                 aiTestStatus = .idle
             }
+            .onChange(of: apiSecret) { _, newValue in
+                ShareConfig.apiSecret = newValue
+            }
             .onChange(of: aiAPIKey) { _, newValue in
+                AIConfig.apiKey = newValue
                 if let detected = AIProviderKind.detect(from: newValue) {
                     aiSelectedProvider = detected.rawValue
                     aiSelectedModel = AIProvider.defaultModel(for: detected).id
@@ -490,9 +495,9 @@ struct InlineSettingsView: View {
 
     @ViewBuilder
     private var supportContent: some View {
-        settingsRow(title: "Email Support", subtitle: "Bug reports, feature requests, or just say hi.") {
-            Button("Contact") {
-                if let url = URL(string: "mailto:voom@aritro.xyz?subject=\(supportSubject)&body=\(supportBody)") {
+        settingsRow(title: "Support", subtitle: "Bug reports, feature requests, or just say hi.") {
+            Button("Open an Issue") {
+                if let url = URL(string: "https://github.com/aritropaul/voom/issues/new?title=\(supportSubject)&body=\(supportBody)") {
                     NSWorkspace.shared.open(url)
                 }
             }

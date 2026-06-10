@@ -561,15 +561,7 @@ struct PlayerView: View {
 
     private func shareViaLink(_ recording: Recording) async {
         do {
-            let result = try await ShareService.shared.share(recording: recording)
-            var updated = recording
-            updated.shareURL = result.shareURL
-            updated.shareCode = result.shareCode
-            updated.shareExpiresAt = result.expiresAt
-            store.update(updated)
-
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(result.shareURL.absoluteString, forType: .string)
+            try await ShareCoordinator.shareAndCopyLink(recording)
             toast.success("Uploaded & link copied!", icon: "link.badge.plus")
         } catch {
             toast.error("Share failed: \(error.localizedDescription)")
@@ -577,14 +569,8 @@ struct PlayerView: View {
     }
 
     private func removeShareLink(_ recording: Recording) async {
-        guard let code = recording.shareCode else { return }
         do {
-            try await ShareService.shared.deleteShare(shareCode: code)
-            var updated = recording
-            updated.shareURL = nil
-            updated.shareCode = nil
-            updated.shareExpiresAt = nil
-            store.update(updated)
+            try await ShareCoordinator.removeShare(recording)
             toast.success("Link removed", icon: "link.badge.plus")
         } catch {
             toast.error("Unshare failed: \(error.localizedDescription)")
@@ -612,6 +598,7 @@ struct PlayerView: View {
             updated.summary = generatedSummary.isEmpty ? nil : generatedSummary
         } catch {
             playerLogger.error("[Voom] Manual transcription failed: \(error)")
+            toast.error("Transcription failed: \(error.localizedDescription)")
         }
         updated.isTranscribing = false
         store.update(updated)
@@ -1196,7 +1183,7 @@ private struct SegmentRow: View {
             RoundedRectangle(cornerRadius: VoomTheme.radiusMedium, style: .continuous)
                 .fill(
                     isActive
-                        ? Color.white.opacity(0.08)
+                        ? VoomTheme.backgroundSelected
                         : (isHovered ? VoomTheme.backgroundHover : Color.clear)
                 )
         )

@@ -5,11 +5,12 @@ import VoomAI
 
 struct SettingsView: View {
     @AppStorage("ShareWorkerBaseURL") private var workerBaseURL = ""
-    @AppStorage("ShareAPISecret") private var apiSecret = ""
+    // Secrets live in the Keychain (ShareConfig/AIConfig), not UserDefaults.
+    @State private var apiSecret = ShareConfig.apiSecret
     @AppStorage("AutoTranscribe") private var autoTranscribe = true
     @AppStorage("GlobalHotkeyEnabled") private var globalHotkeyEnabled = true
     @AppStorage("ViewNotificationsEnabled") private var viewNotificationsEnabled = true
-    @AppStorage("AIAPIKey") private var aiAPIKey = ""
+    @State private var aiAPIKey = AIConfig.apiKey
     @AppStorage("AISelectedProvider") private var aiSelectedProvider = AIProvider.defaultProvider.rawValue
     @AppStorage("AISelectedModel") private var aiSelectedModel = AIProvider.defaultModel.id
     @State private var testStatus: TestStatus = .idle
@@ -245,7 +246,11 @@ struct SettingsView: View {
             aiSelectedModel = AIProvider.defaultModel(for: provider).id
             aiTestStatus = .idle
         }
+        .onChange(of: apiSecret) { _, newValue in
+            ShareConfig.apiSecret = newValue
+        }
         .onChange(of: aiAPIKey) { _, newValue in
+            AIConfig.apiKey = newValue
             // Auto-detect provider from key prefix
             if let detected = AIProviderKind.detect(from: newValue) {
                 aiSelectedProvider = detected.rawValue

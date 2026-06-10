@@ -14,73 +14,195 @@ public final class RecordingStore {
     public var folders: [Folder] = []
     public var availableTags: [RecordingTag] = []
 
-    private let saveQueue = DispatchQueue(label: "voom.store.save")
+    private let directory: URL
+    private var database: LibraryDatabase?
 
-    private let storageURL: URL = {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
+    public init(directory: URL? = nil) {
+        self.directory = directory ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Movies")
             .appendingPathComponent("Voom")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent(".recordings.json")
-    }()
+        try? FileManager.default.createDirectory(at: self.directory, withIntermediateDirectories: true)
 
-    private let foldersURL: URL = {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Movies")
-            .appendingPathComponent("Voom")
-        return dir.appendingPathComponent(".folders.json")
-    }()
-
-    private let tagsURL: URL = {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Movies")
-            .appendingPathComponent("Voom")
-        return dir.appendingPathComponent(".tags.json")
-    }()
-
-    public init() {
+        openDatabase()
+        migrateFromJSONIfNeeded()
         load()
-        loadFolders()
-        loadTags()
+
+        if recordings.isEmpty {
+            rebuildFromDiskScanIfNeeded()
+        }
     }
 
-    public func load() {
-        guard let data = try? Data(contentsOf: storageURL) else { return }
+    private func openDatabase() {
         do {
-            recordings = try JSONDecoder().decode([Recording].self, from: data)
+            database = try LibraryDatabase(directory: directory)
         } catch {
-            logger.error("[Voom] Failed to decode recordings: \(error)")
-            // Don't overwrite — keep recordings empty but don't save
+            // A corrupt database must not brick the library: move it aside and
+            // start fresh — the MP4s on disk are the real source of truth and
+            // the disk-scan rebuild below recovers them.
+            logger.error("[Voom] Library database failed to open: \(error). Recreating.")
+            let dbURL = directory.appendingPathComponent(LibraryDatabase.fileName)
+            let backup = directory.appendingPathComponent("\(LibraryDatabase.fileName).corrupt-\(Int(Date().timeIntervalSince1970))")
+            try? FileManager.default.moveItem(at: dbURL, to: backup)
+            database = try? LibraryDatabase(directory: directory)
         }
     }
 
-    public func save() {
-        guard let data = try? JSONEncoder().encode(recordings) else { return }
-        let url = storageURL
-        saveQueue.async {
-            try? data.write(to: url, options: .atomic)
+    /// One-time migration from the legacy `.recordings.json` / `.folders.json`
+    /// / `.tags.json` files into SQLite. The JSON files are renamed (never
+    /// deleted) so a failed migration can always be retried by hand.
+    private func migrateFromJSONIfNeeded() {
+        guard let database else { return }
+        let legacyRecordings = directory.appendingPathComponent(".recordings.json")
+        guard FileManager.default.fileExists(atPath: legacyRecordings.path) else { return }
+
+        let existing = database.loadAll()
+        guard existing.recordings.isEmpty else {
+            // DB already populated — don't re-import stale JSON over it.
+            return
         }
+
+        if let data = try? Data(contentsOf: legacyRecordings) {
+            do {
+                let migrated = try JSONDecoder().decode([Recording].self, from: data)
+                for r in migrated { database.upsertRecording(r) }
+                try? FileManager.default.moveItem(
+                    at: legacyRecordings,
+                    to: directory.appendingPathComponent(".recordings.json.migrated")
+                )
+                logger.notice("[Voom] Migrated \(migrated.count) recordings from JSON to SQLite")
+            } catch {
+                // Corrupt legacy file: preserve it for forensics; the disk scan
+                // in init recovers the videos themselves.
+                logger.error("[Voom] Legacy recordings JSON is corrupt (\(error.localizedDescription)) — preserving as .corrupt")
+                try? FileManager.default.moveItem(
+                    at: legacyRecordings,
+                    to: directory.appendingPathComponent(".recordings.json.corrupt-\(Int(Date().timeIntervalSince1970))")
+                )
+            }
+        }
+
+        let legacyFolders = directory.appendingPathComponent(".folders.json")
+        if let data = try? Data(contentsOf: legacyFolders),
+           let migrated = try? JSONDecoder().decode([Folder].self, from: data) {
+            for f in migrated { database.upsertFolder(f) }
+            try? FileManager.default.moveItem(at: legacyFolders, to: directory.appendingPathComponent(".folders.json.migrated"))
+        }
+
+        let legacyTags = directory.appendingPathComponent(".tags.json")
+        if let data = try? Data(contentsOf: legacyTags),
+           let migrated = try? JSONDecoder().decode([RecordingTag].self, from: data) {
+            for t in migrated { database.upsertTag(t) }
+            try? FileManager.default.moveItem(at: legacyTags, to: directory.appendingPathComponent(".tags.json.migrated"))
+        }
+    }
+
+    /// Recovery path: the library index is empty but `*.mp4` files exist —
+    /// synthesize minimal entries so the user's videos are never invisible.
+    /// Duration/resolution/thumbnails are probed in the background.
+    private func rebuildFromDiskScanIfNeeded() {
+        let contents = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.creationDateKey]))
+            ?? []
+        let videos = contents.filter { $0.pathExtension.lowercased() == "mp4" }
+        guard !videos.isEmpty else { return }
+
+        logger.notice("[Voom] Library empty but \(videos.count) videos on disk — rebuilding index")
+        for url in videos {
+            var recording = Recording(
+                title: url.deletingPathExtension().lastPathComponent,
+                fileURL: url,
+                duration: 0,
+                fileSize: 0,
+                width: 0,
+                height: 0,
+                hasWebcam: false,
+                hasSystemAudio: false,
+                hasMicAudio: false
+            )
+            if let created = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate {
+                recording.createdAt = created
+            }
+            add(recording)
+        }
+
+        // Probe real metadata off the main thread, skipping unplayable files.
+        let ids = recordings.map(\.id)
+        Task.detached(priority: .utility) { [weak self] in
+            for id in ids {
+                guard let self else { return }
+                guard let rec = await self.recording(for: id), rec.duration == 0 else { continue }
+                let storage = RecordingStorage.shared
+                let duration = await storage.videoDuration(at: rec.fileURL)
+                let resolution = await storage.videoResolution(at: rec.fileURL)
+                let fileSize = await storage.fileSize(at: rec.fileURL)
+                let thumb = await storage.generateThumbnail(for: rec.fileURL, recordingID: id)
+                await MainActor.run {
+                    if var updated = self.recording(for: id) {
+                        updated.duration = duration
+                        updated.width = resolution.width
+                        updated.height = resolution.height
+                        updated.fileSize = fileSize
+                        updated.thumbnailURL = thumb
+                        self.update(updated)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Reloads all entities from the database (used by the CLI to pick up
+    /// rows written by the app process, and by tests).
+    public func load() {
+        guard let database else { return }
+        let all = database.loadAll()
+        recordings = all.recordings
+        folders = all.folders
+        availableTags = all.tags
+    }
+
+    /// Blocks until pending writes are durable. Called from the quit guard.
+    public func flush() async {
+        await database?.flush()
     }
 
     public func add(_ recording: Recording) {
         recordings.insert(recording, at: 0)
-        save()
+        database?.upsertRecording(recording)
     }
 
     public func update(_ recording: Recording) {
         if let index = recordings.firstIndex(where: { $0.id == recording.id }) {
             recordings[index] = recording
-            save()
+            database?.upsertRecording(recording)
         }
     }
 
     public func delete(_ recording: Recording) {
+        // Remove the public share first (best effort) — a deleted recording
+        // must not stay reachable on the share worker until expiry.
+        if let shareCode = recording.shareCode {
+            Task {
+                do {
+                    try await ShareService.shared.deleteShare(shareCode: shareCode)
+                } catch {
+                    logger.error("[Voom] Failed to delete share \(shareCode): \(error.localizedDescription)")
+                }
+            }
+        }
+
         try? FileManager.default.removeItem(at: recording.fileURL)
         if let thumbURL = recording.thumbnailURL {
             try? FileManager.default.removeItem(at: thumbURL)
         }
+        // Sidecars (cursor events, zoom keyframes) go with the video.
+        if let cursorURL = recording.cursorEventsURL {
+            try? FileManager.default.removeItem(at: cursorURL)
+        }
+        if let zoomURL = recording.zoomKeyframesURL {
+            try? FileManager.default.removeItem(at: zoomURL)
+        }
+
         recordings.removeAll { $0.id == recording.id }
-        save()
+        database?.deleteRecording(id: recording.id)
     }
 
     public func recording(for id: UUID) -> Recording? {
@@ -89,25 +211,15 @@ public final class RecordingStore {
 
     // MARK: - Folders
 
-    public func loadFolders() {
-        guard let data = try? Data(contentsOf: foldersURL) else { return }
-        folders = (try? JSONDecoder().decode([Folder].self, from: data)) ?? []
-    }
-
-    public func saveFolders() {
-        guard let data = try? JSONEncoder().encode(folders) else { return }
-        try? data.write(to: foldersURL, options: .atomic)
-    }
-
     public func addFolder(_ folder: Folder) {
         folders.append(folder)
-        saveFolders()
+        database?.upsertFolder(folder)
     }
 
     public func updateFolder(_ folder: Folder) {
         if let idx = folders.firstIndex(where: { $0.id == folder.id }) {
             folders[idx] = folder
-            saveFolders()
+            database?.upsertFolder(folder)
         }
     }
 
@@ -115,10 +227,10 @@ public final class RecordingStore {
         // Remove folder assignment from recordings
         for i in recordings.indices where recordings[i].folderID == folder.id {
             recordings[i].folderID = nil
+            database?.upsertRecording(recordings[i])
         }
         folders.removeAll { $0.id == folder.id }
-        saveFolders()
-        save()
+        database?.deleteFolder(id: folder.id)
     }
 
     public func recordings(in folder: Folder) -> [Recording] {
@@ -127,29 +239,19 @@ public final class RecordingStore {
 
     // MARK: - Tags
 
-    public func loadTags() {
-        guard let data = try? Data(contentsOf: tagsURL) else { return }
-        availableTags = (try? JSONDecoder().decode([RecordingTag].self, from: data)) ?? []
-    }
-
-    public func saveTags() {
-        guard let data = try? JSONEncoder().encode(availableTags) else { return }
-        try? data.write(to: tagsURL, options: .atomic)
-    }
-
     public func addTag(_ tag: RecordingTag) {
         availableTags.append(tag)
-        saveTags()
+        database?.upsertTag(tag)
     }
 
     public func deleteTag(_ tag: RecordingTag) {
         // Remove tag from recordings
-        for i in recordings.indices {
+        for i in recordings.indices where recordings[i].tags?.contains(where: { $0.id == tag.id }) == true {
             recordings[i].tags?.removeAll { $0.id == tag.id }
+            database?.upsertRecording(recordings[i])
         }
         availableTags.removeAll { $0.id == tag.id }
-        saveTags()
-        save()
+        database?.deleteTag(id: tag.id)
     }
 
     public func backfillTitlesAndSummaries() {
@@ -272,7 +374,7 @@ public actor RecordingStorage {
             if let tiffData = nsImage.tiffRepresentation,
                let bitmap = NSBitmapImageRep(data: tiffData),
                let jpegData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) {
-                try jpegData.write(to: thumbURL)
+                try jpegData.write(to: thumbURL, options: .atomic)
                 return thumbURL
             }
         } catch {

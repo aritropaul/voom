@@ -1,6 +1,21 @@
 import Foundation
 import AVFoundation
 import CoreVideo
+import os
+
+private let writerLogger = Logger(subsystem: "com.voom.app", category: "VideoWriter")
+
+public enum VideoWriterError: Error, LocalizedError {
+    case finalizeFailed(underlying: Error?)
+
+    public var errorDescription: String? {
+        switch self {
+        case .finalizeFailed(let underlying):
+            let detail = underlying.map { ": \($0.localizedDescription)" } ?? ""
+            return "Failed to finalize the recording file\(detail)"
+        }
+    }
+}
 
 public final class VideoWriter: @unchecked Sendable {
     private let queue = DispatchQueue(label: "voom.videowriter", qos: .userInteractive)
@@ -11,6 +26,7 @@ public final class VideoWriter: @unchecked Sendable {
     private var secondAudioInput: AVAssetWriterInput?
     private var isSessionStarted = false
     private var lastVideoTime: CMTime = .zero
+    private var droppedFrameCount = 0
 
     // Audio mixing state
     private var hasBothAudioSources = false
@@ -121,8 +137,13 @@ public final class VideoWriter: @unchecked Sendable {
         queue.async { [self] in
             guard let adaptor = pixelBufferAdaptor,
                   let input = videoInput,
-                  input.isReadyForMoreMediaData,
                   isSessionStarted else { return }
+
+            // Encoder backpressure — count drops instead of failing silently.
+            guard input.isReadyForMoreMediaData else {
+                droppedFrameCount += 1
+                return
+            }
 
             guard time > lastVideoTime || lastVideoTime == .zero else { return }
 
@@ -175,12 +196,19 @@ public final class VideoWriter: @unchecked Sendable {
         }
     }
 
-    public func finalize() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+    /// Finalizes the MP4. Throws if AVAssetWriter ended in a failed/cancelled
+    /// state (disk full, I/O error) — callers must not present the file as a
+    /// successful recording without checking it.
+    public func finalize() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             queue.async { [self] in
                 guard let writer = assetWriter else {
                     continuation.resume()
                     return
+                }
+
+                if droppedFrameCount > 0 {
+                    writerLogger.warning("[Voom] Dropped \(self.droppedFrameCount) frames under encoder backpressure")
                 }
 
                 videoInput?.markAsFinished()
@@ -188,6 +216,8 @@ public final class VideoWriter: @unchecked Sendable {
                 secondAudioInput?.markAsFinished()
 
                 writer.finishWriting {
+                    let status = writer.status
+                    let error = writer.error
                     self.assetWriter = nil
                     self.videoInput = nil
                     self.pixelBufferAdaptor = nil
@@ -198,7 +228,14 @@ public final class VideoWriter: @unchecked Sendable {
                     self.hasBothAudioSources = false
                     self.pendingMicFloats = []
                     self.audioTrackMode = .mixed
-                    continuation.resume()
+                    self.droppedFrameCount = 0
+
+                    if status == .completed {
+                        continuation.resume()
+                    } else {
+                        writerLogger.error("[Voom] finishWriting ended with status \(status.rawValue): \(error?.localizedDescription ?? "unknown")")
+                        continuation.resume(throwing: VideoWriterError.finalizeFailed(underlying: error))
+                    }
                 }
             }
         }
