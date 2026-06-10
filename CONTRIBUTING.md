@@ -5,41 +5,46 @@ Thanks for your interest in contributing.
 ## Getting Started
 
 1. Fork the repo and clone it
-2. Open `Voom/Voom.xcodeproj` in Xcode 16+ (macOS 15 SDK required)
+2. Open `Voom/Voom.xcodeproj` in Xcode 26+ (macOS 26 SDK; CI builds with Xcode 26.2)
 3. Build and run
 
-The app runs as a menu bar agent. Click the menu bar icon to open the control panel.
+The app runs as a menu bar agent. Click the menu bar icon to open the control panel. The Debug build product is named **"Voom Debug.app"**.
 
 ## Project Structure
 
+Most code lives in local Swift packages under `Packages/`. The Xcode app target (`Voom/Voom/`) only contains the entry point and SwiftUI views.
+
 ```
-Voom/
-  App/              Entry point, AppDelegate, AppState
-  Models/           Recording, Folder, Annotation data models
+Voom/Voom/
+  App/              Entry point, AppDelegate, AppState, WhatsNewProvider
   Views/
-    Theme.swift     VoomTheme — all design tokens (colors, spacing, fonts)
     Components/     ToastOverlay
-    MenuBar/        CameraPreviewView
-    Panel/          Floating control panel (record/stop)
+    Panel/          Floating control panel + RecordingSessionController
     Library/        Recording library window, folders, tags
     Player/         Video player with transcript, trim, cut, chapters
     Settings/       App settings, self-host setup wizard
     Overlay/        Screen overlays (countdown, display picker, region select, annotations)
     Onboarding/     First-launch onboarding
-  Services/
-    Capture/        ScreenCaptureKit recording + camera
-    Writing/        HEVC video encoding (VideoToolbox)
-    Transcription/  WhisperKit on-device transcription
-    Sharing/        Cloudflare upload, deploy, view notifications
-    Storage/        Local recording persistence (JSON)
-    Editing/        Trim, cut/splice, filler word detection
-    Export/         GIF export
-    TextAnalysis/   Title + summary generation (Apple Intelligence)
+  Resources/        Assets, Info.plist, entitlements, generated WorkerBundle
 
-voom-share/         Cloudflare Worker (R2 + D1 + share page)
-  src/index.js      All routes (API + share page HTML)
-  schema.sql        D1 schema
-  migrations/       Database migrations
+Packages/
+  VoomCore/         Models, VoomTheme (Theme/Theme.swift), and most services:
+                    Capture/ (camera, input tracking), Writing/ (HEVC encoding),
+                    Storage/ (SQLite library), Transcription/ (FluidAudio),
+                    Sharing/, Editing/, Export/, TextAnalysis/, KeychainStore
+                    + Tests/VoomCoreTests (run with `swift test`)
+  VoomApp/          ScreenCaptureKit capture (ScreenRecorder, CameraOnlyRecorder)
+  VoomAI/           Bring-your-own-key AI providers (Anthropic/OpenAI/Google/xAI)
+  VoomMeetings/     Meeting detection, recording, speaker diarization
+  VoomCLI/          `voom` command-line tool
+
+voom-share/         Cloudflare Worker (R2 + D1)
+  src/index.js      All routes (API + OG pages); share page is the Astro app
+  web/              Astro share/embed pages (dist/ is committed by design)
+  test/             vitest suites (run with `npm test`)
+  schema.sql        Consolidated D1 schema
+  migrations/       Incremental migrations (0002…)
+  scripts/          build-selfhost-worker.mjs — regenerates the app's WorkerBundle
 ```
 
 ## Guidelines
@@ -48,18 +53,19 @@ voom-share/         Cloudflare Worker (R2 + D1 + share page)
 - Follow existing patterns — services use `actor` singletons (`static let shared`), UI state uses `@Observable @MainActor`, views use `@Environment`.
 - Use `VoomTheme` for all colors, spacing, fonts, and radii. Never hardcode design values.
 - Use `await MainActor.run { ... }` for cross-actor UI updates. Never use `DispatchQueue.main.async` in new code.
-- New files must be manually added to `project.pbxproj` (PBXFileReference + PBXBuildFile + PBXGroup).
-- Test your changes by recording a video end-to-end.
+- New files in `Packages/*` need no registration (SPM globs sources). New files in the app target must be manually added to `project.pbxproj` (PBXFileReference + PBXBuildFile + PBXGroup).
+- Run the tests: `swift test --package-path Packages/VoomCore` and `cd voom-share && npm test`. Then test your changes by recording a video end-to-end.
+- If you touch `voom-share/src`, `web/`, `schema.sql`, or `migrations/`: rebuild `web/` if needed (`cd web && npm run build`), then run `node scripts/build-selfhost-worker.mjs` and commit the regenerated `Voom/Voom/Resources/WorkerBundle/`. CI fails on a stale bundle.
 - No new dependencies without discussion.
 
 ## Cloud Sharing (optional)
 
 See the README for Cloudflare setup. You don't need cloud sharing to work on the app — it's entirely optional and runs on the free tier.
 
-To deploy the worker locally during development:
+To run the worker locally during development:
 
 ```bash
-cd voom-share && npx wrangler dev
+cd voom-share && npm run dev
 ```
 
 ## Submitting Changes

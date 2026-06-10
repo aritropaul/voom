@@ -16,8 +16,73 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.2.app
 
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('Voom/Voom.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Voom/Voom.xcodeproj -scheme Voom
 
       - name: Build
         run: xcodebuild -project Voom/Voom.xcodeproj -scheme Voom -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
+
+  swift-tests:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
+
+      - name: Cache SPM build
+        uses: actions/cache@v4
+        with:
+          path: |
+            Packages/VoomCore/.build
+            Packages/VoomCLI/.build
+          key: spm-pkgs-${{ runner.os }}-${{ hashFiles('Packages/*/Package.swift') }}
+          restore-keys: spm-pkgs-${{ runner.os }}-
+
+      - name: VoomCore tests
+        run: swift test --package-path Packages/VoomCore
+
+      - name: Build VoomCLI
+        run: swift build --package-path Packages/VoomCLI
+
+  worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: voom-share
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: voom-share/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Worker tests
+        run: npm test
+
+      - name: Validate deploy config
+        run: npx wrangler deploy --dry-run --config wrangler.toml
+
+      # The self-host bundle inside the macOS app is generated from src/index.js
+      # + web/dist + schema/migrations. Fail if a commit changed any input
+      # without regenerating the bundle (a stale bundle silently breaks
+      # self-host deployments).
+      - name: WorkerBundle drift gate
+        run: |
+          node scripts/build-selfhost-worker.mjs
+          if ! git diff --exit-code -- ../Voom/Voom/Resources/WorkerBundle; then
+            echo "::error::WorkerBundle is stale. Run 'node voom-share/scripts/build-selfhost-worker.mjs' and commit the result."
+            exit 1
+          fi

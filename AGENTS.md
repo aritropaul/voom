@@ -1,22 +1,31 @@
 # Repository Guidelines
 
 ## Project Structure
-- `Voom/` — macOS app (Swift 6, SwiftUI, ScreenCaptureKit, AVFoundation). Xcode project with manual PBX file references.
-- `voom-share/` — Cloudflare Worker (R2 + D1 + Workers) for share page and video hosting.
+- `Voom/` — macOS app target (Swift 6, SwiftUI). Thin: `@main`, AppDelegate/AppState, and all SwiftUI views. Xcode project with manual PBX file references.
+- `Packages/` — local Swift packages where most code lives:
+  - `VoomCore` — models, theme, storage (SQLite), sharing, editing, transcription, export services.
+  - `VoomApp` — ScreenCaptureKit capture layer (ScreenRecorder, CameraOnlyRecorder).
+  - `VoomAI` — BYOK AI providers (Anthropic/OpenAI/Google/xAI).
+  - `VoomMeetings` — meeting detection, recording, diarization.
+  - `VoomCLI` — `voom` command-line tool (SwiftPM executable).
+- `voom-share/` — Cloudflare Worker (R2 + D1) for sharing; `web/` is the Astro share page.
 
 ## Build, Test, Run
-- Build: `cd Voom && xcodebuild -scheme Voom -configuration Debug build`
-- Release: `cd Voom && xcodebuild -scheme Voom -configuration Release build`
-- Run after build: `open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/Voom.app`
-- Kill and relaunch: `pkill -x Voom; sleep 1; open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/Voom.app`
-- Deploy worker: `cd voom-share && npx wrangler deploy`
+- Build app: `cd Voom && xcodebuild -scheme Voom -configuration Debug build`
+- Run after build: `open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/"Voom Debug.app"` (the Debug product is named "Voom Debug", not "Voom")
+- Kill and relaunch: `pkill -f "Voom Debug"; sleep 1; open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/"Voom Debug.app"`
+- Swift tests: `swift test --package-path Packages/VoomCore`
+- Worker tests: `cd voom-share && npm test`
+- Deploy worker (maintainer): `cd voom-share && npm run deploy` — NEVER a bare `npx wrangler deploy` (that resolves `wrangler.jsonc`, the self-host config).
+- After any change to `voom-share/src/index.js`, `web/`, `schema.sql`, or `migrations/`: run `node voom-share/scripts/build-selfhost-worker.mjs` and commit the regenerated `Voom/Voom/Resources/WorkerBundle/` (CI fails on drift).
 - Always rebuild and relaunch the app after code changes before validating behavior.
 
 ## Architecture
 - Services use the actor singleton pattern (`static let shared`).
-- `RecordingStore` is `@Observable @MainActor` with `update(_ recording:)` for mutations.
-- `VoomTheme` holds all design tokens (colors, spacing, radii, typography).
-- New files must be added to `project.pbxproj` manually (PBXFileReference + PBXBuildFile + PBXGroup).
+- `RecordingStore` is `@Observable @MainActor` with `update(_ recording:)` for mutations; persistence is SQLite (`~/Movies/Voom/.library.sqlite`) via `LibraryDatabase`.
+- `RecordingSessionController` (app target) owns recorder lifecycle; views forward intents.
+- `VoomTheme` (in `Packages/VoomCore/Sources/VoomCore/Theme/Theme.swift`) holds all design tokens.
+- New files in the app target must be added to `project.pbxproj` manually (PBXFileReference + PBXBuildFile + PBXGroup). Files in `Packages/*` need no registration — SPM globs sources.
 
 ## Coding Style
 - Swift 6 with targeted strict concurrency.
@@ -31,7 +40,7 @@
 
 ## Secrets
 - Never commit API secrets, tokens, or credentials.
-- Cloud sharing secrets are set at runtime via Settings UI and stored in UserDefaults.
+- The share API secret and AI keys are stored in the Keychain (`KeychainStore` in VoomCore), never UserDefaults.
 - Worker API secret is deployed via `npx wrangler secret put API_SECRET`.
 
 ## Commit Guidelines

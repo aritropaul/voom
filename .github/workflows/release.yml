@@ -134,12 +134,16 @@ jobs:
           # Create a zip for notarization
           ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/Voom-notarize.zip"
 
-          # Submit for notarization
+          # Submit for notarization. Capture output but PRESERVE the exit code —
+          # a network/5xx failure must fail the job, not slip through to stapling.
+          set +e
           SUBMIT_OUT=$(xcrun notarytool submit "$RUNNER_TEMP/Voom-notarize.zip" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait --timeout 600 2>&1) || true
+            --wait --timeout 600 2>&1)
+          SUBMIT_STATUS=$?
+          set -e
           echo "$SUBMIT_OUT"
 
           SUBMISSION_ID=$(echo "$SUBMIT_OUT" | grep "id:" | head -1 | awk '{print $2}')
@@ -150,6 +154,11 @@ jobs:
               --apple-id "$APPLE_ID" \
               --password "$APPLE_ID_PASSWORD" \
               --team-id "$APPLE_TEAM_ID" || true
+            exit 1
+          fi
+
+          if [ $SUBMIT_STATUS -ne 0 ] || ! echo "$SUBMIT_OUT" | grep -q "status: Accepted"; then
+            echo "Notarization did not complete (exit $SUBMIT_STATUS) — failing before staple."
             exit 1
           fi
 
@@ -195,14 +204,21 @@ jobs:
             echo "sign_update not found, trying checkout path"
             SIGN_UPDATE=$(find build/SourcePackages/checkouts/Sparkle -maxdepth 1 -name "sign_update" | head -1)
           fi
+          if [ -z "$SIGN_UPDATE" ]; then
+            echo "::error::sign_update tool not found — Sparkle layout changed?"
+            exit 1
+          fi
           echo "Using sign_update at: $SIGN_UPDATE"
 
-          # Write private key to temp file
-          echo -n "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_key
+          # Write the private key inside RUNNER_TEMP (job-scoped) and make sure
+          # it's removed even if signing fails.
+          SPARKLE_KEY_FILE="$RUNNER_TEMP/sparkle_key"
+          trap 'rm -f "$SPARKLE_KEY_FILE"' EXIT
+          echo -n "$SPARKLE_PRIVATE_KEY" > "$SPARKLE_KEY_FILE"
 
           # Sign the DMG
-          SIGN_OUTPUT=$("$SIGN_UPDATE" --ed-key-file /tmp/sparkle_key dist/Voom.dmg)
-          rm /tmp/sparkle_key
+          SIGN_OUTPUT=$("$SIGN_UPDATE" --ed-key-file "$SPARKLE_KEY_FILE" dist/Voom.dmg)
+          rm -f "$SPARKLE_KEY_FILE"
           echo "Sign output: $SIGN_OUTPUT"
 
           # Extract signature and length

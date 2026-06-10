@@ -90,18 +90,20 @@ Open Settings → Cloud Sharing → Self-Host. Paste your Cloudflare API token a
 
 **Option B: Manual CLI deploy**
 
+A bare `wrangler deploy` uses `wrangler.jsonc` (intentionally ID-less): Cloudflare
+auto-provisions a fresh R2 bucket and D1 database in your account, and the worker
+bootstraps its own schema at runtime — no manual migrations needed.
+
 ```bash
 cd voom-share
 npm install
 npx wrangler login
-npx wrangler r2 bucket create voom-videos
-npx wrangler d1 create voom-share-db
-# paste the database_id into wrangler.toml
-npx wrangler d1 execute voom-share-db --file=./schema.sql --remote
-npx wrangler d1 execute voom-share-db --file=./migrations/0002_share_enhancements.sql --remote
-npx wrangler secret put API_SECRET
 npx wrangler deploy
+npx wrangler secret put API_SECRET   # generate a long random value
 ```
+
+(If you maintain an existing deployment configured in `wrangler.toml`, deploy it
+with `npm run deploy` instead — that pins `--config wrangler.toml`.)
 
 Then in the app: Settings → Cloud Sharing → paste your Worker URL and API secret.
 
