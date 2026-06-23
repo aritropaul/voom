@@ -1,6 +1,9 @@
 import Foundation
 import AVFoundation
 import CryptoKit
+import os
+
+private let shareLogger = Logger(subsystem: "com.voom.app", category: "Share")
 
 // MARK: - Configuration
 
@@ -138,16 +141,21 @@ public actor ShareService {
             // browsers; re-encoding was removed as an upload bottleneck)
             try await uploadVideo(
                 fileURL: recording.fileURL,
-                uploadURL: uploadResponse.uploadURL,
+                shareCode: uploadResponse.shareCode,
                 recordingID: recording.id
             )
 
-            // Step 3: Upload thumbnail for OG image
+            // Step 3: Upload thumbnail for OG image. Non-fatal — the share page
+            // falls back to an SVG poster — but never silent.
             if let thumbURL = recording.thumbnailURL {
-                try? await uploadThumbnail(
-                    thumbURL: thumbURL,
-                    shareCode: uploadResponse.shareCode
-                )
+                do {
+                    try await uploadThumbnail(
+                        thumbURL: thumbURL,
+                        shareCode: uploadResponse.shareCode
+                    )
+                } catch {
+                    shareLogger.warning("[Voom] Thumbnail upload failed for \(uploadResponse.shareCode): \(error.localizedDescription)")
+                }
             }
 
             // Step 4: Post metadata, transcript, title, summary, chapters, and meeting info
@@ -259,15 +267,16 @@ public actor ShareService {
         let etag: String
     }
 
-    private func uploadVideo(fileURL: URL, uploadURL: String, recordingID: UUID) async throws {
-        // Extract shareCode from uploadURL (format: .../api/upload-data/{shareCode})
-        guard let shareCode = uploadURL.split(separator: "/").last.map(String.init) else {
-            throw ShareError.invalidResponse
-        }
-
+    private func uploadVideo(fileURL: URL, shareCode: String, recordingID: UUID) async throws {
         let fileHandle = try FileHandle(forReadingFrom: fileURL)
         defer { try? fileHandle.close() }
-        let totalSize = Int(try FileManager.default.attributesOfItem(atPath: fileURL.path(percentEncoded: false))[.size] as? Int64 ?? 0)
+        // A zero/unreadable size would silently produce an empty multipart
+        // upload — fail loudly instead.
+        guard let sizeAttr = try FileManager.default.attributesOfItem(atPath: fileURL.path(percentEncoded: false))[.size] as? Int64,
+              sizeAttr > 0 else {
+            throw ShareError.uploadFailed("Recording file is empty or unreadable")
+        }
+        let totalSize = Int(sizeAttr)
 
         // Start multipart upload
         var startReq = try URLRequest(url: apiURL("/api/upload-multipart/\(shareCode)"))

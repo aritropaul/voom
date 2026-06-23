@@ -170,6 +170,40 @@ describe('password protection', () => {
     expect((await res.json()).password_protected).toBe(true);
   });
 
+  it('gates reactions, comments, and the thumbnail behind the password', async () => {
+    const shareCode = await protectedShare();
+
+    expect((await SELF.fetch(`${BASE}/s/${shareCode}/reactions`)).status).toBe(401);
+    expect((await SELF.fetch(`${BASE}/s/${shareCode}/comments`)).status).toBe(401);
+    expect((await SELF.fetch(`${BASE}/thumb/${shareCode}`)).status).toBe(404);
+
+    // …and unlocks them all with the auth cookie.
+    const good = await SELF.fetch(`${BASE}/s/${shareCode}/verify-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    expect(good.status).toBe(200);
+    const cookie = good.headers.get('Set-Cookie').split(';')[0];
+
+    expect((await SELF.fetch(`${BASE}/s/${shareCode}/reactions`, { headers: { Cookie: cookie } })).status).toBe(200);
+    expect((await SELF.fetch(`${BASE}/s/${shareCode}/comments`, { headers: { Cookie: cookie } })).status).toBe(200);
+  });
+
+  it('rejects password attempts on expired videos', async () => {
+    const shareCode = await protectedShare();
+    await env.DB.prepare(
+      "UPDATE videos SET expires_at = datetime('now', '-1 day') WHERE share_code = ?"
+    ).bind(shareCode).run();
+
+    const res = await SELF.fetch(`${BASE}/s/${shareCode}/verify-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    expect(res.status).toBe(404);
+  });
+
   it('rejects a wrong password, accepts the right one, sets an HttpOnly cookie', async () => {
     const shareCode = await protectedShare();
 

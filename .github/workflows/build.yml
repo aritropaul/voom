@@ -82,6 +82,10 @@ jobs:
       - name: WorkerBundle drift gate
         run: |
           node scripts/build-selfhost-worker.mjs
+          # --intent-to-add makes brand-new bundle files (e.g. a migration added
+          # without regenerating) visible to git diff — otherwise untracked
+          # files slip through the gate.
+          git add --intent-to-add ../Voom/Voom/Resources/WorkerBundle
           if ! git diff --exit-code -- ../Voom/Voom/Resources/WorkerBundle; then
             echo "::error::WorkerBundle is stale. Run 'node voom-share/scripts/build-selfhost-worker.mjs' and commit the result."
             exit 1

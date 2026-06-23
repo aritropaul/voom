@@ -593,10 +593,15 @@ struct InlineSettingsView: View {
 
     private func testConnection() {
         testStatus = .testing
-        let urlString = workerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Strip trailing slashes — "…dev/" would build "…dev//api/…" which the
+        // worker's route regexes 404.
+        var urlString = workerBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        while urlString.hasSuffix("/") { urlString.removeLast() }
         let secret = apiSecret.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard let url = URL(string: urlString) else {
+        // /api/health is auth-gated — the worker root is public, so testing it
+        // would "succeed" even with a wrong secret.
+        guard let url = URL(string: urlString + "/api/health") else {
             testStatus = .failed("Invalid URL")
             return
         }

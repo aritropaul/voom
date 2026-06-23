@@ -8,8 +8,8 @@
 //   1. Embedding every web/dist file (base64) into the worker source.
 //   2. Replacing the three `env.ASSETS.fetch(...)` call sites with a lookup
 //      against the embedded assets.
-// It also syncs schema.sql and migrations 0002-0005 into the WorkerBundle so
-// the self-host D1 schema matches the hosted one.
+// It also syncs schema.sql and every numbered migration into the WorkerBundle
+// so the self-host D1 schema matches the hosted one.
 //
 // Re-run after any change to src/index.js, web/dist, schema.sql, or migrations/:
 //   cd voom-share && node scripts/build-selfhost-worker.mjs

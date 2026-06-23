@@ -128,11 +128,37 @@ const SCHEMA_MIGRATIONS = {
 
 let schemaReady = false;
 
+// Test-only: lets the vitest suite force ensureSchema to re-run after it
+// rebuilds the database into an older shape. Never called in production.
+export function __resetSchemaCacheForTests() {
+  schemaReady = false;
+}
+
 async function ensureSchema(env) {
   if (schemaReady) return;
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT)`).run();
   const row = await env.DB.prepare(`SELECT value FROM _meta WHERE key = 'schema_version'`).first();
-  const current = row ? parseInt(row.value, 10) : 0;
+  let current = row ? parseInt(row.value, 10) : 0;
+
+  if (current === 0) {
+    // No version stamp ≠ fresh: databases created before versioning existed
+    // have tables but no _meta row. Treating one as fresh would skip the
+    // ALTERs (CREATE TABLE IF NOT EXISTS no-ops on existing tables).
+    const videos = await env.DB.prepare(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'videos'`
+    ).first();
+    if (videos) current = 1;
+  } else if (current === SCHEMA_VERSION) {
+    // Repair pass: v4.1.0 stamped pre-versioning databases as current without
+    // running the v2 ALTERs. If anything v2 introduced is missing, rewind so
+    // the migration loop below re-runs (its statements tolerate re-application).
+    const cols = await env.DB.prepare(`PRAGMA table_info(videos)`).all();
+    const attempts = await env.DB.prepare(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'password_attempts'`
+    ).first();
+    if (!(cols.results || []).some(c => c.name === 'password_salt') || !attempts) current = 1;
+  }
+
   if (current < SCHEMA_VERSION) {
     if (current === 0) {
       // Fresh database: the consolidated schema already reflects every migration.
@@ -396,7 +422,7 @@ async function handleRequest(request, env) {
     }
     const reactGetMatch = path.match(/^\/s\/([a-z0-9]+)\/reactions$/);
     if (reactGetMatch && request.method === 'GET') {
-      return handleGetReactions(env, reactGetMatch[1]);
+      return handleGetReactions(request, env, reactGetMatch[1]);
     }
 
     // Comments (public)
@@ -444,13 +470,23 @@ async function handleRequest(request, env) {
       return serveEmbeddedAsset('/embed.html');
     }
 
-    // Thumbnail (high-res poster)
+    // Thumbnail (high-res poster) — gated like the OG image: the poster frame
+    // of a password-protected or expired video may itself be sensitive.
     const thumbMatch = path.match(/^\/thumb\/([a-z0-9]+)$/);
     if (thumbMatch && request.method === 'GET') {
+      const video = await env.DB.prepare(
+        "SELECT password_hash, expires_at FROM videos WHERE share_code = ? AND datetime(expires_at) > datetime('now')"
+      ).bind(thumbMatch[1]).first();
+      if (!video) return new Response('Not found', { status: 404 });
+      if (!(await verifyPasswordAuth(request, env, thumbMatch[1], video))) {
+        return new Response('Not found', { status: 404 });
+      }
       const thumb = await env.VIDEOS_BUCKET.get(`thumbnails/${thumbMatch[1]}.jpg`);
       if (thumb) {
         return new Response(thumb.body, {
-          headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=86400' },
+          // private: the unlock cookie gates access — a shared cache must not
+          // serve a protected poster to other clients.
+          headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': video.password_hash ? 'private, max-age=3600' : 'public, max-age=86400' },
         });
       }
       return new Response('Not found', { status: 404 });
@@ -939,7 +975,7 @@ async function cleanupExpired(env) {
 
 async function handleVerifyPassword(request, env, shareCode) {
   const video = await env.DB.prepare(
-    "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1"
+    "SELECT * FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
   ).bind(shareCode).first();
 
   if (!video || !video.password_hash) return errorResponse('Not found', 404);
@@ -1026,12 +1062,16 @@ async function handleReact(request, env, shareCode) {
   return jsonResponse({ ok: true });
 }
 
-async function handleGetReactions(env, shareCode) {
+async function handleGetReactions(request, env, shareCode) {
   const video = await env.DB.prepare(
-    "SELECT id FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
+    "SELECT id, password_hash, expires_at FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
   ).bind(shareCode).first();
 
   if (!video) return errorResponse('Not found', 404);
+
+  // Same gate as POST /react — listing must not bypass the password.
+  const authed = await verifyPasswordAuth(request, env, shareCode, video);
+  if (!authed) return errorResponse('Password required', 401);
 
   const reactions = await env.DB.prepare(
     'SELECT timestamp, emoji, created_at FROM reactions WHERE video_id = ? ORDER BY created_at DESC LIMIT 500'
@@ -1079,10 +1119,14 @@ async function handleComment(request, env, shareCode) {
 
 async function handleGetComments(request, env, shareCode) {
   const video = await env.DB.prepare(
-    "SELECT id FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
+    "SELECT id, password_hash, expires_at FROM videos WHERE share_code = ? AND upload_completed = 1 AND datetime(expires_at) > datetime('now')"
   ).bind(shareCode).first();
 
   if (!video) return errorResponse('Not found', 404);
+
+  // Same gate as POST /comment — viewer comments can be sensitive.
+  const authed = await verifyPasswordAuth(request, env, shareCode, video);
+  if (!authed) return errorResponse('Password required', 401);
 
   const url = new URL(request.url);
   const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
