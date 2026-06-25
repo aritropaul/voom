@@ -1,0 +1,29 @@
+<!DOCTYPE html><html lang="en"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08090a"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><title>Library — Voom</title><link rel="stylesheet" href="/_astro/Base.D3i9Dt9d.css">
+<link rel="stylesheet" href="/_astro/lib.DdT_ML-i.css"></head> <body>  <div class="lib-layout" data-astro-cid-ilcxudqb> <header class="lib-header" data-astro-cid-ilcxudqb> <div class="lib-header-inner" data-astro-cid-ilcxudqb> <div class="lib-header-left" data-astro-cid-ilcxudqb> <span class="wordmark" data-astro-cid-ilcxudqb>VOOM</span> <h1 class="lib-title" data-astro-cid-ilcxudqb>Library</h1> </div> <a href="/library/logout" class="logout-link" data-astro-cid-ilcxudqb>Log out</a> </div> </header> <main class="lib-main" data-astro-cid-ilcxudqb> <div id="lib-loading" class="lib-loading" data-astro-cid-ilcxudqb> <div class="skeleton sk-card" data-astro-cid-ilcxudqb></div> <div class="skeleton sk-card" data-astro-cid-ilcxudqb></div> <div class="skeleton sk-card" data-astro-cid-ilcxudqb></div> </div> <p id="lib-error" class="lib-error" style="display:none" data-astro-cid-ilcxudqb></p> <div id="lib-empty" class="lib-empty" style="display:none" data-astro-cid-ilcxudqb> <p data-astro-cid-ilcxudqb>No shared recordings yet.</p> </div> <div id="lib-grid" class="lib-grid" style="display:none" data-astro-cid-ilcxudqb></div> </main> </div> <div class="toast" id="toast" data-astro-cid-ilcxudqb></div> </body></html> <script type="module">async function m(){const e=await fetch("/api/videos",{credentials:"include"});if(e.status===401)return window.location.href="/library/login",[];if(!e.ok)throw new Error(`Failed to load videos (${e.status})`);return(await e.json()).videos||[]}async function w(e){const t=await fetch(`/api/renew/${e}`,{method:"POST",credentials:"include"});return t.ok&&(await t.json()).expiresAt||null}async function g(e){return(await fetch(`/api/delete/${e}`,{method:"DELETE",credentials:"include"})).ok}function x(e){const t=Math.floor(e/3600),n=Math.floor(e%3600/60),a=Math.floor(e%60);return t>0?`${t}:${String(n).padStart(2,"0")}:${String(a).padStart(2,"0")}`:`${n}:${String(a).padStart(2,"0")}`}function E(e){return new Date(e+"Z").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}function u(e){const t=Date.now(),n=new Date(e+"Z").getTime();return Math.max(0,Math.round((n-t)/(1440*60*1e3)))}function o(e){return e.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}const p=document.getElementById("lib-loading"),y=document.getElementById("lib-error"),h=document.getElementById("lib-empty"),r=document.getElementById("lib-grid"),l=document.getElementById("toast");function s(e){l.textContent=e,l.classList.add("show"),setTimeout(()=>l.classList.remove("show"),2200)}function $(e){const t=u(e.expires_at),n=t===0?"Expires today":t===1?"Expires tomorrow":`Expires in ${t} days`,a=t<=3?"expiry-soon":"expiry-ok";return`
+      <div class="lib-card" data-code="${o(e.share_code)}">
+        <div class="card-thumb">
+          <img
+            src="/thumb/${o(e.share_code)}"
+            alt="${o(e.title)}"
+            loading="lazy"
+            onerror="this.style.display='none'"
+          />
+          ${e.is_protected?'<span class="lock-badge">&#x1F512;</span>':""}
+        </div>
+        <div class="card-body">
+          <p class="card-title" title="${o(e.title)}">${o(e.title)}</p>
+          <div class="card-meta">
+            <span>${x(e.duration)}</span>
+            <span>${E(e.created_at)}</span>
+            <span>${e.view_count===1?"1 view":`${e.view_count} views`}</span>
+          </div>
+          <p class="card-expiry ${a}">${n}</p>
+        </div>
+        <div class="card-actions">
+          <a href="/s/${o(e.share_code)}" target="_blank" rel="noopener" class="btn btn-ghost">Open</a>
+          <button class="btn btn-ghost btn-copy" data-code="${o(e.share_code)}">Copy link</button>
+          <button class="btn btn-ghost btn-renew" data-code="${o(e.share_code)}">Renew</button>
+          <button class="btn btn-danger btn-delete" data-code="${o(e.share_code)}">Delete</button>
+        </div>
+      </div>
+    `}function b(e){e.querySelectorAll(".btn-copy").forEach(t=>{t.addEventListener("click",()=>{const n=t.dataset.code,a=`${location.origin}/s/${n}`;navigator.clipboard.writeText(a).then(()=>s("Link copied")).catch(()=>s("Copy failed"))})}),e.querySelectorAll(".btn-renew").forEach(t=>{t.addEventListener("click",async()=>{const n=t.dataset.code;t.disabled=!0,t.textContent="Renewing…";const a=await w(n);if(a){const d=t.closest(".lib-card"),c=u(a),f=c===0?"Expires today":c===1?"Expires tomorrow":`Expires in ${c} days`,i=d.querySelector(".card-expiry");i&&(i.textContent=f,i.className=`card-expiry ${c<=3?"expiry-soon":"expiry-ok"}`),s("Renewed 30 days")}else s("Renew failed");t.disabled=!1,t.textContent="Renew"})}),e.querySelectorAll(".btn-delete").forEach(t=>{t.addEventListener("click",async()=>{const n=t.dataset.code;if(!confirm("Delete this recording permanently?"))return;t.disabled=!0,t.textContent="Deleting…",await g(n)?(t.closest(".lib-card")?.remove(),s("Deleted"),r.children.length===0&&(r.style.display="none",h.style.display="")):(s("Delete failed"),t.disabled=!1,t.textContent="Delete")})})}async function k(){try{const e=await m();if(p.style.display="none",e.length===0){h.style.display="";return}r.innerHTML=e.map($).join(""),r.style.display="",b(r)}catch{p.style.display="none",y.textContent="Failed to load recordings.",y.style.display=""}}k();</script>

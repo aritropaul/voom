@@ -1,0 +1,127 @@
+---
+import Base from '../layouts/Base.astro';
+const error = Astro.url.searchParams.get('error');
+---
+
+<Base title="Library — Voom">
+  <div class="centered-page">
+    <div class="login-card">
+      <p class="wordmark">VOOM</p>
+      <h1>Library</h1>
+      <p class="sub">Enter your dashboard password to continue.</p>
+      {error && <p class="error-msg">Incorrect password.</p>}
+      <form method="POST" action="/library/login" class="login-form">
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          autocomplete="current-password"
+          autofocus
+          required
+        />
+        <button type="submit">Unlock</button>
+      </form>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .centered-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--bg);
+    padding: 24px;
+  }
+
+  .login-card {
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .wordmark {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--text-quaternary);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+
+  .sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .error-msg {
+    font-size: 12px;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-s);
+    padding: 8px 12px;
+    background: var(--surface);
+  }
+
+  .login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .login-form input[type="password"] {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-m);
+    padding: 10px 14px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .login-form input[type="password"]::placeholder {
+    color: var(--text-quaternary);
+  }
+
+  .login-form input[type="password"]:focus {
+    border-color: var(--border-hover);
+  }
+
+  .login-form button {
+    width: 100%;
+    padding: 11px 0;
+    background: #fff;
+    color: #000;
+    border: none;
+    border-radius: var(--radius-m);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    letter-spacing: -0.01em;
+  }
+
+  .login-form button:hover {
+    opacity: 0.88;
+  }
+
+  .login-form button:active {
+    opacity: 0.75;
+  }
+</style>

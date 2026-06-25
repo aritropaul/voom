@@ -233,6 +233,49 @@ async function verifyPasswordAuth(request, env, shareCode, video) {
   return timingSafeEqual(authToken, expected);
 }
 
+// --- Dashboard session helpers ---
+
+function dashboardPassword(env) {
+  return env.DASHBOARD_PASSWORD || env.API_SECRET;
+}
+
+async function expectedSessionToken(env) {
+  const password = dashboardPassword(env);
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(password), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode('voom-dashboard-v1'));
+  return Array.from(new Uint8Array(sig), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function isDashboardAuthed(request, env) {
+  if (isAuthorized(request, env)) return true;
+  const cookies = parseCookies(request.headers.get('Cookie') || '');
+  const sessionToken = cookies['voom_session'];
+  if (!sessionToken) return false;
+  return timingSafeEqual(sessionToken, await expectedSessionToken(env));
+}
+
+// best-effort, per-isolate login rate limiter (real protection is the password's entropy)
+const _loginAttempts = new Map();
+
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  const entry = _loginAttempts.get(ip);
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= 10) return false;
+    entry.count++;
+  } else {
+    _loginAttempts.set(ip, { count: 1, resetAt: now + 5 * 60 * 1000 });
+  }
+  return true;
+}
+
+function clearLoginRateLimit(ip) {
+  _loginAttempts.delete(ip);
+}
+
 function formatDuration(seconds) {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -294,6 +337,54 @@ async function handleRequest(request, env) {
 
     await ensureSchema(env);
 
+    // Library login (public — no bearer required; form POST)
+    if (path === '/library/login' && request.method === 'POST') {
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+      if (!checkLoginRateLimit(ip)) {
+        return new Response('Too many attempts — try again later', { status: 429 });
+      }
+      const form = await request.formData();
+      const password = form.get('password') || '';
+      if (timingSafeEqual(password, dashboardPassword(env))) {
+        clearLoginRateLimit(ip);
+        const token = await expectedSessionToken(env);
+        return new Response(null, {
+          status: 302,
+          headers: {
+            'Location': '/library',
+            'Set-Cookie': `voom_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800`,
+          },
+        });
+      }
+      return new Response(null, { status: 302, headers: { 'Location': '/library/login?error=1' } });
+    }
+
+    // Library logout
+    if (path === '/library/logout' && request.method === 'GET') {
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': '/library/login',
+          'Set-Cookie': 'voom_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0',
+        },
+      });
+    }
+
+    // Library dashboard (auth-gated)
+    // Internal asset is /lib.html (not /library.html) so the ASSETS binding
+    // does not auto-serve it before the worker runs (no run_worker_first needed).
+    if (path === '/library' && request.method === 'GET') {
+      if (!(await isDashboardAuthed(request, env))) {
+        return new Response(null, { status: 302, headers: { 'Location': '/library/login' } });
+      }
+      return env.ASSETS.fetch(new Request(new URL('/lib', url), request));
+    }
+
+    // Library login page (public)
+    if (path === '/library/login' && request.method === 'GET') {
+      return env.ASSETS.fetch(new Request(new URL('/lib-login', url), request));
+    }
+
     // API routes (authenticated)
     if (path.startsWith('/api/')) {
       if (request.method === 'OPTIONS') {
@@ -306,13 +397,18 @@ async function handleRequest(request, env) {
         });
       }
 
-      if (!isAuthorized(request, env)) {
+      const cookieOk = await isDashboardAuthed(request, env);
+      if (!isAuthorized(request, env) && !cookieOk) {
         return errorResponse('Unauthorized', 401);
       }
 
       // Connection check used by the desktop app to validate a worker URL + secret.
       if (path === '/api/health' && request.method === 'GET') {
         return jsonResponse({ ok: true, app: 'voom' });
+      }
+
+      if (path === '/api/videos' && request.method === 'GET') {
+        return handleListVideos(env);
       }
 
       if (path === '/api/upload' && request.method === 'POST') {
@@ -1149,6 +1245,19 @@ async function handleCheckViews(request, env) {
   return jsonResponse({ views });
 }
 
+// --- Library: list all shared videos (dashboard) ---
+
+async function handleListVideos(env) {
+  const rows = await env.DB.prepare(
+    `SELECT share_code, title, duration, width, height, file_size, created_at, expires_at,
+            view_count, is_meeting, summary, (password_hash IS NOT NULL) AS is_protected
+     FROM videos
+     WHERE upload_completed = 1
+     ORDER BY datetime(created_at) DESC`
+  ).all();
+  return jsonResponse({ videos: rows.results || [] });
+}
+
 // --- OG Image ---
 
 async function handleOGImage(env, shareCode) {
@@ -1204,4 +1313,4 @@ async function handleOGImage(env, shareCode) {
 }
 
 // Exported for unit tests only — the worker runtime uses none of these exports.
-export { generateShareCode, escapeHTML, parseCookies, timingSafeEqual, sha256Hex, generateSalt, formatVTTTime, SHARE_CODE_CHARS, SHARE_CODE_LENGTH };
+export { generateShareCode, escapeHTML, parseCookies, timingSafeEqual, sha256Hex, generateSalt, formatVTTTime, SHARE_CODE_CHARS, SHARE_CODE_LENGTH, expectedSessionToken, dashboardPassword };

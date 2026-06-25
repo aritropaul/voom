@@ -1,0 +1,443 @@
+---
+import Base from '../layouts/Base.astro';
+---
+
+<Base title="Library — Voom">
+  <div class="lib-layout">
+    <header class="lib-header">
+      <div class="lib-header-inner">
+        <div class="lib-header-left">
+          <span class="wordmark">VOOM</span>
+          <h1 class="lib-title">Library</h1>
+        </div>
+        <a href="/library/logout" class="logout-link">Log out</a>
+      </div>
+    </header>
+
+    <main class="lib-main">
+      <div id="lib-loading" class="lib-loading">
+        <div class="skeleton sk-card"></div>
+        <div class="skeleton sk-card"></div>
+        <div class="skeleton sk-card"></div>
+      </div>
+      <p id="lib-error" class="lib-error" style="display:none"></p>
+      <div id="lib-empty" class="lib-empty" style="display:none">
+        <p>No shared recordings yet.</p>
+      </div>
+      <div id="lib-grid" class="lib-grid" style="display:none"></div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</Base>
+
+<script>
+  import {
+    fetchVideos,
+    renewVideo,
+    deleteVideo,
+    formatDuration,
+    formatDate,
+    daysUntilExpiry,
+    escapeHTML,
+  } from '../scripts/library';
+  import type { LibraryVideo } from '../scripts/library';
+
+  const loadingEl = document.getElementById('lib-loading')!;
+  const errorEl = document.getElementById('lib-error')!;
+  const emptyEl = document.getElementById('lib-empty')!;
+  const gridEl = document.getElementById('lib-grid')!;
+  const toastEl = document.getElementById('toast')!;
+
+  function showToast(msg: string) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(() => toastEl.classList.remove('show'), 2200);
+  }
+
+  function renderCard(video: LibraryVideo): string {
+    const days = daysUntilExpiry(video.expires_at);
+    const expiryText = days === 0 ? 'Expires today' : days === 1 ? 'Expires tomorrow' : `Expires in ${days} days`;
+    const expiryClass = days <= 3 ? 'expiry-soon' : 'expiry-ok';
+    return `
+      <div class="lib-card" data-code="${escapeHTML(video.share_code)}">
+        <div class="card-thumb">
+          <img
+            src="/thumb/${escapeHTML(video.share_code)}"
+            alt="${escapeHTML(video.title)}"
+            loading="lazy"
+            onerror="this.style.display='none'"
+          />
+          ${video.is_protected ? '<span class="lock-badge">&#x1F512;</span>' : ''}
+        </div>
+        <div class="card-body">
+          <p class="card-title" title="${escapeHTML(video.title)}">${escapeHTML(video.title)}</p>
+          <div class="card-meta">
+            <span>${formatDuration(video.duration)}</span>
+            <span>${formatDate(video.created_at)}</span>
+            <span>${video.view_count === 1 ? '1 view' : `${video.view_count} views`}</span>
+          </div>
+          <p class="card-expiry ${expiryClass}">${expiryText}</p>
+        </div>
+        <div class="card-actions">
+          <a href="/s/${escapeHTML(video.share_code)}" target="_blank" rel="noopener" class="btn btn-ghost">Open</a>
+          <button class="btn btn-ghost btn-copy" data-code="${escapeHTML(video.share_code)}">Copy link</button>
+          <button class="btn btn-ghost btn-renew" data-code="${escapeHTML(video.share_code)}">Renew</button>
+          <button class="btn btn-danger btn-delete" data-code="${escapeHTML(video.share_code)}">Delete</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindActions(grid: HTMLElement) {
+    grid.querySelectorAll<HTMLButtonElement>('.btn-copy').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const code = btn.dataset.code!;
+        const link = `${location.origin}/s/${code}`;
+        navigator.clipboard.writeText(link).then(() => showToast('Link copied')).catch(() => showToast('Copy failed'));
+      });
+    });
+
+    grid.querySelectorAll<HTMLButtonElement>('.btn-renew').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const code = btn.dataset.code!;
+        btn.disabled = true;
+        btn.textContent = 'Renewing…';
+        const newExpiry = await renewVideo(code);
+        if (newExpiry) {
+          const card = btn.closest<HTMLElement>('.lib-card')!;
+          const days = daysUntilExpiry(newExpiry);
+          const expiryText = days === 0 ? 'Expires today' : days === 1 ? 'Expires tomorrow' : `Expires in ${days} days`;
+          const expiryEl = card.querySelector<HTMLElement>('.card-expiry');
+          if (expiryEl) {
+            expiryEl.textContent = expiryText;
+            expiryEl.className = `card-expiry ${days <= 3 ? 'expiry-soon' : 'expiry-ok'}`;
+          }
+          showToast('Renewed 30 days');
+        } else {
+          showToast('Renew failed');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Renew';
+      });
+    });
+
+    grid.querySelectorAll<HTMLButtonElement>('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const code = btn.dataset.code!;
+        if (!confirm('Delete this recording permanently?')) return;
+        btn.disabled = true;
+        btn.textContent = 'Deleting…';
+        const ok = await deleteVideo(code);
+        if (ok) {
+          const card = btn.closest<HTMLElement>('.lib-card');
+          card?.remove();
+          showToast('Deleted');
+          if (gridEl.children.length === 0) {
+            gridEl.style.display = 'none';
+            emptyEl.style.display = '';
+          }
+        } else {
+          showToast('Delete failed');
+          btn.disabled = false;
+          btn.textContent = 'Delete';
+        }
+      });
+    });
+  }
+
+  async function loadLibrary() {
+    try {
+      const videos = await fetchVideos();
+      loadingEl.style.display = 'none';
+      if (videos.length === 0) {
+        emptyEl.style.display = '';
+        return;
+      }
+      gridEl.innerHTML = videos.map(renderCard).join('');
+      gridEl.style.display = '';
+      bindActions(gridEl);
+    } catch (err) {
+      loadingEl.style.display = 'none';
+      errorEl.textContent = 'Failed to load recordings.';
+      errorEl.style.display = '';
+    }
+  }
+
+  loadLibrary();
+</script>
+
+<style>
+  .lib-layout {
+    min-height: 100vh;
+    background: var(--bg);
+  }
+
+  .lib-header {
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+
+  .lib-header-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .lib-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .wordmark {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-quaternary);
+    text-transform: uppercase;
+  }
+
+  .lib-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+
+  .logout-link {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-quaternary);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .logout-link:hover {
+    color: var(--text-secondary);
+  }
+
+  .lib-main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  .lib-loading {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .sk-card {
+    height: 260px;
+    border-radius: var(--radius-l);
+  }
+
+  .lib-error {
+    color: var(--text-secondary);
+    font-size: 14px;
+    text-align: center;
+    padding: 48px 0;
+  }
+
+  .lib-empty {
+    text-align: center;
+    padding: 80px 0;
+  }
+
+  .lib-empty p {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-quaternary);
+  }
+
+  .lib-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .lib-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s;
+  }
+
+  .lib-card:hover {
+    border-color: var(--border-hover);
+  }
+
+  .card-thumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #0a0a0c;
+    overflow: hidden;
+  }
+
+  .card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .lock-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    font-size: 14px;
+    opacity: 0.7;
+  }
+
+  .card-body {
+    padding: 14px 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-meta {
+    display: flex;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-quaternary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-wrap: wrap;
+  }
+
+  .card-expiry {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+
+  .expiry-ok {
+    color: var(--text-quaternary);
+  }
+
+  .expiry-soon {
+    color: var(--text-secondary);
+  }
+
+  .card-actions {
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .btn-danger {
+    color: var(--text-quaternary);
+  }
+
+  .btn-danger:hover {
+    color: var(--text-primary);
+    background: var(--surface-hover);
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    padding: 8px 20px;
+    border-radius: var(--radius-m);
+    opacity: 0;
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 2000;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @media (max-width: 600px) {
+    .lib-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .lib-loading {
+      grid-template-columns: 1fr;
+    }
+
+    .lib-header-inner {
+      padding: 0 16px;
+    }
+
+    .lib-main {
+      padding: 24px 16px 60px;
+    }
+  }
+</style>

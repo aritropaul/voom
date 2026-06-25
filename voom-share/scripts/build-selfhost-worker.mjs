@@ -73,7 +73,7 @@ for (const file of files) {
 }
 
 const assetKeys = Object.keys(assets);
-const expected = ['/share.html', '/embed.html', '/icon-64.png'];
+const expected = ['/share.html', '/embed.html', '/lib.html', '/lib-login.html', '/icon-64.png'];
 for (const k of expected) {
   if (!assetKeys.includes(k)) {
     console.error(`Expected built asset ${k} is missing from web/dist.`);
@@ -92,6 +92,14 @@ const replacements = [
   [
     `env.ASSETS.fetch(new Request(new URL('/embed', url), request))`,
     `serveEmbeddedAsset('/embed.html')`,
+  ],
+  [
+    `env.ASSETS.fetch(new Request(new URL('/lib', url), request))`,
+    `serveEmbeddedAsset('/lib.html')`,
+  ],
+  [
+    `env.ASSETS.fetch(new Request(new URL('/lib-login', url), request))`,
+    `serveEmbeddedAsset('/lib-login.html')`,
   ],
   [
     `return env.ASSETS.fetch(request);`,
