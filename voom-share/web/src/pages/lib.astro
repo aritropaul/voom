@@ -55,10 +55,21 @@ import Base from '../layouts/Base.astro';
     setTimeout(() => toastEl.classList.remove('show'), 2200);
   }
 
+  function expiryLabel(days: number): string {
+    if (Number.isNaN(days)) return 'Expiry unknown';
+    if (days === 0) return 'Expires today';
+    if (days === 1) return 'Expires tomorrow';
+    return `Expires in ${days} days`;
+  }
+
+  function expiryClassFor(days: number): string {
+    return !Number.isNaN(days) && days <= 3 ? 'expiry-soon' : 'expiry-ok';
+  }
+
   function renderCard(video: LibraryVideo): string {
     const days = daysUntilExpiry(video.expires_at);
-    const expiryText = days === 0 ? 'Expires today' : days === 1 ? 'Expires tomorrow' : `Expires in ${days} days`;
-    const expiryClass = days <= 3 ? 'expiry-soon' : 'expiry-ok';
+    const expiryText = expiryLabel(days);
+    const expiryClass = expiryClassFor(days);
     return `
       <div class="lib-card" data-code="${escapeHTML(video.share_code)}">
         <div class="card-thumb">
@@ -107,11 +118,10 @@ import Base from '../layouts/Base.astro';
         if (newExpiry) {
           const card = btn.closest<HTMLElement>('.lib-card')!;
           const days = daysUntilExpiry(newExpiry);
-          const expiryText = days === 0 ? 'Expires today' : days === 1 ? 'Expires tomorrow' : `Expires in ${days} days`;
           const expiryEl = card.querySelector<HTMLElement>('.card-expiry');
           if (expiryEl) {
-            expiryEl.textContent = expiryText;
-            expiryEl.className = `card-expiry ${days <= 3 ? 'expiry-soon' : 'expiry-ok'}`;
+            expiryEl.textContent = expiryLabel(days);
+            expiryEl.className = `card-expiry ${expiryClassFor(days)}`;
           }
           showToast('Renewed 30 days');
         } else {
@@ -269,136 +279,6 @@ import Base from '../layouts/Base.astro';
     gap: 16px;
   }
 
-  .lib-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-l);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    transition: border-color 0.2s;
-  }
-
-  .lib-card:hover {
-    border-color: var(--border-hover);
-  }
-
-  .card-thumb {
-    position: relative;
-    aspect-ratio: 16 / 9;
-    background: #0a0a0c;
-    overflow: hidden;
-  }
-
-  .card-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .lock-badge {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    font-size: 14px;
-    opacity: 0.7;
-  }
-
-  .card-body {
-    padding: 14px 16px 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex: 1;
-  }
-
-  .card-title {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-primary);
-    line-height: 1.4;
-    letter-spacing: -0.01em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .card-meta {
-    display: flex;
-    gap: 12px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--text-quaternary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    flex-wrap: wrap;
-  }
-
-  .card-expiry {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 2px;
-  }
-
-  .expiry-ok {
-    color: var(--text-quaternary);
-  }
-
-  .expiry-soon {
-    color: var(--text-secondary);
-  }
-
-  .card-actions {
-    border-top: 1px solid var(--border);
-    padding: 10px 12px;
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 5px 12px;
-    border-radius: 100px;
-    font-size: 11px;
-    font-family: var(--font-mono);
-    font-weight: 500;
-    letter-spacing: 0.5px;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-decoration: none;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text-secondary);
-    white-space: nowrap;
-  }
-
-  .btn:hover {
-    background: var(--surface-hover);
-    border-color: var(--border-hover);
-    color: var(--text-primary);
-  }
-
-  .btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-    pointer-events: none;
-  }
-
-  .btn-danger {
-    color: var(--text-quaternary);
-  }
-
-  .btn-danger:hover {
-    color: var(--text-primary);
-    background: var(--surface-hover);
-  }
-
   .toast {
     position: fixed;
     bottom: 24px;
@@ -439,5 +319,145 @@ import Base from '../layouts/Base.astro';
     .lib-main {
       padding: 24px 16px 60px;
     }
+  }
+</style>
+
+<!--
+  Card styles must be GLOBAL. Astro scopes <style> by stamping
+  data-astro-cid-* onto markup at build time, but every element below is
+  injected at runtime by renderCard() via innerHTML — it never gets the
+  attribute, so scoped rules silently match nothing and the cards render
+  unstyled. Every selector is nested under .lib-grid so going global here
+  can't leak into the share page, which shares the same Base layout.
+-->
+<style is:global>
+  .lib-grid .lib-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s;
+  }
+
+  .lib-grid .lib-card:hover {
+    border-color: var(--border-hover);
+  }
+
+  .lib-grid .card-thumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #0a0a0c;
+    overflow: hidden;
+  }
+
+  .lib-grid .card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .lib-grid .lock-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    font-size: 14px;
+    opacity: 0.7;
+  }
+
+  .lib-grid .card-body {
+    padding: 14px 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+  }
+
+  .lib-grid .card-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lib-grid .card-meta {
+    display: flex;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-quaternary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-wrap: wrap;
+  }
+
+  .lib-grid .card-expiry {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+  }
+
+  .lib-grid .expiry-ok {
+    color: var(--text-quaternary);
+  }
+
+  .lib-grid .expiry-soon {
+    color: var(--text-secondary);
+  }
+
+  .lib-grid .card-actions {
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .lib-grid .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 12px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .lib-grid .btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+  }
+
+  .lib-grid .btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .lib-grid .btn-danger {
+    color: var(--text-quaternary);
+  }
+
+  .lib-grid .btn-danger:hover {
+    color: var(--text-primary);
+    background: var(--surface-hover);
   }
 </style>
