@@ -16,13 +16,16 @@ final class RecordingSessionController {
     static let shared = RecordingSessionController()
     private init() {}
 
-    private var appState: AppState!
+    @ObservationIgnored private var appState: AppState!
 
-    private(set) var screenRecorder: ScreenRecorder?
-    private(set) var cameraOnlyRecorder: CameraOnlyRecorder?
-    private(set) var meetingRecorder: MeetingRecorder?
-    private(set) var activeCamera: CameraCapture?
-    private var durationTimer: Timer?
+    // Lifecycle internals, not UI state — @ObservationIgnored so writes during
+    // recording transitions don't invalidate every view observing this object
+    // (only errorMessage below is rendered).
+    @ObservationIgnored private(set) var screenRecorder: ScreenRecorder?
+    @ObservationIgnored private(set) var cameraOnlyRecorder: CameraOnlyRecorder?
+    @ObservationIgnored private(set) var meetingRecorder: MeetingRecorder?
+    @ObservationIgnored private(set) var activeCamera: CameraCapture?
+    @ObservationIgnored private var durationTimer: Timer?
 
     /// Set on any start/stop failure; ControlPanelView presents it as an alert.
     var errorMessage: String?

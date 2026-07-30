@@ -38,13 +38,30 @@ struct VideoEditorAdjustTranscriptTests {
     }
 
     @Test func removalOverlappingSegmentStartUsesPartialOffset() async {
-        // Removal 8-12 overlaps a 10-14 segment: only the 8→10 part shifts it.
+        // Removal 8-12 straddles a 10-14 segment. The start (inside the
+        // removal) clamps to the removal start's new position (8); the end
+        // (past the removal) shifts by the FULL removal duration (14-4=10).
+        // v4.1.0 shipped end=12 here — the surviving content is original
+        // 12-14, which lands at 8-10 in the edited timeline.
         let result = await VideoEditor.shared.adjustTranscript(
             segments: [entry(10, 14)],
             removals: [range(8, 12)]
         )
         #expect(result.count == 1)
         #expect(abs(result[0].startTime - 8) < 0.01)
+        #expect(abs(result[0].endTime - 10) < 0.01)
+    }
+
+    @Test func removalOverlappingSegmentEndClampsTheEnd() async {
+        // Removal 12-16 covers the tail of a 10-14 segment: start is
+        // untouched, end clamps to the removal start (12).
+        let result = await VideoEditor.shared.adjustTranscript(
+            segments: [entry(10, 14)],
+            removals: [range(12, 16)]
+        )
+        #expect(result.count == 1)
+        #expect(abs(result[0].startTime - 10) < 0.01)
+        #expect(abs(result[0].endTime - 12) < 0.01)
     }
 
     @Test func multipleRemovalsAccumulate() async {

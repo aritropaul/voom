@@ -86,64 +86,76 @@ public actor PrivacyBlurRenderer {
                 while videoInput.isReadyForMoreMediaData {
                     guard !finished else { return }
 
-                    // A failed writer never becomes ready again — without this
-                    // check the continuation would leak and finalize would hang.
-                    if writer.status == .failed || reader.status == .failed {
-                        finish()
-                        return
-                    }
-
-                    guard let sampleBuffer = videoOutput.copyNextSampleBuffer() else {
-                        finish()
-                        return
-                    }
-
-                    let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-                    let timeSeconds = CMTimeGetSeconds(presentationTime)
-
-                    // Non-video sample buffers have no image buffer — skip them
-                    // instead of crashing on a force unwrap.
-                    guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                        continue
-                    }
-
-                    // Check which regions are active
-                    let activeRegions = regions.filter { $0.isActive(at: timeSeconds) }
-
-                    if activeRegions.isEmpty {
-                        // No blur needed, pass through
-                        adaptor.append(pixelBuffer, withPresentationTime: presentationTime)
-                    } else {
-
-                        var image = CIImage(cvPixelBuffer: pixelBuffer)
-
-                        for region in activeRegions {
-                            let pixelRect = region.rect.toCGRect(in: videoSize)
-
-                            // Create blurred version of the region
-                            guard let blurFilter = CIFilter(name: "CIGaussianBlur") else { continue }
-                            let cropped = image.cropped(to: pixelRect)
-                            blurFilter.setValue(cropped, forKey: kCIInputImageKey)
-                            blurFilter.setValue(30.0, forKey: kCIInputRadiusKey)
-
-                            guard let blurred = blurFilter.outputImage?.cropped(to: pixelRect) else { continue }
-                            image = blurred.composited(over: image)
+                    // Per-frame autoreleasepool: CIImage/CVPixelBuffer temporaries
+                    // otherwise accumulate for the whole export (tens of thousands
+                    // of frames) before anything is released. The counter mutation
+                    // stays outside the pool closure (Swift 6 sendable-capture rule).
+                    let step: (stop: Bool, advanced: Bool) = autoreleasepool {
+                        // A failed writer never becomes ready again — without this
+                        // check the continuation would leak and finalize would hang.
+                        if writer.status == .failed || reader.status == .failed {
+                            return (stop: true, advanced: false)
                         }
 
-                        // Render to pixel buffer
-                        if let pool = adaptor.pixelBufferPool {
-                            var outputBuffer: CVPixelBuffer?
-                            CVPixelBufferPoolCreatePixelBuffer(nil, pool, &outputBuffer)
-                            if let outputBuffer {
-                                ciContext.render(image, to: outputBuffer)
-                                adaptor.append(outputBuffer, withPresentationTime: presentationTime)
+                        guard let sampleBuffer = videoOutput.copyNextSampleBuffer() else {
+                            return (stop: true, advanced: false)
+                        }
+
+                        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+                        let timeSeconds = CMTimeGetSeconds(presentationTime)
+
+                        // Non-video sample buffers have no image buffer — skip them
+                        // instead of crashing on a force unwrap.
+                        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                            return (stop: false, advanced: false)
+                        }
+
+                        // Check which regions are active
+                        let activeRegions = regions.filter { $0.isActive(at: timeSeconds) }
+
+                        if activeRegions.isEmpty {
+                            // No blur needed, pass through
+                            adaptor.append(pixelBuffer, withPresentationTime: presentationTime)
+                        } else {
+
+                            var image = CIImage(cvPixelBuffer: pixelBuffer)
+
+                            for region in activeRegions {
+                                let pixelRect = region.rect.toCGRect(in: videoSize)
+
+                                // Create blurred version of the region
+                                guard let blurFilter = CIFilter(name: "CIGaussianBlur") else { continue }
+                                let cropped = image.cropped(to: pixelRect)
+                                blurFilter.setValue(cropped, forKey: kCIInputImageKey)
+                                blurFilter.setValue(30.0, forKey: kCIInputRadiusKey)
+
+                                guard let blurred = blurFilter.outputImage?.cropped(to: pixelRect) else { continue }
+                                image = blurred.composited(over: image)
+                            }
+
+                            // Render to pixel buffer
+                            if let pool = adaptor.pixelBufferPool {
+                                var outputBuffer: CVPixelBuffer?
+                                CVPixelBufferPoolCreatePixelBuffer(nil, pool, &outputBuffer)
+                                if let outputBuffer {
+                                    ciContext.render(image, to: outputBuffer)
+                                    adaptor.append(outputBuffer, withPresentationTime: presentationTime)
+                                }
                             }
                         }
+
+                        return (stop: false, advanced: true)
                     }
 
-                    framesProcessed += 1
-                    if framesProcessed % 30 == 0 {
-                        progress?(Double(framesProcessed) / Double(totalFrames))
+                    if step.advanced {
+                        framesProcessed += 1
+                        if framesProcessed % 30 == 0 {
+                            progress?(Double(framesProcessed) / Double(totalFrames))
+                        }
+                    }
+                    if step.stop {
+                        finish()
+                        return
                     }
                 }
             }
@@ -162,15 +174,20 @@ public actor PrivacyBlurRenderer {
                 audioInput.requestMediaDataWhenReady(on: DispatchQueue(label: "com.voom.blur.audio")) {
                     while audioInput.isReadyForMoreMediaData {
                         guard !finished else { return }
-                        if writer.status == .failed || reader.status == .failed {
+                        let shouldStop: Bool = autoreleasepool {
+                            if writer.status == .failed || reader.status == .failed {
+                                return true
+                            }
+                            guard let buffer = audioOutput.copyNextSampleBuffer() else {
+                                return true
+                            }
+                            audioInput.append(buffer)
+                            return false
+                        }
+                        if shouldStop {
                             finish()
                             return
                         }
-                        guard let buffer = audioOutput.copyNextSampleBuffer() else {
-                            finish()
-                            return
-                        }
-                        audioInput.append(buffer)
                     }
                 }
             }

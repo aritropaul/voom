@@ -52,15 +52,22 @@ public final class AudioReferenceWriter: @unchecked Sendable {
             writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(buffer))
             started = true
         }
+        lock.unlock()
+        // Append OUTSIDE the lock: AVAssetWriterInput.append can block under
+        // compression backpressure, and this runs on the live audio callback
+        // thread — holding the lock here would stall finalize() and vice versa.
         if input.isReadyForMoreMediaData {
             input.append(buffer)
         }
-        lock.unlock()
     }
 
     public func finalize() async {
+        // Detach the writer under the lock so any late callback bails at the
+        // guard instead of appending into a finishing writer.
         let writer: AVAssetWriter? = lock.withLock {
             guard let w = assetWriter, started else { return nil }
+            assetWriter = nil
+            audioInput = nil
             return w
         }
         guard let writer else { return }
@@ -82,6 +89,7 @@ public actor MeetingRecorder {
     private var micTimeAdjuster: MicTimeAdjuster?
     private let stateProvider: any RecordingStateProvider
     private var isPaused = false
+    private var micWasEnabled = false
     private var micRefWriter: AudioReferenceWriter?
     private var systemRefWriter: AudioReferenceWriter?
     private var micReferenceURL: URL?
@@ -162,6 +170,7 @@ public actor MeetingRecorder {
         self.streamOutput = output
 
         // Set up mic capture if enabled
+        micWasEnabled = micEnabled
         if micEnabled {
             let micRefURL = tempDir.appendingPathComponent("voom-mic-\(UUID().uuidString).m4a")
             let micWriter = AudioReferenceWriter(outputURL: micRefURL, channelCount: 1, sampleRate: 48000)
@@ -185,8 +194,8 @@ public actor MeetingRecorder {
 
         // Start capture
         let stream = SCStream(filter: filter, configuration: config, delegate: nil)
-        try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: .global(qos: .userInteractive))
-        try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: .global(qos: .userInteractive))
+        try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: .global(qos: .userInitiated))
+        try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: .global(qos: .userInitiated))
 
         try await stream.startCapture()
         self.stream = stream
@@ -269,7 +278,7 @@ public actor MeetingRecorder {
             height: resolution.height,
             hasWebcam: false,
             hasSystemAudio: true,
-            hasMicAudio: cameraCapture != nil, // mic was enabled if camera exists
+            hasMicAudio: micWasEnabled, // cameraCapture is already nil by the time we save
             recordingMode: .fullScreen,
             isMeeting: true
         )

@@ -67,7 +67,10 @@ public actor CameraCapture {
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
         ]
         videoOutput.alwaysDiscardsLateVideoFrames = true
-        videoOutput.setSampleBufferDelegate(delegateHandler, queue: .global(qos: .userInteractive))
+        // .userInitiated, not .userInteractive: camera frames feed the encoder
+        // but must yield to the WindowServer / foreground app so live preview +
+        // recording don't make the rest of the system feel laggy.
+        videoOutput.setSampleBufferDelegate(delegateHandler, queue: .global(qos: .userInitiated))
 
         guard session.canAddOutput(videoOutput) else {
             throw CaptureError.cannotAddOutput

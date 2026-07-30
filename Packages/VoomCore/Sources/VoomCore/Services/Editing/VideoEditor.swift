@@ -161,18 +161,24 @@ public actor VideoEditor {
             }
             if fullyRemoved { continue }
 
-            var offset: CMTime = .zero
-            for removal in sortedRemovals {
-                if removal.end <= segRange.start {
-                    offset = CMTimeAdd(offset, removal.duration)
-                } else if removal.start < segRange.start {
-                    let overlap = CMTimeSubtract(removal.end, segRange.start)
-                    offset = CMTimeAdd(offset, CMTimeSubtract(removal.duration, overlap))
+            // Each boundary needs its own offset: a removal straddling the
+            // segment start contributes its partial overlap to the start but
+            // its full duration to the end. A boundary inside a removal clamps
+            // to the removal start's new position.
+            func adjustedTime(_ time: CMTime) -> CMTime {
+                var result = time
+                for removal in sortedRemovals {
+                    if removal.end <= time {
+                        result = CMTimeSubtract(result, removal.duration)
+                    } else if removal.start < time {
+                        result = CMTimeSubtract(result, CMTimeSubtract(time, removal.start))
+                    }
                 }
+                return result
             }
 
-            segment.startTime = max(0, CMTimeSubtract(CMTime(seconds: segment.startTime, preferredTimescale: 600), offset).seconds)
-            segment.endTime = max(segment.startTime, CMTimeSubtract(CMTime(seconds: segment.endTime, preferredTimescale: 600), offset).seconds)
+            segment.startTime = max(0, adjustedTime(segRange.start).seconds)
+            segment.endTime = max(segment.startTime, adjustedTime(segRange.end).seconds)
             adjusted.append(segment)
         }
 

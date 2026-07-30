@@ -153,9 +153,13 @@ public actor ScreenRecorder {
 
         // Start capture
         let stream = SCStream(filter: filter, configuration: config, delegate: nil)
-        try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: .global(qos: .userInteractive))
+        // .userInitiated, not .userInteractive: the capture+encode feed must
+        // stay high-priority but must NOT sit co-equal with the WindowServer
+        // and the foreground app. At .userInteractive the 5K60 pipeline starves
+        // the user's own interactions — "the whole laptop is laggy once I record."
+        try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: .global(qos: .userInitiated))
         if systemAudioEnabled {
-            try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: .global(qos: .userInteractive))
+            try stream.addStreamOutput(output, type: .audio, sampleHandlerQueue: .global(qos: .userInitiated))
         }
 
         try await stream.startCapture()

@@ -18,7 +18,7 @@ public enum VideoWriterError: Error, LocalizedError {
 }
 
 public final class VideoWriter: @unchecked Sendable {
-    private let queue = DispatchQueue(label: "voom.videowriter", qos: .userInteractive)
+    private let queue = DispatchQueue(label: "voom.videowriter", qos: .userInitiated)
     private var assetWriter: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
     private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?

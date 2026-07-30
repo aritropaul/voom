@@ -19,12 +19,14 @@ public struct FillerDetection: Identifiable, Sendable {
 public actor FillerWordDetector {
     public static let shared = FillerWordDetector()
 
+    // Single tokens only — the scanner below splits on whitespace, so a
+    // multi-word string can never match here. Multi-word fillers live in
+    // `multiWordFillers` inside detect(in:).
     private let fillerWords: Set<String> = [
         "um", "uh", "uhm", "hmm",
-        "like", "you know", "basically",
+        "like", "basically",
         "actually", "literally", "so",
-        "I mean", "kind of", "sort of",
-        "right", "okay so"
+        "right"
     ]
 
     public func detect(in segments: [TranscriptEntry]) -> [FillerDetection] {

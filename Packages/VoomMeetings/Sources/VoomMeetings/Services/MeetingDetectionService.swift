@@ -142,7 +142,7 @@ public actor MeetingDetectionService {
         let unpromotedMeeting = findActiveUnpromptedMeeting()
         let eventCount = self.cachedEvents.count
         let promptedCount = self.promptedEventIDs.count
-        logger.notice("[Voom] Poll: camera=\(cameraInUse), meeting=\(unpromotedMeeting?.title ?? "nil"), cached=\(eventCount), prompted=\(promptedCount)")
+        logger.debug("[Voom] Poll: camera=\(cameraInUse), meeting=\(unpromotedMeeting?.title ?? "nil"), cached=\(eventCount), prompted=\(promptedCount)")
 
         let recordingState = await MainActor.run { callbacks.getRecordingState() }
 
@@ -271,14 +271,18 @@ public actor MeetingDetectionService {
             }
     }
 
+    // Created once — this poll runs every 10s for the app's lifetime, and a
+    // DiscoverySession allocation per tick is wasted work (the session tracks
+    // device changes itself).
+    private lazy var cameraDiscoverySession = AVCaptureDevice.DiscoverySession(
+        deviceTypes: [.builtInWideAngleCamera, .external],
+        mediaType: .video,
+        position: .unspecified
+    )
+
     private func isCameraInUseByAnotherApp() -> Bool {
         // Method 1: AVFoundation (works for native apps like Zoom, FaceTime)
-        let discoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInWideAngleCamera, .external],
-            mediaType: .video,
-            position: .unspecified
-        )
-        for device in discoverySession.devices {
+        for device in cameraDiscoverySession.devices {
             if device.isInUseByAnotherApplication { return true }
         }
 
@@ -318,7 +322,9 @@ public actor MeetingDetectionService {
             var isRunning: UInt32 = 0
             var size = UInt32(MemoryLayout<UInt32>.size)
             if CMIOObjectGetPropertyData(deviceID, &isRunningAddress, 0, nil, size, &size, &isRunning) == noErr {
-                logger.notice("[Voom] CMIO device \(deviceID): isRunning=\(isRunning)")
+                // .debug, not .notice — this fires per device every 10s poll and
+                // notice-level persists to the log store.
+                logger.debug("[Voom] CMIO device \(deviceID): isRunning=\(isRunning)")
                 if isRunning != 0 { return true }
             }
         }

@@ -189,10 +189,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.terminate(nil)
     }
 
+    private var isQuitting = false
+
     /// Quit guard: an in-flight recording is silently stopped and saved before
     /// the process exits — quitting must never cost the user a recording.
     /// Bounded at 15s so a hung finalize can't make quit impossible.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // A second quit while the first is finalizing must not spawn a second
+        // task — replying twice to terminateLater is undefined behavior.
+        if isQuitting { return .terminateCancel }
+        isQuitting = true
         Task { @MainActor in
             await withTaskGroup(of: Void.self) { group in
                 group.addTask {
