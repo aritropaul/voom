@@ -32,4 +32,16 @@ public enum AIConfig {
     public static var isConfigured: Bool {
         !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+
+    /// Rewrite a saved model ID that no longer exists in the catalog — either to
+    /// its same-tier successor or, failing that, to the provider default. Without
+    /// this the Settings picker renders an empty selection (no row matches the
+    /// tag) while requests keep going out under the retired ID. Call on launch.
+    public static func migrateSelectedModel() {
+        guard let stored = UserDefaults.standard.string(forKey: selectedModelKey),
+              AIProvider.model(for: stored) == nil else { return }
+        let replacement = AIProvider.retiredModelIDs[stored]
+            ?? AIProvider.defaultModel(for: selectedProvider).id
+        selectedModel = replacement
+    }
 }

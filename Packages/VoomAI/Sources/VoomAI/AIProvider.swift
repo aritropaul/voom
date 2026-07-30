@@ -55,29 +55,48 @@ public struct AIModel: Sendable, Identifiable, Hashable {
 }
 
 public enum AIProvider {
+    /// Ordered flagship → cheapest within each provider; `defaultModel(for:)`
+    /// returns the first entry, so the leading model is that provider's default.
     public static let allModels: [AIModel] = [
         // OpenAI
-        AIModel(id: "gpt-5.4", displayName: "GPT-5.4", provider: .openai),
-        AIModel(id: "gpt-5-mini", displayName: "GPT-5 Mini", provider: .openai),
-        AIModel(id: "gpt-5-nano", displayName: "GPT-5 Nano", provider: .openai),
+        AIModel(id: "gpt-5.6-sol", displayName: "GPT-5.6 Sol", provider: .openai),
+        AIModel(id: "gpt-5.6-terra", displayName: "GPT-5.6 Terra", provider: .openai),
+        AIModel(id: "gpt-5.6-luna", displayName: "GPT-5.6 Luna", provider: .openai),
 
         // Anthropic
-        AIModel(id: "claude-opus-4-6", displayName: "Claude Opus 4.6", provider: .anthropic),
-        AIModel(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", provider: .anthropic),
+        AIModel(id: "claude-opus-5", displayName: "Claude Opus 5", provider: .anthropic),
+        AIModel(id: "claude-sonnet-5", displayName: "Claude Sonnet 5", provider: .anthropic),
         AIModel(id: "claude-haiku-4-5-20251001", displayName: "Claude Haiku 4.5", provider: .anthropic),
 
         // Google
         AIModel(id: "gemini-3.1-pro-preview", displayName: "Gemini 3.1 Pro", provider: .google),
-        AIModel(id: "gemini-3-flash-preview", displayName: "Gemini 3 Flash", provider: .google),
-        AIModel(id: "gemini-3.1-flash-lite-preview", displayName: "Gemini 3.1 Flash Lite", provider: .google),
+        AIModel(id: "gemini-3.6-flash", displayName: "Gemini 3.6 Flash", provider: .google),
+        AIModel(id: "gemini-3.5-flash-lite", displayName: "Gemini 3.5 Flash Lite", provider: .google),
 
         // xAI
-        AIModel(id: "grok-4-1-fast", displayName: "Grok 4.1 Fast", provider: .xai),
-        AIModel(id: "grok-4-fast-reasoning", displayName: "Grok 4 Fast", provider: .xai),
+        AIModel(id: "grok-4.5", displayName: "Grok 4.5", provider: .xai),
+        AIModel(id: "grok-4.3", displayName: "Grok 4.3", provider: .xai),
+    ]
+
+    /// Model IDs shipped by earlier Voom versions, mapped to the current model
+    /// at the same tier. A saved selection that isn't in `allModels` would leave
+    /// the Settings picker blank and keep sending a retired ID to the API, so
+    /// `AIConfig.migrateSelectedModel()` rewrites it on launch. IDs missing from
+    /// this table fall back to the provider default.
+    public static let retiredModelIDs: [String: String] = [
+        "gpt-5.4": "gpt-5.6-sol",
+        "gpt-5-mini": "gpt-5.6-terra",
+        "gpt-5-nano": "gpt-5.6-luna",
+        "claude-opus-4-6": "claude-opus-5",
+        "claude-sonnet-4-6": "claude-sonnet-5",
+        "gemini-3-flash-preview": "gemini-3.6-flash",
+        "gemini-3.1-flash-lite-preview": "gemini-3.5-flash-lite",
+        "grok-4-1-fast": "grok-4.5",
+        "grok-4-fast-reasoning": "grok-4.3",
     ]
 
     public static let defaultProvider = AIProviderKind.anthropic
-    public static let defaultModel = allModels[4] // Claude Sonnet 4.6
+    public static let defaultModel = model(for: "claude-sonnet-5") ?? allModels[0]
 
     public static func model(for id: String) -> AIModel? {
         allModels.first { $0.id == id }

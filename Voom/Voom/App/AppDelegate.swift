@@ -64,6 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Retire model IDs dropped from the catalog before anything reads them
+        AIConfig.migrateSelectedModel()
+
         // Wire OpenRouter AI provider if configured
         if AIConfig.isConfigured {
             Task {
