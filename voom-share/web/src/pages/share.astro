@@ -11,98 +11,148 @@ import ExpiredView from '../components/ExpiredView.astro';
   <ExpiredView />
 
   <div id="share-content" style="display:none">
-    <!-- Hero: full-viewport blurred video background -->
-    <div class="hero" id="hero">
-      <div class="hero-bg">
-        <video id="hero-video" autoplay muted loop playsinline></video>
+    <!-- ── Top bar ── -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <a class="brand" href="https://github.com/aritropaul/voom" target="_blank" rel="noopener">
+          <img src="/icon-64.png" alt="" />
+          <span>Voom</span>
+        </a>
+        <div class="topbar-rule"></div>
+        <h1 class="topbar-title" id="topbar-title"></h1>
       </div>
-      <div class="hero-blur"></div>
-      <div class="hero-gradient"></div>
-      <div class="hero-content">
-        <img class="hero-icon" src="/icon-64.png" alt="Voom" />
-        <div class="hero-main">
-          <h1 class="hero-title" id="hero-title"></h1>
-          <p class="hero-summary" id="hero-summary"></p>
-          <button class="hero-play" id="hero-play-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><polygon points="7,3 21,12 7,21"/></svg>
-            Play recording
+      <a class="topbar-cta" href="https://github.com/aritropaul/voom" target="_blank" rel="noopener">Get Voom</a>
+    </header>
+
+    <!-- ── Workspace: video column + persistent sidebar ── -->
+    <div class="workspace">
+      <main class="workspace-main">
+        <div class="byline">
+          <div class="byline-left">
+            <img class="byline-mark" src="/icon-64.png" alt="" />
+            <div class="byline-text">
+              <span class="byline-meta" id="byline-meta"></span>
+            </div>
+          </div>
+          <button class="copy-link-btn" id="copy-link-btn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            Copy link
           </button>
         </div>
-        <div class="hero-meta" id="hero-meta"></div>
-      </div>
-    </div>
 
-    <!-- Content sections: always visible below hero -->
-    <div class="content-sections" id="content-container"></div>
-
-    <!-- Player modal: opens when Play clicked -->
-    <div class="player-modal" id="player-modal">
-      <div class="player-backdrop" id="player-backdrop"></div>
-      <div class="player-modal-inner">
-        <button class="player-close" id="player-close">&times;</button>
-        <div class="player-stage">
-        <div class="player-section" id="player-section">
-          <video id="player" preload="metadata" playsinline></video>
-          <div class="big-play" id="big-play">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21"/></svg>
-          </div>
-          <div class="caption-overlay hidden" id="captions"><span></span></div>
-          <div class="progress-bar-bottom" id="progress-bottom"><div class="fill" id="progress-fill"></div></div>
-          <div class="controls" id="controls">
-            <button id="ctrl-play" title="Play/Pause">
-              <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21"/></svg>
-              <svg id="icon-pause" width="20" height="20" viewBox="0 0 24 24" fill="#fff" style="display:none"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
-            </button>
-            <span class="time-display" id="time-display">0:00 / 0:00</span>
-            <div class="seekbar-container" id="seekbar">
-              <div class="seekbar-track">
-                <div class="seekbar-buffered" id="seekbar-buffered"></div>
-                <div class="seekbar-fill" id="seekbar-fill"></div>
-              </div>
-              <div class="seekbar-thumb" id="seekbar-thumb"></div>
+        <div class="video-card">
+          <div class="player-section" id="player-section">
+            <video id="player" preload="metadata" playsinline></video>
+            <div class="big-play" id="big-play">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><polygon points="6,3 20,12 6,21"/></svg>
             </div>
-            <div class="volume-group">
-              <button id="ctrl-mute" title="Mute (M)">
-                <svg id="icon-vol" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                <svg id="icon-mute" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+            <div class="caption-overlay hidden" id="captions"><span></span></div>
+            <div class="progress-bar-bottom" id="progress-bottom"><div class="fill" id="progress-fill"></div></div>
+            <div class="controls" id="controls">
+              <button id="ctrl-play" title="Play/Pause (K)">
+                <svg id="icon-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg>
+                <svg id="icon-pause" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg>
               </button>
-              <div class="volume-slider"><input type="range" id="volume-range" min="0" max="1" step="0.05" value="1"></div>
-            </div>
-            <div style="position:relative">
-              <button class="speed-btn" id="ctrl-speed" title="Playback speed">1x</button>
-              <div class="speed-menu" id="speed-menu">
-                <button data-speed="0.5">0.5x</button>
-                <button data-speed="1" class="active">1x</button>
-                <button data-speed="1.25">1.25x</button>
-                <button data-speed="1.5">1.5x</button>
-                <button data-speed="2">2x</button>
+
+              <button id="ctrl-back" title="Back 5s">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><polygon points="11,5 3,12 11,19"/><polygon points="21,5 13,12 21,19"/></svg>
+              </button>
+              <button id="ctrl-fwd" title="Forward 5s">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><polygon points="13,5 21,12 13,19"/><polygon points="3,5 11,12 3,19"/></svg>
+              </button>
+
+              <div class="volume-group">
+                <button id="ctrl-mute" title="Mute (M)">
+                  <svg id="icon-vol" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                  <svg id="icon-mute" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                </button>
+                <div class="volume-slider"><input type="range" id="volume-range" min="0" max="1" step="0.05" value="1"></div>
               </div>
+
+              <span class="time-display" id="time-display">0:00 / 0:00</span>
+
+              <div class="seekbar-container" id="seekbar">
+                <div class="seekbar-track">
+                  <div class="seekbar-buffered" id="seekbar-buffered"></div>
+                  <div class="seekbar-fill" id="seekbar-fill"></div>
+                </div>
+                <div class="seekbar-thumb" id="seekbar-thumb"></div>
+              </div>
+
+              <div class="ctrl-spacer"></div>
+
+              <div class="speed-wrap">
+                <button class="speed-btn" id="ctrl-speed" title="Playback speed">1x</button>
+                <div class="speed-menu" id="speed-menu">
+                  <button data-speed="0.5">0.5x</button>
+                  <button data-speed="1" class="active">1x</button>
+                  <button data-speed="1.25">1.25x</button>
+                  <button data-speed="1.5">1.5x</button>
+                  <button data-speed="2">2x</button>
+                </div>
+              </div>
+
+              <button id="ctrl-pip" title="Picture in picture">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="8" height="6" rx="1" fill="currentColor" stroke="none"/></svg>
+              </button>
+
+              <button id="ctrl-fs" title="Fullscreen (F)">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              </button>
             </div>
-            <button id="ctrl-fs" title="Fullscreen (F)">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-            </button>
           </div>
         </div>
-        <aside class="player-comments" id="player-comments">
-          <div class="pc-header">
-            <span class="label">Comments</span>
-            <span class="pc-count" id="comment-count"></span>
+
+        <!-- Reactions rail -->
+        <div class="under-video">
+          <div class="reactions-bar" id="reactions-bar">
+            <button class="react-btn" data-emoji="👍"><span class="emoji">👍</span><span class="count" id="rc-0"></span></button>
+            <button class="react-btn" data-emoji="❤️"><span class="emoji">❤️</span><span class="count" id="rc-1"></span></button>
+            <button class="react-btn" data-emoji="😂"><span class="emoji">😂</span><span class="count" id="rc-2"></span></button>
+            <button class="react-btn" data-emoji="😮"><span class="emoji">😮</span><span class="count" id="rc-3"></span></button>
+            <button class="react-btn" data-emoji="🔥"><span class="emoji">🔥</span><span class="count" id="rc-4"></span></button>
+            <button class="react-btn" data-emoji="👏"><span class="emoji">👏</span><span class="count" id="rc-5"></span></button>
+            <div class="reactions-rule"></div>
+            <button class="comment-jump" id="comment-jump">Comment</button>
           </div>
-          <div class="comment-list scroll-container" id="comment-list"></div>
-          <div class="comment-form" id="comment-form">
-            <input type="text" id="comment-name" placeholder="Your name" maxlength="100">
-            <textarea id="comment-text" placeholder="Add a comment at this moment…" maxlength="2000"></textarea>
-            <div class="comment-form-footer">
-              <button class="comment-ts-pill" id="comment-ts-pill" type="button" title="The moment this comment links to — click to use the current time">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
-                <span id="comment-ts-label">Commenting at 0:00</span>
-              </button>
-              <button id="comment-submit">Post Comment</button>
-            </div>
-          </div>
-        </aside>
         </div>
-      </div>
+
+        <!-- Summary + chapters -->
+        <div class="info-card" id="info-card"></div>
+      </main>
+
+      <!-- ── Sidebar ── -->
+      <aside class="sidebar">
+        <div class="tabs" role="tablist">
+          <button class="tab active" id="tab-comments" data-panel="comments" role="tab" aria-selected="true">
+            Comments<span class="tab-count" id="comment-count"></span>
+          </button>
+          <button class="tab" id="tab-transcript" data-panel="transcript" role="tab" aria-selected="false">
+            Transcript
+          </button>
+        </div>
+
+        <div class="tab-panels">
+          <div class="tab-panel active" data-panel="comments" role="tabpanel">
+            <div class="comment-list" id="comment-list"></div>
+          </div>
+          <div class="tab-panel" data-panel="transcript" role="tabpanel">
+            <div class="transcript-list" id="transcript-list"></div>
+          </div>
+        </div>
+
+        <div class="composer" id="comment-form">
+          <input type="text" id="comment-name" placeholder="Your name" maxlength="100">
+          <textarea id="comment-text" placeholder="Add a comment at this moment…" maxlength="2000"></textarea>
+          <div class="composer-footer">
+            <button class="comment-ts-pill" id="comment-ts-pill" type="button" title="The moment this comment links to — click to use the current time">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+              <span id="comment-ts-label">Commenting at 0:00</span>
+            </button>
+            <button id="comment-submit">Post</button>
+          </div>
+        </div>
+      </aside>
     </div>
   </div>
 
@@ -121,7 +171,7 @@ import ExpiredView from '../components/ExpiredView.astro';
     formatTimestamp,
     escapeHTML,
   } from '../scripts/api';
-  import type { ShareData, Segment, Chapter } from '../scripts/api';
+  import type { ShareData } from '../scripts/api';
   import { initPlayer } from '../scripts/player';
   import { initReactions } from '../scripts/reactions';
   import { initComments } from '../scripts/comments';
@@ -199,34 +249,16 @@ import ExpiredView from '../components/ExpiredView.astro';
     const hasTranscript = segments.length > 0;
     const viewStr = video.view_count === 1 ? '1 view' : `${video.view_count.toLocaleString()} views`;
 
-    // --- Hero: blurred background video ---
-    const heroVideo = document.getElementById('hero-video') as HTMLVideoElement;
-    heroVideo.src = `/v/${code}`;
-    heroVideo.poster = `/thumb/${code}`;
+    // ── Header + byline ──
+    document.getElementById('topbar-title')!.textContent = video.title;
 
-    document.getElementById('hero-title')!.textContent = video.title;
-
-    const heroSummary = document.getElementById('hero-summary')!;
-    if (video.summary) {
-      heroSummary.textContent = video.summary;
-    } else {
-      heroSummary.style.display = 'none';
-    }
-
-    // Hero meta
-    const metaParts = [
-      formatDuration(video.duration),
-      formatDate(video.created_at),
-      viewStr,
-    ];
+    const metaParts = [formatDate(video.created_at), viewStr, formatDuration(video.duration)];
     if (video.width > 0) metaParts.push(`${video.width} × ${video.height}`);
-
-    const heroMeta = document.getElementById('hero-meta')!;
-    heroMeta.innerHTML = metaParts
-      .map((p, i) => i > 0 ? `<span class="dot"></span><span>${p}</span>` : `<span>${p}</span>`)
+    document.getElementById('byline-meta')!.innerHTML = metaParts
+      .map((p, i) => (i > 0 ? `<span class="dot"></span><span>${p}</span>` : `<span>${p}</span>`))
       .join('');
 
-    // --- Setup player video source ---
+    // ── Video source ──
     const vid = document.getElementById('player') as HTMLVideoElement;
     vid.poster = `/thumb/${code}`;
     const source = document.createElement('source');
@@ -243,14 +275,13 @@ import ExpiredView from '../components/ExpiredView.astro';
       track.default = true;
       vid.appendChild(track);
 
-      // Add CC button
       const ccBtn = document.createElement('button');
       ccBtn.className = 'cc-ctrl on';
       ccBtn.id = 'cc-btn';
       ccBtn.title = 'Toggle captions (C)';
       ccBtn.textContent = 'CC';
-      const fsBtn = document.getElementById('ctrl-fs')!;
-      fsBtn.parentNode!.insertBefore(ccBtn, fsBtn);
+      const speedWrap = document.querySelector('.speed-wrap')!;
+      speedWrap.parentNode!.insertBefore(ccBtn, speedWrap);
     }
 
     // CTA overlay
@@ -262,121 +293,80 @@ import ExpiredView from '../components/ExpiredView.astro';
       document.getElementById('player-section')!.appendChild(ctaDiv);
     }
 
-    // --- Build content sections (always visible below hero) ---
-    const container = document.getElementById('content-container')!;
-    let html = '';
+    // ── Summary + chapters card ──
+    const infoCard = document.getElementById('info-card')!;
+    let info = '';
 
-    // Metadata
-    html += `<div class="metadata">
-      <div class="meta-row">
-        <h1>${escapeHTML(video.title)}</h1>
-        <button class="copy-link-btn" id="copy-link-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          Copy link
-        </button>
-      </div>
-      <div class="stats">
-        <span>${formatDuration(video.duration)}</span>
-        <span>${viewStr}</span>
-        <span>${formatDate(video.created_at)}</span>
-        ${video.width > 0 ? `<span>${video.width} × ${video.height}</span>` : ''}
-      </div>
-      ${video.summary ? `<p class="summary">${escapeHTML(video.summary)}</p>` : ''}
-    </div>`;
+    if (video.summary) {
+      info += `<section class="info-block">
+        <div class="info-head">
+          <h2>Summary</h2>
+          <span class="info-caption">Generated on-device</span>
+        </div>
+        <p class="info-body">${escapeHTML(video.summary)}</p>
+      </section>`;
+    }
 
-    // Chapters
     if (chapters.length > 0) {
-      html += `<div class="chapters-section">
-        <div class="section-header"><span class="label">Chapters</span></div>
+      info += `<section class="info-block">
+        <div class="info-head"><h2>Chapters</h2></div>
         <div class="chapters-list">
           ${chapters.map(c => `<div class="chapter-row" data-time="${c.timestamp}">
             <span class="timestamp">${formatTimestamp(c.timestamp)}</span>
             <span class="chapter-title">${escapeHTML(c.title)}</span>
           </div>`).join('')}
         </div>
-      </div>`;
+      </section>`;
     }
 
-    // Reactions
-    html += `<div class="reactions-bar" id="reactions-bar">
-      <button class="react-btn" data-emoji="👍"><span class="emoji">👍</span><span class="count" id="rc-0"></span></button>
-      <button class="react-btn" data-emoji="❤️"><span class="emoji">❤️</span><span class="count" id="rc-1"></span></button>
-      <button class="react-btn" data-emoji="😂"><span class="emoji">😂</span><span class="count" id="rc-2"></span></button>
-      <button class="react-btn" data-emoji="😮"><span class="emoji">😮</span><span class="count" id="rc-3"></span></button>
-      <button class="react-btn" data-emoji="🔥"><span class="emoji">🔥</span><span class="count" id="rc-4"></span></button>
-      <button class="react-btn" data-emoji="👏"><span class="emoji">👏</span><span class="count" id="rc-5"></span></button>
-    </div>`;
+    infoCard.innerHTML = info;
 
-    // Transcript
+    // ── Transcript panel ──
+    const transcriptList = document.getElementById('transcript-list')!;
     if (hasTranscript) {
-      html += `<div class="transcript-section">
-        <div class="section-header"><span class="label">Transcript</span></div>
-        <div class="transcript-list scroll-container" id="transcript-list">
-          ${segments.map(s => `<div class="transcript-row" data-start="${s.start_time}">
-            <span class="timestamp">${formatTimestamp(s.start_time)}</span>
-            <span class="seg-content">
-              ${s.speaker ? `<span class="speaker-label">${escapeHTML(s.speaker)}</span>` : ''}
-              <span class="text">${escapeHTML(s.text)}</span>
-            </span>
-            <button class="copy-ts" title="Copy link to this timestamp" data-time="${s.start_time}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            </button>
-          </div>`).join('')}
+      transcriptList.innerHTML = segments.map(s => `<div class="transcript-row" data-start="${s.start_time}">
+        <div class="seg-head">
+          <span class="timestamp">${formatTimestamp(s.start_time)}</span>
+          ${s.speaker ? `<span class="speaker-label">${escapeHTML(s.speaker)}</span>` : ''}
+          <button class="copy-ts" title="Copy link to this timestamp" data-time="${s.start_time}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </button>
         </div>
-      </div>`;
+        <span class="text">${escapeHTML(s.text)}</span>
+      </div>`).join('');
+    } else {
+      document.getElementById('tab-transcript')!.style.display = 'none';
+      transcriptList.innerHTML = '';
     }
 
-    // Comments now live in the player sidebar (#player-comments) so viewers
-    // can watch and comment on the same moment at once.
-
-    container.innerHTML = html;
     showView('content');
 
-    // --- Player Modal ---
-    const modal = document.getElementById('player-modal')!;
-    const backdrop = document.getElementById('player-backdrop')!;
-    const closeBtn = document.getElementById('player-close')!;
+    // ── Tabs ──
+    const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('.tab'));
+    const panels = Array.from(document.querySelectorAll<HTMLElement>('.tab-panel'));
 
-    function openModal() {
-      modal.classList.add('open');
-      document.body.style.overflow = 'hidden';
-      vid.play();
+    function selectTab(name: string) {
+      tabs.forEach(t => {
+        const on = t.dataset.panel === name;
+        t.classList.toggle('active', on);
+        t.setAttribute('aria-selected', String(on));
+      });
+      panels.forEach(p => p.classList.toggle('active', p.dataset.panel === name));
     }
 
-    function closeModal() {
-      modal.classList.remove('open');
-      document.body.style.overflow = '';
-      vid.pause();
-    }
+    tabs.forEach(t => t.addEventListener('click', () => selectTab(t.dataset.panel!)));
 
-    // Seek to a time, opening the player first if it isn't already open
-    // (keeps the current play state when it's already open).
+    // ── Seeking ──
+    // The player is always on screen now, so seeking is just a time set —
+    // scroll it into view when the click came from far down the page.
     function seek(t: number) {
       vid.currentTime = t;
-      if (!modal.classList.contains('open')) openModal();
-    }
-
-    document.getElementById('hero-play-btn')!.addEventListener('click', openModal);
-    closeBtn.addEventListener('click', closeModal);
-    backdrop.addEventListener('click', closeModal);
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && modal.classList.contains('open')) {
-        closeModal();
+      const rect = document.getElementById('player-section')!.getBoundingClientRect();
+      if (rect.top < 0 || rect.bottom > window.innerHeight) {
+        document.getElementById('player-section')!.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    });
-
-    // If ?t= param, open modal directly
-    const params = new URLSearchParams(window.location.search);
-    const startTime = parseFloat(params.get('t') || '0');
-    if (startTime > 0) {
-      vid.addEventListener('loadedmetadata', () => {
-        vid.currentTime = startTime;
-      }, { once: true });
-      openModal();
     }
 
-    // Initialize player (pass modal open check for keyboard shortcuts)
     initPlayer({
       shareCode: code,
       segments,
@@ -385,17 +375,22 @@ import ExpiredView from '../components/ExpiredView.astro';
     });
 
     initReactions(code, () => vid.currentTime || 0);
-
     initComments(code, vid, seek);
 
-    // Chapter/transcript clicks open the player at that timestamp
-    container.querySelectorAll('.chapter-row').forEach(el => {
+    // Jump to the composer from the reactions rail.
+    document.getElementById('comment-jump')!.addEventListener('click', () => {
+      selectTab('comments');
+      (document.getElementById('comment-text') as HTMLTextAreaElement).focus();
+    });
+
+    // Chapter + transcript rows seek the player.
+    infoCard.querySelectorAll('.chapter-row').forEach(el => {
       el.addEventListener('click', () => {
         seek(parseFloat((el as HTMLElement).dataset.time || '0'));
       });
     });
 
-    container.querySelectorAll('.transcript-row').forEach(el => {
+    transcriptList.querySelectorAll('.transcript-row').forEach(el => {
       el.addEventListener('click', (e) => {
         if ((e.target as Element).closest('.copy-ts')) return;
         seek(parseFloat((el as HTMLElement).dataset.start || '0'));
@@ -415,345 +410,499 @@ import ExpiredView from '../components/ExpiredView.astro';
     --comment-accent-soft-hover: rgba(255, 255, 255, 0.1);
   }
 
-  /* Player styles */
+  /* ══════════════════════════════════════════════════════════
+     Player surface
+     ══════════════════════════════════════════════════════════ */
   .player-section {
-    width: 100%;
-    border-radius: var(--radius-l);
     position: relative;
-    overflow: hidden;
+    width: 100%;
+    aspect-ratio: 16 / 9;
     background: #000;
-    border: 1px solid var(--border);
+    border-radius: var(--radius-m);
+    overflow: hidden;
     cursor: pointer;
   }
-  .player-section video { display: block; width: 100%; background: #000; }
 
-  /* ── Two-pane workspace: video + comments sidebar ── */
-  .player-stage {
-    display: flex;
-    background: #000;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-l);
-    overflow: hidden;
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-    /* both panes share this height; video pane is 16:9 of its width, capped to 86vh */
-    height: min(86vh, calc((min(96vw, 1320px) - 380px) * 0.5625));
-  }
-  .player-stage .player-section {
-    flex: 1 1 auto; min-width: 0;
-    border: none; border-radius: 0; box-shadow: none;
-  }
-  .player-stage .player-section video { width: 100%; height: 100%; object-fit: contain; }
-
-  .player-comments {
-    flex: 0 0 380px;
+  .player-section video {
+    display: block;
+    width: 100%;
     height: 100%;
-    display: flex; flex-direction: column; min-height: 0;
-    background: var(--bg);
-    border-left: 1px solid var(--border);
-  }
-  .pc-header {
-    display: flex; align-items: baseline; gap: 8px;
-    padding: 16px 18px 12px; flex-shrink: 0;
-  }
-  .pc-header .label { font-size: 10px; letter-spacing: 2.5px; color: var(--text-quaternary); }
-  .pc-count { font-family: var(--font-mono); font-size: 10px; color: var(--text-quaternary); }
-  .player-comments .comment-list {
-    flex: 1 1 auto; min-height: 0; max-height: none;
-    padding: 0 8px 8px; gap: 2px;
-    scrollbar-gutter: stable both-edges;
-  }
-  .comment.active { background: var(--surface); }
-  .comment.active .comment-author { color: var(--text-primary); }
-  .comment.active .comment-text { color: var(--text-primary); }
-  .player-comments .comment-form {
-    flex-shrink: 0;
-    border: none; border-top: 1px solid var(--border); border-radius: 0;
-    background: var(--bg); padding: 12px 16px 14px; gap: 8px;
-  }
-
-  @media (max-width: 860px) {
-    .player-modal-inner { width: 94vw; }
-    .player-stage { flex-direction: column; height: auto; max-height: 92vh; }
-    .player-stage .player-section video { max-height: 42vh; }
-    .player-comments {
-      flex: 1 1 auto; height: auto; min-height: 0; max-height: 50vh;
-      border-left: none; border-top: 1px solid var(--border);
-    }
-  }
-  @media (max-width: 600px) {
-    .player-modal-inner { width: 100vw; }
-    .player-stage .player-section video { max-height: 38vh; }
+    object-fit: contain;
+    background: #000;
   }
 
   .big-play {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: 72px; height: 72px; border-radius: 50%;
-    background: rgba(0, 0, 0, 0.55);
-    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    display: flex; align-items: center; justify-content: center;
-    pointer-events: none; opacity: 1; transition: opacity 0.2s, transform 0.15s; z-index: 3;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 3;
   }
-  .big-play svg { margin-left: 4px; }
+
+  .big-play svg { margin-left: 3px; }
   .player-section.playing .big-play { opacity: 0; }
   .player-section:hover .big-play { opacity: 1; }
   .player-section.playing:hover .big-play { opacity: 0; }
   .player-section.hide-cursor { cursor: none; }
 
   .progress-bar-bottom {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    height: 3px; background: rgba(255, 255, 255, 0.1);
-    z-index: 3; pointer-events: none;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.12);
+    z-index: 3;
+    pointer-events: none;
   }
+
   .progress-bar-bottom .fill {
-    height: 100%; background: var(--text-primary);
-    width: 0%; transition: width 0.1s linear;
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.1s linear;
   }
 
+  /* ── Control bar ── */
   .controls {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    padding: 0 12px 8px; display: flex; align-items: center; gap: 8px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7) 40%, rgba(0, 0, 0, 0.85));
-    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-    opacity: 0; transition: opacity 0.25s; z-index: 4; pointer-events: none;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 22px 12px 10px;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.55) 45%, rgba(0, 0, 0, 0.8));
+    opacity: 0;
+    transition: opacity 0.25s;
+    z-index: 4;
+    pointer-events: none;
   }
+
   .controls.visible { opacity: 1; pointer-events: auto; }
+
   .controls button {
-    background: none; border: none; color: rgba(255, 255, 255, 0.85);
-    cursor: pointer; padding: 6px; display: flex; align-items: center;
-    justify-content: center; border-radius: 4px; transition: color 0.15s;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.82);
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-s);
+    transition: color 0.15s, background 0.15s;
   }
-  .controls button:hover { color: #fff; }
 
-  .seekbar-container { flex: 1; display: flex; align-items: center; height: 32px; position: relative; cursor: pointer; }
-  .seekbar-track { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.15); border-radius: 2px; position: relative; transition: height 0.15s; }
+  .controls button:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .ctrl-spacer { flex: 0 0 4px; }
+  .speed-wrap { position: relative; }
+
+  /* ── Seekbar ── */
+  .seekbar-container {
+    flex: 1 1 auto;
+    min-width: 60px;
+    display: flex;
+    align-items: center;
+    height: 30px;
+    position: relative;
+    cursor: pointer;
+    margin: 0 6px;
+  }
+
+  .seekbar-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 2px;
+    position: relative;
+    transition: height 0.15s;
+  }
+
   .seekbar-container:hover .seekbar-track { height: 6px; }
-  .seekbar-buffered { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
-  .seekbar-fill { position: absolute; top: 0; left: 0; height: 100%; background: #fff; border-radius: 2px; }
-  .seekbar-thumb { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: #fff; transform: translate(-50%, -50%); opacity: 0; transition: opacity 0.15s; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); }
-  .seekbar-container:hover .seekbar-thumb { opacity: 1; }
-  .seekbar-marker { position: absolute; top: 0; width: 2px; height: 100%; background: rgba(255, 255, 255, 0.4); border-radius: 1px; pointer-events: none; z-index: 1; }
 
-  /* ── Seekbar comment markers ── */
-  .comment-marker {
-    position: absolute; top: 50%; left: 0;
-    width: 10px; height: 10px; border-radius: 50%;
-    background: var(--comment-accent); border: 2px solid #000;
-    transform: translate(-50%, -50%); transform-origin: center;
-    padding: 0; margin: 0; cursor: pointer; z-index: 3;
-    display: flex; align-items: center; justify-content: center;
+  .seekbar-buffered {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 2px;
+  }
+
+  .seekbar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #fff;
+    border-radius: 2px;
+  }
+
+  .seekbar-thumb {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.15s;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  }
+
+  .seekbar-container:hover .seekbar-thumb { opacity: 1; }
+
+  /* Chapter dividers cut the track into segments, like the reference. */
+  .seekbar-marker {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: #000;
+    opacity: 0.55;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .time-display {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.75);
+    white-space: nowrap;
+    user-select: none;
+    font-variant-numeric: tabular-nums;
+    padding: 0 4px;
+  }
+
+  .volume-group { display: flex; align-items: center; gap: 2px; }
+  .volume-slider { width: 0; overflow: hidden; transition: width 0.2s; display: flex; align-items: center; }
+  .volume-group:hover .volume-slider { width: 60px; }
+  .volume-slider input[type=range] {
+    width: 56px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .volume-slider input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  .speed-btn { font-family: var(--font-mono); font-size: 11px; min-width: 30px; }
+
+  .speed-menu {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(17, 17, 19, 0.97);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-m);
+    padding: 4px 0;
+    display: none;
+    flex-direction: column;
+    min-width: 66px;
+    margin-bottom: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .speed-menu.open { display: flex; }
+  .speed-menu button {
+    padding: 6px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    white-space: nowrap;
+    border-radius: 0;
+  }
+  .speed-menu button:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+  .speed-menu button.active { color: #fff; }
+
+  .cc-ctrl {
+    font-family: var(--font-sans);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    min-width: 28px;
+  }
+  .cc-ctrl.on { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ── Captions ── */
+  .caption-overlay {
+    position: absolute;
+    bottom: 62px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    pointer-events: none;
+    padding: 0 10%;
+    transition: opacity 0.2s;
+    z-index: 3;
+  }
+
+  .caption-overlay span {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: var(--radius-s);
+    background: rgba(0, 0, 0, 0.72);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .caption-overlay.hidden { opacity: 0; }
+
+  /* ── CTA ── */
+  .cta-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 5;
+  }
+
+  .cta-overlay.visible { display: flex; }
+  .cta-overlay a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 28px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: var(--radius-m);
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .cta-overlay a:hover { opacity: 0.85; }
+  .cta-replay {
+    background: none !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #fff !important;
+    font-size: 13px !important;
+    padding: 10px 20px !important;
+    border-radius: 100px !important;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     Seekbar comment markers
+     ══════════════════════════════════════════════════════════ */
+  /* Scoped under .controls on purpose. The markers are <button>s inside the
+     control bar, so the bare `.comment-marker` (0,1,0) loses to
+     `.controls button` (0,1,1) — which zeroes the background and forces 6px
+     padding, rendering every marker as an invisible transparent square. */
+  .controls .comment-marker {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--comment-accent);
+    border: 2px solid #000;
+    transform: translate(-50%, -50%);
+    transform-origin: center;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: transform 0.12s ease;
   }
+  .controls .comment-marker:hover { background: var(--comment-accent); }
   .comment-marker::before { content: ''; position: absolute; inset: -11px; border-radius: 50%; }
-  .comment-marker:hover, .comment-marker:focus-visible { transform: translate(-50%, -50%) scale(1.35); z-index: 20; outline: none; }
-  .comment-marker.cluster { width: 16px; height: 16px; }
+  .controls .comment-marker:hover,
+  .controls .comment-marker:focus-visible { transform: translate(-50%, -50%) scale(1.35); z-index: 20; outline: none; }
+  .controls .comment-marker.cluster { width: 16px; height: 16px; }
   .cluster-count { font-family: var(--font-mono); font-size: 9px; font-weight: 700; color: #000; line-height: 1; }
   .comment-marker-tip {
-    position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
-    display: flex; flex-direction: column; gap: 6px; min-width: 150px; max-width: 240px;
-    background: rgba(18, 18, 20, 0.97); border: 1px solid var(--border-hover);
-    border-radius: var(--radius-m); padding: 8px 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-    opacity: 0; pointer-events: none; transition: opacity 0.12s ease; z-index: 30; text-align: left; white-space: normal;
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 150px;
+    max-width: 240px;
+    background: rgba(18, 18, 20, 0.97);
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-m);
+    padding: 8px 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+    z-index: 30;
+    text-align: left;
+    white-space: normal;
   }
-  .comment-marker:hover .comment-marker-tip, .comment-marker:focus-visible .comment-marker-tip { opacity: 1; }
-  .comment-marker-tip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: rgba(18, 18, 20, 0.97); }
+  .comment-marker:hover .comment-marker-tip,
+  .comment-marker:focus-visible .comment-marker-tip { opacity: 1; }
+  .comment-marker-tip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(18, 18, 20, 0.97);
+  }
   .tip-row { display: flex; flex-direction: column; gap: 2px; }
   .tip-row + .tip-row { padding-top: 6px; border-top: 1px solid var(--border); }
   .tip-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .tip-text { font-size: 12px; line-height: 1.4; color: var(--text-primary); }
   .tip-more { font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary); }
 
-  .time-display { font-family: var(--font-mono); font-size: 11px; color: rgba(255, 255, 255, 0.7); white-space: nowrap; user-select: none; }
-  .volume-group { display: flex; align-items: center; gap: 2px; }
-  .volume-slider { width: 0; overflow: hidden; transition: width 0.2s; display: flex; align-items: center; }
-  .volume-group:hover .volume-slider { width: 60px; }
-  .volume-slider input[type=range] { width: 56px; height: 4px; -webkit-appearance: none; appearance: none; background: rgba(255, 255, 255, 0.2); border-radius: 2px; outline: none; cursor: pointer; }
-  .volume-slider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; cursor: pointer; }
+  /* ══════════════════════════════════════════════════════════
+     Transcript panel
+     ══════════════════════════════════════════════════════════ */
+  .transcript-list { display: flex; flex-direction: column; }
 
-  .speed-btn { font-family: var(--font-mono); font-size: 11px; min-width: 32px; position: relative; }
-  .speed-menu { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: rgba(20, 20, 20, 0.95); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 4px 0; display: none; flex-direction: column; min-width: 64px; margin-bottom: 8px; }
-  .speed-menu.open { display: flex; }
-  .speed-menu button { padding: 6px 12px; font-family: var(--font-mono); font-size: 11px; text-align: center; color: rgba(255, 255, 255, 0.7); white-space: nowrap; }
-  .speed-menu button:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
-  .speed-menu button.active { color: #fff; }
-
-  .cc-ctrl { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
-  .cc-ctrl.on { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
-
-  .caption-overlay { position: absolute; bottom: 56px; left: 0; right: 0; text-align: center; pointer-events: none; padding: 0 10%; transition: opacity 0.2s; z-index: 3; }
-  .caption-overlay span { display: inline-block; padding: 6px 16px; border-radius: var(--radius-s); background: rgba(0, 0, 0, 0.7); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: #fff; font-size: 15px; font-weight: 500; line-height: 1.4; }
-  .caption-overlay.hidden { opacity: 0; }
-
-  .cta-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.85); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 16px; z-index: 5; }
-  .cta-overlay.visible { display: flex; }
-  .cta-overlay a { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; background: #fff; color: #000; font-size: 15px; font-weight: 600; border-radius: var(--radius-m); text-decoration: none; transition: opacity 0.15s; }
-  .cta-overlay a:hover { opacity: 0.85; }
-  .cta-replay { background: none !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; color: #fff !important; font-size: 13px !important; padding: 10px 20px !important; }
-
-  /* ── Metadata ── */
-  .metadata { display: flex; flex-direction: column; gap: 16px; }
-  .meta-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-  h1 { font-size: 22px; font-weight: 600; line-height: 1.25; letter-spacing: -0.025em; color: var(--text-primary); }
-  .stats {
-    display: flex; gap: 20px; font-family: var(--font-mono); font-size: 11px;
-    color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; flex-wrap: wrap;
-  }
-  .summary { font-size: 15px; line-height: 1.7; color: var(--text-secondary); }
-  .copy-link-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: transparent; border: 1px solid var(--border);
-    border-radius: 100px; padding: 7px 16px;
-    color: var(--text-secondary); font-family: var(--font-mono);
-    font-size: 10px; cursor: pointer; transition: all 0.2s;
-    white-space: nowrap; text-transform: uppercase; letter-spacing: 1px; flex-shrink: 0;
-  }
-  .copy-link-btn:hover { background: var(--surface); color: var(--text-primary); border-color: var(--border-hover); }
-
-  /* ── Chapters ── */
-  .chapters-section { display: flex; flex-direction: column; gap: 16px; border-top: none; padding-top: 0; }
-  .chapters-list { display: flex; flex-direction: column; }
-  .chapter-row {
-    display: grid; grid-template-columns: 52px 1fr; align-items: baseline;
-    cursor: pointer; padding: 10px 16px; border-radius: var(--radius-m);
-    transition: background 0.2s; margin: 0 -16px;
-  }
-  .chapter-row:hover { background: var(--surface); }
-  .chapter-row:hover .chapter-title { color: var(--text-primary); }
-  .chapter-title { font-size: 14px; line-height: 1.5; color: var(--text-secondary); transition: color 0.2s; }
-  .chapter-row.active { background: var(--surface); }
-  .chapter-row.active .chapter-title { color: var(--text-primary); font-weight: 500; }
-  .chapter-row.active .timestamp { color: var(--text-primary); }
-
-  /* ── Reactions ── */
-  .reactions-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-top: none; padding-top: 0; }
-  .react-btn {
-    background: transparent; border: 1px solid var(--border);
-    border-radius: 100px; padding: 8px 16px; cursor: pointer;
-    transition: all 0.2s; display: flex; align-items: center; gap: 8px;
-    color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px;
-  }
-  .react-btn:hover { background: var(--surface); border-color: var(--border-hover); transform: translateY(-1px); }
-  .react-btn:active { transform: translateY(0); }
-  .emoji { font-size: 15px; }
-  .count { font-size: 11px; min-width: 8px; }
-  .reaction-bubble { position: absolute; pointer-events: none; font-size: 24px; animation: floatUp 1.5s ease-out forwards; z-index: 10; }
-  @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 50% { transform: translateY(-40px) scale(1.1); } 100% { opacity: 0; transform: translateY(-80px) scale(0.8); } }
-
-  /* ── Transcript ── */
-  .transcript-section { display: flex; flex-direction: column; gap: 16px; }
-  .transcript-list {
-    display: flex; flex-direction: column; max-height: 480px; overflow-y: auto;
-    mask-image: linear-gradient(to bottom, black 90%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, black 90%, transparent 100%);
-  }
+  /* Stacked, not columnar: in a 380px sidebar a timestamp/text/copy grid
+     leaves the text ~250px wide and visually indented off the timestamp.
+     Meta on one line, full-width text beneath, everything flush left. */
   .transcript-row {
-    display: grid; grid-template-columns: 52px 1fr 28px; align-items: baseline;
-    cursor: pointer; padding: 10px 16px; border-radius: var(--radius-m);
-    transition: background 0.2s; position: relative; margin: 0 -16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 9px 10px;
+    border-radius: var(--radius-m);
+    cursor: pointer;
+    transition: background 0.18s;
+    position: relative;
   }
+
+  .seg-head { display: flex; align-items: center; gap: 8px; }
+
   .transcript-row:hover { background: var(--surface); }
-  .seg-content { display: flex; flex-direction: column; gap: 3px; }
-  .speaker-label {
-    font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
-    letter-spacing: 1.5px; color: var(--text-quaternary); font-weight: 500;
-  }
   .transcript-row:hover .text { color: var(--text-primary); }
-  .timestamp {
-    font-family: var(--font-mono); font-size: 11px; color: var(--text-quaternary);
-    transition: color 0.2s; font-variant-numeric: tabular-nums;
-  }
-  .text { font-size: 14px; line-height: 1.65; color: var(--text-secondary); transition: color 0.2s; }
+  .transcript-row:hover .timestamp { color: var(--text-secondary); }
   .transcript-row.active { background: var(--surface); }
   .transcript-row.active .text { color: var(--text-primary); }
-  .transcript-row.active .timestamp { color: var(--text-secondary); }
-  .copy-ts {
-    opacity: 0; background: none; border: none; color: var(--text-quaternary);
-    cursor: pointer; padding: 4px; transition: all 0.2s; align-self: center;
-    border-radius: var(--radius-s);
+  .transcript-row.active .timestamp { color: var(--text-primary); }
+
+  .text { text-wrap: pretty; }
+
+  .speaker-label {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: var(--text-quaternary);
+    font-weight: 500;
   }
+
+  .text { font-size: 13.5px; line-height: 1.6; color: var(--text-secondary); transition: color 0.18s; }
+
+  .copy-ts {
+    opacity: 0;
+    background: none;
+    border: none;
+    color: var(--text-quaternary);
+    cursor: pointer;
+    padding: 3px;
+    border-radius: var(--radius-s);
+    margin-left: auto;
+    transition: opacity 0.18s, color 0.18s, background 0.18s;
+  }
+
   .transcript-row:hover .copy-ts { opacity: 1; }
   .copy-ts:hover { color: var(--text-primary); background: var(--surface-hover); }
 
-  /* ── Comments (editorial rows, monochrome — matches transcript/chapters) ── */
-  .comment-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+  /* ══════════════════════════════════════════════════════════
+     Comments panel
+     ══════════════════════════════════════════════════════════ */
+  .comment-list { display: flex; flex-direction: column; gap: 2px; }
+
   .comment {
-    display: flex; flex-direction: column; gap: 5px;
-    padding: 10px 12px; border-radius: var(--radius-m);
-    background: transparent; border: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 10px;
+    border-radius: var(--radius-m);
     transition: background 0.18s;
   }
+
   .comment:hover { background: var(--surface); }
+  .comment.active { background: var(--surface); }
+  .comment.active .comment-author,
+  .comment.active .comment-text { color: var(--text-primary); }
+
   .comment-header { display: flex; align-items: center; gap: 8px; }
   .comment-author { font-weight: 600; color: var(--text-primary); font-size: 13px; letter-spacing: -0.01em; }
+
   .comment-ts {
-    display: inline-flex; align-items: center; gap: 4px; line-height: 1;
-    font-family: var(--font-mono); font-size: 10px; cursor: pointer;
-    color: var(--text-tertiary); background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--border); border-radius: var(--radius-s);
-    padding: 3px 7px; transition: all 0.15s;
-    font-variant-numeric: tabular-nums; letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    padding: 3px 7px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.5px;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
   }
+
   .comment-ts svg { opacity: 0.7; flex-shrink: 0; }
   .comment-ts:hover { color: var(--text-primary); border-color: var(--border-hover); background: var(--surface-hover); }
   .comment-date { font-family: var(--font-mono); font-size: 10px; color: var(--text-quaternary); margin-left: auto; }
-  .comment-empty { font-size: 13px; color: var(--text-tertiary); padding: 8px 2px; }
   .comment-text { font-size: 13.5px; line-height: 1.6; color: var(--text-secondary); }
+
   .comment-text .ts-link {
-    color: var(--text-primary); cursor: pointer; text-decoration: none;
-    border-bottom: 1px solid var(--border-hover); font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-decoration: none;
+    border-bottom: 1px solid var(--border-hover);
+    font-variant-numeric: tabular-nums;
   }
   .comment-text .ts-link:hover { border-bottom-color: var(--text-primary); }
-  .comment-form { display: flex; flex-direction: column; gap: 8px; }
-  .comment-form input, .comment-form textarea {
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: var(--radius-m); padding: 9px 12px;
-    color: var(--text-primary); font-size: 13px; font-family: inherit;
-    outline: none; resize: vertical; transition: border-color 0.2s;
-  }
-  .comment-form input::placeholder, .comment-form textarea::placeholder { color: var(--text-quaternary); }
-  .comment-form input:focus, .comment-form textarea:focus { border-color: var(--border-hover); }
-  .comment-form textarea { min-height: 60px; }
-  .comment-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .comment-ts-pill {
-    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
-    background: transparent; border: 1px solid var(--border); border-radius: 100px;
-    padding: 6px 12px; cursor: pointer; color: var(--text-tertiary);
-    font-family: var(--font-mono); font-size: 10px; transition: all 0.2s; font-variant-numeric: tabular-nums;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .comment-ts-pill svg { color: var(--text-quaternary); transition: color 0.2s; flex-shrink: 0; }
-  .comment-ts-pill:hover { border-color: var(--border-hover); color: var(--text-secondary); }
-  .comment-ts-pill.locked { border-color: var(--border-hover); color: var(--text-primary); background: var(--surface-hover); }
-  .comment-ts-pill.locked svg { color: var(--text-primary); }
-  #comment-submit {
-    padding: 8px 18px; background: #fff; color: #000; border: none;
-    border-radius: 100px; font-size: 12px; font-weight: 600;
-    cursor: pointer; transition: all 0.2s; letter-spacing: -0.01em; flex-shrink: 0;
-  }
-  #comment-submit:hover { opacity: 0.9; }
-  #comment-submit:active { transform: translateY(0); }
-  #comment-submit:disabled { opacity: 0.5; cursor: default; }
-
-  /* ── Section Headers ── */
-  .content-sections .section-header { padding-bottom: 4px; }
-  .content-sections .label {
-    font-family: var(--font-mono); font-size: 10px; text-transform: uppercase;
-    letter-spacing: 2.5px; color: var(--text-quaternary); font-weight: 500;
-  }
-
-  /* ── Responsive ── */
-  @media (max-width: 600px) {
-    .player-section { border-radius: var(--radius-m); }
-    h1 { font-size: 19px; }
-    .transcript-list { max-height: 360px; }
-    .caption-overlay { bottom: 44px; padding: 0 16px; }
-    .caption-overlay span { font-size: 13px; }
-    .big-play { width: 56px; height: 56px; }
-    .big-play svg { width: 24px; height: 24px; margin-left: 3px; }
-    .volume-group:hover .volume-slider { width: 0; }
-    .meta-row { flex-direction: column; align-items: flex-start; gap: 10px; }
-    .chapter-row, .transcript-row { margin: 0 -12px; padding: 8px 12px; }
-    .comment { padding: 14px; }
-    .comment-form { padding: 16px; }
-  }
 </style>

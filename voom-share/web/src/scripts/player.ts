@@ -67,6 +67,37 @@ export function initPlayer(opts: PlayerOptions) {
     togglePlay();
   });
 
+  // --- Skip back / forward ---
+  document.getElementById('ctrl-back')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    vid.currentTime = Math.max(0, vid.currentTime - 5);
+  });
+
+  document.getElementById('ctrl-fwd')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    vid.currentTime = Math.min(vid.duration || 0, vid.currentTime + 5);
+  });
+
+  // --- Picture in picture ---
+  const pipBtn = document.getElementById('ctrl-pip');
+  if (pipBtn) {
+    // Not every browser exposes PiP (notably iOS Safari on <video>) — hide the
+    // control rather than leaving a button that silently does nothing.
+    if (!document.pictureInPictureEnabled) {
+      pipBtn.style.display = 'none';
+    } else {
+      pipBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          if (document.pictureInPictureElement) await document.exitPictureInPicture();
+          else await vid.requestPictureInPicture();
+        } catch {
+          /* user gesture rejected or element not ready — nothing to recover */
+        }
+      });
+    }
+  }
+
   // --- Controls visibility ---
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
 

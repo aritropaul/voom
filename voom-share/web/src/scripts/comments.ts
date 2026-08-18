@@ -76,7 +76,16 @@ export function initComments(
     const duration = vid.duration || 0;
     if (commentCount) commentCount.textContent = comments.length ? String(comments.length) : '';
     if (comments.length === 0) {
-      commentList.innerHTML = '<div class="comment-empty">No comments yet — be the first.</div>';
+      commentList.innerHTML =
+        '<div class="panel-empty">' +
+          '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+            'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l' +
+              '1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>' +
+          '</svg>' +
+          '<div class="panel-empty-title">Be the first to comment</div>' +
+          '<div class="panel-empty-hint">Comments are pinned to the moment you’re watching.</div>' +
+        '</div>';
       return;
     }
     commentList.innerHTML = comments
