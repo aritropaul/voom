@@ -87,6 +87,7 @@ final class MeetingPanelManager {
 
     private func startMeetingRecording(appState: AppState) async {
         // Load displays
+        guard ScreenCaptureAccess.ensure() else { return }
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             appState.availableDisplays = content.displays

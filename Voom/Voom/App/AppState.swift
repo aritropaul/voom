@@ -8,6 +8,12 @@ final class AppState: RecordingStateProvider {
     var recordingState: RecordingState = .idle
     var isPanelVisible: Bool = false
     var isCameraEnabled: Bool = true
+    var selectedCameraDeviceID: String? = AppDefaults.selectedCameraDeviceID {
+        didSet { AppDefaults.selectedCameraDeviceID = selectedCameraDeviceID }
+    }
+    var selectedMicrophoneDeviceID: String? = AppDefaults.selectedMicrophoneDeviceID {
+        didSet { AppDefaults.selectedMicrophoneDeviceID = selectedMicrophoneDeviceID }
+    }
     var isMicEnabled: Bool = true
     var isSystemAudioEnabled: Bool = true
     var pipPosition: PiPPosition = .bottomRight

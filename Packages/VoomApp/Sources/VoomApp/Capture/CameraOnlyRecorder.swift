@@ -19,7 +19,9 @@ public actor CameraOnlyRecorder {
 
     public func startRecording(
         micEnabled: Bool,
-        existingCamera: CameraCapture? = nil
+        existingCamera: CameraCapture? = nil,
+        cameraDeviceID: String? = nil,
+        microphoneDeviceID: String? = nil
     ) async throws {
         self.hadMicAudio = micEnabled
 
@@ -32,7 +34,7 @@ public actor CameraOnlyRecorder {
             camera = existingCamera
         } else {
             camera = CameraCapture()
-            try await camera.startCapture()
+            try await camera.startCapture(deviceID: cameraDeviceID)
         }
         self.cameraCapture = camera
 
@@ -63,7 +65,7 @@ public actor CameraOnlyRecorder {
         // Set up mic capture if enabled
         if micEnabled {
             let micTimer = MicTimeAdjuster()
-            try await camera.startMicCapture { [weak writerRef] sampleBuffer in
+            try await camera.startMicCapture(deviceID: microphoneDeviceID) { [weak writerRef] sampleBuffer in
                 guard let writer = writerRef else { return }
                 if let retimed = micTimer.retime(sampleBuffer) {
                     writer.appendMicAudioSample(retimed)
@@ -79,6 +81,7 @@ public actor CameraOnlyRecorder {
     public func stopRecording() async throws -> UUID? {
         if let camera = cameraCapture {
             await camera.setVideoFrameHandler(nil)
+            await camera.stopMicCapture()
         }
 
         var finalizeError: Error?

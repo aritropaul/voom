@@ -101,7 +101,8 @@ public actor MeetingRecorder {
 
     public func startRecording(
         display: SCDisplay,
-        micEnabled: Bool
+        micEnabled: Bool,
+        microphoneDeviceID: String? = nil
     ) async throws {
         let storage = RecordingStorage.shared
         let outputURL = await storage.newRecordingURL()
@@ -143,6 +144,7 @@ public actor MeetingRecorder {
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.showsCursor = true
         config.capturesAudio = true // system audio always on for meetings
+        config.excludesCurrentProcessAudio = true
         config.sampleRate = 48000
         config.channelCount = 2
 
@@ -183,7 +185,7 @@ public actor MeetingRecorder {
             let outputRef = output
             let camera = CameraCapture()
             self.cameraCapture = camera
-            try await camera.startMicCapture { sampleBuffer in
+            try await camera.startMicCapture(deviceID: microphoneDeviceID) { sampleBuffer in
                 guard !outputRef.isPaused else { return }
                 if let retimed = micTimer.retime(sampleBuffer) {
                     writerRef.appendMicAudioSample(retimed)
@@ -454,20 +456,7 @@ public final class MeetingStreamOutput: NSObject, SCStreamOutput, @unchecked Sen
     }
 
     private func retimeSampleBuffer(_ buffer: CMSampleBuffer, to time: CMTime) -> CMSampleBuffer? {
-        var timing = CMSampleTimingInfo(
-            duration: CMSampleBufferGetDuration(buffer),
-            presentationTimeStamp: time,
-            decodeTimeStamp: .invalid
-        )
-        var newBuffer: CMSampleBuffer?
-        CMSampleBufferCreateCopyWithNewTiming(
-            allocator: nil,
-            sampleBuffer: buffer,
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleBufferOut: &newBuffer
-        )
-        return newBuffer
+        AudioSampleTiming.retime(buffer, to: time)
     }
 }
 

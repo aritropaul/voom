@@ -62,7 +62,8 @@ public actor SpeakerDiarizationService {
         }
 
         logger.notice("[Voom] Starting mixed speaker diarization: \(url.lastPathComponent)")
-        let result = try await mixedManager.process(url)
+        nonisolated(unsafe) let mixed = mixedManager
+        let result = try await mixed.process(url)
         return mapSegments(result)
     }
 
@@ -76,7 +77,8 @@ public actor SpeakerDiarizationService {
         }
 
         logger.notice("[Voom] Diarizing remote speakers: \(systemAudioURL.lastPathComponent)")
-        let result = try await remoteManager.process(systemAudioURL)
+        nonisolated(unsafe) let remote = remoteManager
+        let result = try await remote.process(systemAudioURL)
         return mapSegments(result)
     }
 
@@ -90,7 +92,8 @@ public actor SpeakerDiarizationService {
         }
 
         logger.notice("[Voom] Diarizing local speaker: \(micAudioURL.lastPathComponent)")
-        let result = try await localManager.process(micAudioURL)
+        nonisolated(unsafe) let local = localManager
+        let result = try await local.process(micAudioURL)
 
         // All segments from mic are "You"
         return result.segments.map { segment in

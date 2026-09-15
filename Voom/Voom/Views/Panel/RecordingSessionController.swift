@@ -48,7 +48,10 @@ final class RecordingSessionController {
         }
         let cam = CameraCapture()
         do {
-            try await cam.startCapture()
+            let usedID = try await cam.startCapture(deviceID: appState.selectedCameraDeviceID)
+            if appState.selectedCameraDeviceID != usedID {
+                appState.selectedCameraDeviceID = usedID
+            }
             // Pre-add mic input now so session won't reconfigure (and flicker) when recording starts
             try? await cam.prepareForMic()
             let session = cam.sessionBox.session
@@ -62,6 +65,7 @@ final class RecordingSessionController {
             }
         } catch {
             sessionLogger.error("[Voom] Camera preview failed: \(error.localizedDescription)")
+            errorMessage = "Camera failed: \(error.localizedDescription)"
         }
     }
 
@@ -77,6 +81,10 @@ final class RecordingSessionController {
 
     func pickDisplay() async {
         if appState.availableDisplays.isEmpty {
+            guard ScreenCaptureAccess.ensure() else {
+                errorMessage = ScreenCaptureAccess.deniedMessage
+                return
+            }
             do {
                 let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
                 appState.availableDisplays = content.displays
@@ -84,7 +92,8 @@ final class RecordingSessionController {
                     appState.selectedDisplay = content.displays.first
                 }
             } catch {
-                errorMessage = "Failed to access screen: \(error.localizedDescription)"
+                errorMessage = ScreenCaptureAccess.deniedMessage
+                ScreenCaptureAccess.openSystemSettings()
                 return
             }
         }
@@ -102,7 +111,11 @@ final class RecordingSessionController {
     // MARK: - Start
 
     func startRecording(skipCountdown: Bool = false) async {
+        guard appState.canStartRecording else { return }
         errorMessage = nil
+        // Stop old Voom playback before opening the microphone, including
+        // camera-only recordings where speaker sound could enter the mic.
+        NotificationCenter.default.post(name: .recordingWillStart, object: nil)
         appState.recordingState = .preparing
 
         // Camera-only mode
@@ -126,6 +139,11 @@ final class RecordingSessionController {
         }
 
         if appState.availableDisplays.isEmpty {
+            guard ScreenCaptureAccess.ensure() else {
+                appState.recordingState = .idle
+                errorMessage = ScreenCaptureAccess.deniedMessage
+                return
+            }
             do {
                 let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
                 appState.availableDisplays = content.displays
@@ -134,7 +152,8 @@ final class RecordingSessionController {
                 }
             } catch {
                 appState.recordingState = .idle
-                errorMessage = "Failed to access screen: \(error.localizedDescription)"
+                errorMessage = ScreenCaptureAccess.deniedMessage
+                ScreenCaptureAccess.openSystemSettings()
                 return
             }
         }
@@ -153,7 +172,10 @@ final class RecordingSessionController {
             } else {
                 let cam = CameraCapture()
                 do {
-                    try await cam.startCapture()
+                    let usedID = try await cam.startCapture(deviceID: appState.selectedCameraDeviceID)
+                    if appState.selectedCameraDeviceID != usedID {
+                        appState.selectedCameraDeviceID = usedID
+                    }
                     camera = cam
                     self.activeCamera = cam
                     if let session = cam.sessionBox.session {
@@ -185,7 +207,8 @@ final class RecordingSessionController {
                 nonisolated(unsafe) let captureDisplay = display
                 try await recorder.startRecording(
                     display: captureDisplay,
-                    micEnabled: micEnabled
+                    micEnabled: micEnabled,
+                    microphoneDeviceID: appState.selectedMicrophoneDeviceID
                 )
                 appState.recordingState = .recording
                 appState.recordingDuration = 0
@@ -217,6 +240,8 @@ final class RecordingSessionController {
                     systemAudioEnabled: systemAudioEnabled,
                     pipPosition: pipPosition,
                     existingCamera: camera,
+                    cameraDeviceID: appState.selectedCameraDeviceID,
+                    microphoneDeviceID: appState.selectedMicrophoneDeviceID,
                     cropRect: cropRect,
                     pipWindowNumber: pipWinNum,
                     annotationWindowNumber: annotationWinNum
@@ -242,7 +267,10 @@ final class RecordingSessionController {
         } else {
             let cam = CameraCapture()
             do {
-                try await cam.startCapture()
+                let usedID = try await cam.startCapture(deviceID: appState.selectedCameraDeviceID)
+                if appState.selectedCameraDeviceID != usedID {
+                    appState.selectedCameraDeviceID = usedID
+                }
                 camera = cam
                 self.activeCamera = cam
             } catch {
@@ -259,7 +287,9 @@ final class RecordingSessionController {
         do {
             try await recorder.startRecording(
                 micEnabled: micEnabled,
-                existingCamera: camera
+                existingCamera: camera,
+                cameraDeviceID: appState.selectedCameraDeviceID,
+                microphoneDeviceID: appState.selectedMicrophoneDeviceID
             )
             appState.recordingState = .recording
             appState.recordingDuration = 0

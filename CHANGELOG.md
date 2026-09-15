@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.2.1 — 2026-09-15
+
+- Replace ambiguous mic/listening controls with an Audio panel: Record from, Listen through, computer-audio capture, and an explicit summary of saved audio.
+- Refresh connected microphone lists across Bluetooth profile changes and merge CoreAudio with AVFoundation discovery.
+- Pause Voom playback before recording and exclude Voom's audio from screen and meeting capture.
+- Preserve audio-frame duration when moving captured audio onto the recording timeline.
+
+## 3.2.0 — 2026-09-15
+
+- Separate microphone and listening-output menus: record with the MacBook microphone while listening through AirPods or other headphones.
+- Show connected AirPods Max microphones and keep their input/output profiles associated when selecting a recording device.
+- Put Enhance Voice in the microphone menu for quick access to gentle nasal-tone reduction and volume leveling. Applies to new recordings.
+- Improve speech resampling to preserve detail and continuity between audio buffers.
+
 ## 3.1.0 — 2026-03-06
 
 - Bring your own AI: connect your own API key from OpenAI, Anthropic, Google, or xAI for AI-powered titles, summaries, and chapters.

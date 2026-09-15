@@ -44,7 +44,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             GlobalHotkey.shared.register()
         }
 
-        // Request all permissions upfront on launch
         requestPermissions()
 
         // Start view notification polling if enabled
@@ -84,16 +83,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func requestPermissions() {
-        // Screen recording
-        CGRequestScreenCaptureAccess()
-
-        // Camera
+        // Screen Recording is requested when capture actually starts.
+        // Asking at launch as a menu-bar agent often gets declined with no UI.
         AVCaptureDevice.requestAccess(for: .video) { _ in }
-
-        // Microphone
         AVCaptureDevice.requestAccess(for: .audio) { _ in }
-
-        // Accessibility (for cursor tracking)
         _ = AXIsProcessTrusted()
     }
 

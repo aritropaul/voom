@@ -15,6 +15,7 @@ struct InlineSettingsView: View {
     // Secrets live in the Keychain (ShareConfig/AIConfig), not UserDefaults.
     @State private var apiSecret = ShareConfig.apiSecret
     @AppStorage("AutoTranscribe") private var autoTranscribe = true
+    @AppStorage("VoiceStudio") private var voiceEnhance = true
     @AppStorage("GlobalHotkeyEnabled") private var globalHotkeyEnabled = true
     @AppStorage("ViewNotificationsEnabled") private var viewNotificationsEnabled = true
     @AppStorage("RecordingDirectory") private var recordingDirectory = ""
@@ -249,6 +250,14 @@ struct InlineSettingsView: View {
     private var recordingContent: some View {
         settingsRow(title: "Auto-Transcribe", subtitle: "Transcribe recordings on-device after recording stops.") {
             Toggle("", isOn: $autoTranscribe)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+
+        Divider().foregroundStyle(VoomTheme.borderSubtle)
+
+        settingsRow(title: "Enhance Voice", subtitle: "Softens nasal tone and gently evens volume on your selected mic. Applies to new recordings.") {
+            Toggle("", isOn: $voiceEnhance)
                 .toggleStyle(.switch)
                 .controlSize(.small)
         }

@@ -12,8 +12,13 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "VoomExceptionCatch",
+            path: "Sources/VoomExceptionCatch",
+            publicHeadersPath: "include"
+        ),
+        .target(
             name: "VoomCore",
-            dependencies: ["FluidAudio"]
+            dependencies: ["FluidAudio", "VoomExceptionCatch"]
         ),
         .testTarget(
             name: "VoomCoreTests",

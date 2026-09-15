@@ -260,6 +260,10 @@ struct PlayerView: View {
                 player?.seek(to: CMTime(seconds: timestamp, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .recordingWillStart)) { _ in
+            player?.pause()
+            isPlaying = false
+        }
     }
 
     // MARK: - Video Player
