@@ -128,6 +128,7 @@ final class ControlPanelManager {
     private func autoSelectDisplay(for screen: NSScreen, appState: AppState) {
         guard let screenNumber = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID else { return }
         Task {
+            guard ScreenCaptureAccess.ensure() else { return }
             let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
             guard let displays = content?.displays, !displays.isEmpty else { return }
             appState.availableDisplays = displays

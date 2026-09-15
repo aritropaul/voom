@@ -10,6 +10,13 @@ struct ControlPanelView: View {
     @State private var isRecordHovered = false
     @State private var showSavePreset = false
     @State private var presetName = ""
+    @State private var cameras: [CameraDeviceInfo] = []
+    @State private var microphones: [MicDeviceInfo] = []
+    @State private var audioOutputs: [AudioOutputDeviceInfo] = []
+    @State private var selectedAudioOutputID: String?
+    @State private var audioOutputError: String?
+    @State private var showAudioSettings = false
+    @AppStorage("VoiceStudio") private var voiceEnhance = true
 
     let onOpenLibrary: () -> Void
     let onQuit: () -> Void
@@ -20,6 +27,88 @@ struct ControlPanelView: View {
     }
 
     var body: some View {
+        styledBar
+            .onAppear(perform: startPreviewIfNeeded)
+            .task {
+                // Bluetooth can change its microphone profile after the first
+                // connection event. Refresh while the panel is visible as well.
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                    guard !isRecordingActive else { continue }
+                    refreshMicrophones()
+                    refreshAudioOutputs()
+                }
+            }
+            .onDisappear(perform: stopPreviewIfIdle)
+            .onChange(of: appState.isCameraEnabled) { _, enabled in
+                syncCameraPreview(enabled: enabled || appState.recordingMode == .cameraOnly)
+            }
+            .onChange(of: appState.selectedCameraDeviceID) { oldValue, newValue in
+                guard oldValue != newValue, usesCamera else { return }
+                Task { await session.startCameraPreview() }
+            }
+            .onChange(of: appState.recordingMode) { _, _ in
+                syncCameraPreview(enabled: usesCamera)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: MicDeviceCatalog.devicesDidChangeNotification)) { _ in
+                refreshMicrophones()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: AudioOutputDeviceCatalog.devicesDidChangeNotification)) { _ in
+                refreshAudioOutputs()
+            }
+            .onChange(of: appState.pipPosition, handlePiPPositionChange)
+            .onChange(of: appState.recordingState, handleRecordingStateChange)
+            .modifier(ControlPanelNotifications(
+                refreshDevices: {
+                    refreshCameras()
+                    refreshMicrophones()
+                    refreshAudioOutputs()
+                },
+                onStop: { Task { await stopAndOpenLibrary() } },
+                onToggleHotkey: {
+                    if isRecordingActive {
+                        Task { await stopAndOpenLibrary() }
+                    } else if appState.canStartRecording {
+                        Task { await session.startRecording() }
+                    }
+                },
+                onMeetingStart: {
+                    if appState.canStartRecording {
+                        Task { await session.startRecording(skipCountdown: true) }
+                    }
+                },
+                onMeetingAutoStop: {
+                    if isRecordingActive {
+                        Task { await stopAndOpenLibrary() }
+                    }
+                }
+            ))
+            .alert("Recording Error", isPresented: Binding(
+                get: { session.errorMessage != nil },
+                set: { if !$0 { session.errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { session.errorMessage = nil }
+            } message: {
+                Text(session.errorMessage ?? "")
+            }
+            .alert("Save Preset", isPresented: $showSavePreset) {
+                TextField("Preset name", text: $presetName)
+                Button("Save") { savePreset() }
+                Button("Cancel", role: .cancel) { presetName = "" }
+            } message: {
+                Text("Enter a name for this recording configuration.")
+            }
+            .alert("Audio Output", isPresented: Binding(
+                get: { audioOutputError != nil },
+                set: { if !$0 { audioOutputError = nil } }
+            )) {
+                Button("OK", role: .cancel) { audioOutputError = nil }
+            } message: {
+                Text(audioOutputError ?? "")
+            }
+    }
+
+    private var styledBar: some View {
         barContent
             .padding(.horizontal, 6)
             .padding(.vertical, 6)
@@ -36,92 +125,63 @@ struct ControlPanelView: View {
             .preferredColorScheme(.dark)
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isRecordingActive)
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: appState.isCameraEnabled)
-            .onAppear {
-                if appState.isCameraEnabled {
-                    Task { await session.startCameraPreview() }
-                }
-            }
-            .onDisappear {
-                if !isRecordingActive {
-                    session.stopCameraPreview()
-                }
-            }
-            .onChange(of: appState.isCameraEnabled) { _, enabled in
-                if enabled {
-                    Task { await session.startCameraPreview() }
-                } else {
-                    session.stopCameraPreview()
-                }
-            }
-            .onChange(of: appState.pipPosition) { _, newPosition in
-                guard appState.isCameraEnabled, OverlayManager.shared.isCameraShowing else { return }
-                OverlayManager.shared.moveCameraPiP(to: newPosition)
-            }
-            .onChange(of: appState.recordingState) { oldValue, newValue in
-                let wasRecording = oldValue == .recording || oldValue == .paused
-                let isNowRecording = newValue == .recording || newValue == .paused
-                if wasRecording != isNowRecording {
-                    if let delegate = NSApp.delegate as? AppDelegate {
-                        delegate.updateStatusIcon(recording: isNowRecording)
-                    }
-                    // Re-center panel after morph completes
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .seconds(0.05))
-                        ControlPanelManager.shared.recenterPanel(appState: appState)
-                    }
-                }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .stopRecordingFromMenuBar)) { _ in
-                if isRecordingActive {
-                    Task { await stopAndOpenLibrary() }
-                }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .toggleRecordingFromHotkey)) { _ in
-                if isRecordingActive {
-                    Task { await stopAndOpenLibrary() }
-                } else if appState.canStartRecording {
-                    Task { await session.startRecording() }
-                }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .startRecordingFromMeeting)) { _ in
-                if appState.canStartRecording {
-                    Task { await session.startRecording(skipCountdown: true) }
-                }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .autoStopMeetingRecording)) { _ in
-                if isRecordingActive {
-                    Task { await stopAndOpenLibrary() }
-                }
-            }
-            .alert("Recording Error", isPresented: Binding(
-                get: { session.errorMessage != nil },
-                set: { if !$0 { session.errorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) { session.errorMessage = nil }
-            } message: {
-                Text(session.errorMessage ?? "")
-            }
-            .alert("Save Preset", isPresented: $showSavePreset) {
-                TextField("Preset name", text: $presetName)
-                Button("Save") {
-                    guard !presetName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                    let preset = RecordingPreset(
-                        name: presetName.trimmingCharacters(in: .whitespaces),
-                        recordingMode: appState.recordingMode,
-                        isCameraEnabled: appState.isCameraEnabled,
-                        isMicEnabled: appState.isMicEnabled,
-                        isSystemAudioEnabled: appState.isSystemAudioEnabled,
-                        pipPosition: appState.pipPosition
-                    )
-                    PresetStore.shared.add(preset)
-                    presetName = ""
-                }
-                Button("Cancel", role: .cancel) {
-                    presetName = ""
-                }
-            } message: {
-                Text("Enter a name for this recording configuration.")
-            }
+    }
+
+    private func startPreviewIfNeeded() {
+        MicDeviceCatalog.startObservingHardwareChanges()
+        AudioOutputDeviceCatalog.startObservingHardwareChanges()
+        refreshCameras()
+        refreshMicrophones()
+        refreshAudioOutputs()
+        if usesCamera {
+            Task { await session.startCameraPreview() }
+        }
+    }
+
+    private func stopPreviewIfIdle() {
+        if !isRecordingActive {
+            session.stopCameraPreview()
+        }
+    }
+
+    private func syncCameraPreview(enabled: Bool) {
+        if enabled {
+            Task { await session.startCameraPreview() }
+        } else {
+            session.stopCameraPreview()
+        }
+    }
+
+    private func handlePiPPositionChange(_: PiPPosition, _ newPosition: PiPPosition) {
+        guard appState.isCameraEnabled, OverlayManager.shared.isCameraShowing else { return }
+        OverlayManager.shared.moveCameraPiP(to: newPosition)
+    }
+
+    private func handleRecordingStateChange(_ oldValue: RecordingState, _ newValue: RecordingState) {
+        let wasRecording = oldValue == .recording || oldValue == .paused
+        let isNowRecording = newValue == .recording || newValue == .paused
+        guard wasRecording != isNowRecording else { return }
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.updateStatusIcon(recording: isNowRecording)
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.05))
+            ControlPanelManager.shared.recenterPanel(appState: appState)
+        }
+    }
+
+    private func savePreset() {
+        guard !presetName.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let preset = RecordingPreset(
+            name: presetName.trimmingCharacters(in: .whitespaces),
+            recordingMode: appState.recordingMode,
+            isCameraEnabled: appState.isCameraEnabled,
+            isMicEnabled: appState.isMicEnabled,
+            isSystemAudioEnabled: appState.isSystemAudioEnabled,
+            pipPosition: appState.pipPosition
+        )
+        PresetStore.shared.add(preset)
+        presetName = ""
     }
 
     private func stopAndOpenLibrary() async {
@@ -214,14 +274,14 @@ struct ControlPanelView: View {
                     appState.isCameraEnabled.toggle()
                 }
             }
-            toggleButton(icon: "mic.fill", isOn: appState.isMicEnabled) {
-                appState.isMicEnabled.toggle()
-            }
-            if appState.recordingMode != .cameraOnly {
-                toggleButton(icon: "speaker.wave.2.fill", isOn: appState.isSystemAudioEnabled) {
-                    appState.isSystemAudioEnabled.toggle()
-                }
-            }
+        }
+
+        divider
+        audioSettingsButton
+
+        if usesCamera {
+            divider
+            cameraPicker
         }
 
         // PiP position (only if camera on and not cam-only mode)
@@ -306,6 +366,249 @@ struct ControlPanelView: View {
         .animation(.easeOut(duration: 0.1), value: isRecordHovered)
         .onHover { isRecordHovered = $0 }
         .disabled(appState.recordingState == .preparing)
+    }
+
+    // MARK: - Camera Picker
+
+    private var usesCamera: Bool {
+        appState.recordingMode == .cameraOnly || appState.isCameraEnabled
+    }
+
+    @ViewBuilder
+    private var cameraPicker: some View {
+        Menu {
+            ForEach(cameras) { camera in
+                Button {
+                    appState.selectedCameraDeviceID = camera.uniqueID
+                } label: {
+                    if camera.uniqueID == appState.selectedCameraDeviceID {
+                        Label(camera.localizedName, systemImage: "checkmark")
+                    } else {
+                        Text(camera.localizedName)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "video")
+                    .font(.system(size: 11))
+                Text(cameraLabel)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(VoomTheme.textSecondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(VoomTheme.backgroundHover)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(VoomTheme.borderSubtle, lineWidth: 0.5)
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .onAppear(perform: refreshCameras)
+    }
+
+    private var cameraLabel: String {
+        if let selected = cameras.first(where: { $0.uniqueID == appState.selectedCameraDeviceID }) {
+            return shortCameraName(selected.localizedName)
+        }
+        return cameras.first.map { shortCameraName($0.localizedName) } ?? "Camera"
+    }
+
+    private func shortCameraName(_ name: String) -> String {
+        name.count <= 18 ? name : String(name.prefix(16)) + "…"
+    }
+
+    private func refreshCameras() {
+        cameras = CameraDeviceCatalog.availableDevices()
+    }
+
+    // MARK: - Audio Settings
+
+    private var audioSettingsButton: some View {
+        Button {
+            refreshMicrophones()
+            refreshAudioOutputs()
+            showAudioSettings.toggle()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "waveform")
+                Text("Audio")
+                    .fontWeight(.semibold)
+                Text(appState.isMicEnabled ? shortCameraName(microphoneLabel) : "Mic off")
+                    .foregroundStyle(VoomTheme.textSecondary)
+            }
+            .font(.system(size: 11))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(VoomTheme.backgroundHover)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help("Choose the recording microphone, computer audio, and playback output.")
+        .popover(isPresented: $showAudioSettings, arrowEdge: .top) {
+            audioSettingsPanel
+        }
+    }
+
+    private var audioSettingsPanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Audio for this recording")
+                    .font(.headline)
+                Spacer()
+                Button("Done") { showAudioSettings = false }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Record microphone", isOn: Binding(
+                    get: { appState.isMicEnabled },
+                    set: { appState.isMicEnabled = $0 }
+                ))
+                Picker("Record from", selection: Binding(
+                    get: {
+                        appState.selectedMicrophoneDeviceID.map { selectedMicrophoneID ?? $0 }
+                            ?? "voom.automatic-microphone"
+                    },
+                    set: { value in
+                        appState.selectedMicrophoneDeviceID = value == "voom.automatic-microphone" ? nil : value
+                        appState.isMicEnabled = true
+                    }
+                )) {
+                    Text("Automatic (prefer laptop mic)").tag("voom.automatic-microphone")
+                    ForEach(microphones) { microphone in
+                        Text(microphone.localizedName).tag(microphone.uniqueID)
+                    }
+                    if let missingID = appState.selectedMicrophoneDeviceID, selectedMicrophoneID == nil {
+                        Text("Selected microphone unavailable").tag(missingID)
+                    }
+                }
+                .disabled(!appState.isMicEnabled)
+                Text("This microphone records your voice.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("Enhance voice", isOn: $voiceEnhance)
+                    .disabled(!appState.isMicEnabled)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Listen through", selection: Binding(
+                    get: { selectedAudioOutputID ?? "voom.system-output" },
+                    set: { value in selectAudioOutput(value) }
+                )) {
+                    if !audioOutputs.contains(where: { $0.uniqueID == selectedAudioOutputID }) {
+                        Text("Current Mac output").tag(selectedAudioOutputID ?? "voom.system-output")
+                    }
+                    ForEach(audioOutputs) { output in
+                        Text(output.localizedName).tag(output.uniqueID)
+                    }
+                }
+                Text("Where you hear playback. Choose your recording microphone above.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if appState.recordingMode != .cameraOnly {
+                Divider()
+                VStack(alignment: .leading, spacing: 5) {
+                    Toggle("Record computer audio", isOn: Binding(
+                        get: { recordsComputerAudio },
+                        set: { appState.isSystemAudioEnabled = $0 }
+                    ))
+                    .disabled(appState.isMeetingRecording)
+                    Text(appState.isMeetingRecording
+                         ? "Computer audio is included in meeting recordings."
+                         : "Includes sound from other apps, videos, and calls. Turn off for voice-only recordings.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("What will be saved")
+                    .font(.subheadline.weight(.semibold))
+                Text(recordedAudioSummary)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(VoomTheme.backgroundHover)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            HStack {
+                Button("Refresh devices") {
+                    refreshMicrophones()
+                    refreshAudioOutputs()
+                }
+                Spacer()
+                Button("Connect headphones…", action: openBluetoothSettings)
+            }
+            .font(.caption)
+        }
+        .toggleStyle(.switch)
+        .padding(20)
+        .frame(width: 400)
+        .preferredColorScheme(.dark)
+    }
+
+    private var recordedAudioSummary: String {
+        var sources: [String] = []
+        if appState.isMicEnabled {
+            sources.append(selectedMicrophoneID == nil
+                           ? "Microphone unavailable. Choose a connected microphone."
+                           : "Voice from \(microphoneLabel)")
+        }
+        if recordsComputerAudio {
+            sources.append("Computer audio")
+        }
+        return sources.isEmpty ? "Video only. No audio will be recorded." : sources.joined(separator: "\n")
+    }
+
+    private var recordsComputerAudio: Bool {
+        appState.recordingMode != .cameraOnly && (appState.isMeetingRecording || appState.isSystemAudioEnabled)
+    }
+
+    private var selectedMicrophoneID: String? {
+        MicDeviceCatalog.recordingDevice(
+            preferredID: appState.selectedMicrophoneDeviceID,
+            devices: microphones
+        )?.uniqueID
+    }
+
+    private var microphoneLabel: String {
+        if let selected = microphones.first(where: { $0.uniqueID == selectedMicrophoneID }) {
+            return selected.localizedName
+        }
+        return "Unavailable microphone"
+    }
+
+    private func refreshMicrophones() {
+        microphones = MicDeviceCatalog.availableDevices()
+    }
+
+    private func selectAudioOutput(_ uniqueID: String) {
+        do {
+            try AudioOutputDeviceCatalog.selectDevice(uniqueID: uniqueID)
+        } catch {
+            audioOutputError = error.localizedDescription
+        }
+        refreshAudioOutputs()
+    }
+
+    private func refreshAudioOutputs() {
+        audioOutputs = AudioOutputDeviceCatalog.availableDevices()
+        selectedAudioOutputID = AudioOutputDeviceCatalog.currentDeviceID()
+    }
+
+    private func openBluetoothSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     // MARK: - Mode Picker
@@ -453,5 +756,35 @@ struct ControlPanelView: View {
             return "Display \(display.displayID)"
         }
         return "Select..."
+    }
+}
+
+private struct ControlPanelNotifications: ViewModifier {
+    let refreshDevices: () -> Void
+    let onStop: () -> Void
+    let onToggleHotkey: () -> Void
+    let onMeetingStart: () -> Void
+    let onMeetingAutoStop: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in
+                refreshDevices()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)) { _ in
+                refreshDevices()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .stopRecordingFromMenuBar)) { _ in
+                onStop()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleRecordingFromHotkey)) { _ in
+                onToggleHotkey()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .startRecordingFromMeeting)) { _ in
+                onMeetingStart()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .autoStopMeetingRecording)) { _ in
+                onMeetingAutoStop()
+            }
     }
 }

@@ -60,6 +60,7 @@ public struct DetectedMeeting: Sendable {
 
 public extension Notification.Name {
     static let seekToTimestamp = Notification.Name("com.voom.seekToTimestamp")
+    static let recordingWillStart = Notification.Name("com.voom.recordingWillStart")
 }
 
 // MARK: - Upcoming Meeting

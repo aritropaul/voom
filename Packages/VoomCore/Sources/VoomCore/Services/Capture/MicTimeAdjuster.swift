@@ -42,19 +42,6 @@ public final class MicTimeAdjuster: @unchecked Sendable {
 
         let adjusted = CMTimeSubtract(CMTimeSubtract(timestamp, base), pauseOffset)
         guard adjusted.seconds >= 0 else { return nil }
-        var timing = CMSampleTimingInfo(
-            duration: CMSampleBufferGetDuration(buffer),
-            presentationTimeStamp: adjusted,
-            decodeTimeStamp: .invalid
-        )
-        var newBuffer: CMSampleBuffer?
-        CMSampleBufferCreateCopyWithNewTiming(
-            allocator: nil,
-            sampleBuffer: buffer,
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleBufferOut: &newBuffer
-        )
-        return newBuffer
+        return AudioSampleTiming.retime(buffer, to: adjusted)
     }
 }

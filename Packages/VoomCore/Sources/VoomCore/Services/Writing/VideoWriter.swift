@@ -33,11 +33,10 @@ public final class VideoWriter: @unchecked Sendable {
     private var pendingMicFloats: [Float] = []
     private var audioTrackMode: AudioTrackMode = .mixed
 
-    // Audio gain multipliers
-    private let systemAudioGainSolo: Float = 0.2
-    private let micAudioGainSolo: Float = 6.0
-    private let systemAudioGainMixed: Float = 0.05
-    private let micAudioGainMixed: Float = 4.5
+    private let systemAudioGainSolo: Float = 0.35
+    private let micAudioGainSolo: Float = 1.0
+    private let systemAudioGainMixed: Float = 0.28
+    private let micAudioGainMixed: Float = 1.0
 
     public init() {}
 
@@ -83,54 +82,38 @@ public final class VideoWriter: @unchecked Sendable {
         self.pixelBufferAdaptor = adaptor
 
         if audioMode == .separate && hasSystemAudio && hasMicAudio {
-            // Separate tracks: system audio stereo + mic mono
-            let systemSettings: [String: Any] = [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: 48000,
-                AVNumberOfChannelsKey: 2,
-                AVEncoderBitRateKey: 192000
-            ]
-            let sysInput = AVAssetWriterInput(mediaType: .audio, outputSettings: systemSettings)
+            let sysInput = AVAssetWriterInput(mediaType: .audio, outputSettings: Self.aacSettings(channels: 2))
             sysInput.expectsMediaDataInRealTime = true
             writer.add(sysInput)
             self.audioInput = sysInput
 
-            let micSettings: [String: Any] = [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: 48000,
-                AVNumberOfChannelsKey: 1,
-                AVEncoderBitRateKey: 128000
-            ]
-            let micInput = AVAssetWriterInput(mediaType: .audio, outputSettings: micSettings)
+            let micInput = AVAssetWriterInput(mediaType: .audio, outputSettings: Self.aacSettings(channels: 2))
             micInput.expectsMediaDataInRealTime = true
             writer.add(micInput)
             self.secondAudioInput = micInput
 
             self.hasBothAudioSources = true
-        } else {
-            // Single audio track — system audio is stereo, mic-only is mono.
-            // When both are active, mic samples are mixed into the system audio stream.
-            if hasSystemAudio || hasMicAudio {
-                let channelCount = hasSystemAudio ? 2 : 1
-                let bitRate = hasSystemAudio ? 192000 : 128000
-                let audioSettings: [String: Any] = [
-                    AVFormatIDKey: kAudioFormatMPEG4AAC,
-                    AVSampleRateKey: 48000,
-                    AVNumberOfChannelsKey: channelCount,
-                    AVEncoderBitRateKey: bitRate
-                ]
-                let input = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
-                input.expectsMediaDataInRealTime = true
-                writer.add(input)
-                self.audioInput = input
-                self.hasBothAudioSources = hasSystemAudio && hasMicAudio
-            }
+        } else if hasSystemAudio || hasMicAudio {
+            let input = AVAssetWriterInput(mediaType: .audio, outputSettings: Self.aacSettings(channels: 2))
+            input.expectsMediaDataInRealTime = true
+            writer.add(input)
+            self.audioInput = input
+            self.hasBothAudioSources = hasSystemAudio && hasMicAudio
         }
 
         writer.startWriting()
         writer.startSession(atSourceTime: .zero)
         self.assetWriter = writer
         self.isSessionStarted = true
+    }
+
+    private static func aacSettings(channels: Int) -> [String: Any] {
+        [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: 48_000,
+            AVNumberOfChannelsKey: channels,
+            AVEncoderBitRateKey: 256_000
+        ]
     }
 
     public func appendPixelBuffer(_ pixelBuffer: CVPixelBuffer, at time: CMTime) {
@@ -256,22 +239,40 @@ public final class VideoWriter: @unchecked Sendable {
                                           totalLengthOut: &length, dataPointerOut: &dataPointer) == noErr,
               let data = dataPointer else { return }
 
+        let channels = max(Int(asbd.pointee.mChannelsPerFrame), 1)
+        let sampleRate = asbd.pointee.mSampleRate
+        var mono: [Float] = []
         if asbd.pointee.mFormatFlags & kAudioFormatFlagIsFloat != 0 {
             let count = length / MemoryLayout<Float>.size
             data.withMemoryRebound(to: Float.self, capacity: count) { ptr in
-                for i in 0..<count {
-                    pendingMicFloats.append(min(max(ptr[i] * micAudioGainMixed, -1.0), 1.0))
-                }
+                mono = MicPCM.mono48k(
+                    floats: ptr,
+                    floatCount: count,
+                    channels: channels,
+                    sampleRate: sampleRate,
+                    gain: micAudioGainMixed
+                )
             }
         } else if asbd.pointee.mBitsPerChannel == 16 {
             let count = length / MemoryLayout<Int16>.size
+            var floats = [Float](repeating: 0, count: count)
             data.withMemoryRebound(to: Int16.self, capacity: count) { ptr in
                 for i in 0..<count {
-                    let f = Float(ptr[i]) / Float(Int16.max) * micAudioGainMixed
-                    pendingMicFloats.append(min(max(f, -1.0), 1.0))
+                    floats[i] = Float(ptr[i]) / Float(Int16.max)
                 }
             }
+            floats.withUnsafeBufferPointer { buffer in
+                guard let base = buffer.baseAddress else { return }
+                mono = MicPCM.mono48k(
+                    floats: base,
+                    floatCount: count,
+                    channels: channels,
+                    sampleRate: sampleRate,
+                    gain: micAudioGainMixed
+                )
+            }
         }
+        pendingMicFloats.append(contentsOf: mono)
 
         // Cap buffer at ~1 second to prevent unbounded growth
         let maxSize = 48000

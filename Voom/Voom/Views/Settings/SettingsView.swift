@@ -8,6 +8,7 @@ struct SettingsView: View {
     // Secrets live in the Keychain (ShareConfig/AIConfig), not UserDefaults.
     @State private var apiSecret = ShareConfig.apiSecret
     @AppStorage("AutoTranscribe") private var autoTranscribe = true
+    @AppStorage("VoiceStudio") private var voiceEnhance = true
     @AppStorage("GlobalHotkeyEnabled") private var globalHotkeyEnabled = true
     @AppStorage("ViewNotificationsEnabled") private var viewNotificationsEnabled = true
     @State private var aiAPIKey = AIConfig.apiKey
@@ -57,6 +58,16 @@ struct SettingsView: View {
                 Text("Transcription")
             } footer: {
                 Text("When enabled, recordings with audio are transcribed on-device after recording stops.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Enhance voice", isOn: $voiceEnhance)
+            } header: {
+                Text("Microphone")
+            } footer: {
+                Text("Softens nasal tone, preserves warmth, and gently evens volume on your selected microphone. Applies to new recordings; turn it off for the original sound.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -298,6 +309,8 @@ struct SettingsView: View {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
+        let persistedURL = urlString
+        let persistedSecret = secret
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
@@ -311,9 +324,8 @@ struct SettingsView: View {
                 }
                 if (200...299).contains(http.statusCode) {
                     testStatus = .success
-                    // Save trimmed values
-                    workerBaseURL = urlString
-                    apiSecret = secret
+                    workerBaseURL = persistedURL
+                    apiSecret = persistedSecret
                 } else {
                     testStatus = .failed("HTTP \(http.statusCode)")
                 }

@@ -29,6 +29,8 @@ public actor ScreenRecorder {
         systemAudioEnabled: Bool,
         pipPosition: PiPPosition,
         existingCamera: CameraCapture? = nil,
+        cameraDeviceID: String? = nil,
+        microphoneDeviceID: String? = nil,
         cropRect: CGRect? = nil,
         pipWindowNumber: Int? = nil,
         annotationWindowNumber: Int? = nil
@@ -93,6 +95,7 @@ public actor ScreenRecorder {
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.showsCursor = true
         config.capturesAudio = systemAudioEnabled
+        config.excludesCurrentProcessAudio = true
         config.sampleRate = 48000
         config.channelCount = 2
 
@@ -103,7 +106,7 @@ public actor ScreenRecorder {
                 self.ownsCamera = false
             } else {
                 let camera = CameraCapture()
-                try await camera.startCapture()
+                try await camera.startCapture(deviceID: cameraDeviceID)
                 self.cameraCapture = camera
                 self.ownsCamera = true
             }
@@ -132,7 +135,7 @@ public actor ScreenRecorder {
             self.micTimeAdjuster = micTimer
             let outputRef = output
             if let camera = cameraCapture {
-                try await camera.startMicCapture { sampleBuffer in
+                try await camera.startMicCapture(deviceID: microphoneDeviceID) { sampleBuffer in
                     guard !outputRef.isPaused else { return }
                     if let retimed = micTimer.retime(sampleBuffer) {
                         writerRef.appendMicAudioSample(retimed)
@@ -141,7 +144,7 @@ public actor ScreenRecorder {
             } else {
                 let camera = CameraCapture()
                 self.cameraCapture = camera
-                try await camera.startMicCapture { sampleBuffer in
+                try await camera.startMicCapture(deviceID: microphoneDeviceID) { sampleBuffer in
                     guard !outputRef.isPaused else { return }
                     if let retimed = micTimer.retime(sampleBuffer) {
                         writerRef.appendMicAudioSample(retimed)
@@ -176,8 +179,11 @@ public actor ScreenRecorder {
         }
         stream = nil
 
-        if ownsCamera, let camera = cameraCapture {
-            await camera.stopCapture()
+        if let camera = cameraCapture {
+            await camera.stopMicCapture()
+            if ownsCamera {
+                await camera.stopCapture()
+            }
         }
         cameraCapture = nil
         ownsCamera = false
@@ -433,19 +439,6 @@ public final class StreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     }
 
     private func retimeSampleBuffer(_ buffer: CMSampleBuffer, to time: CMTime) -> CMSampleBuffer? {
-        var timing = CMSampleTimingInfo(
-            duration: CMSampleBufferGetDuration(buffer),
-            presentationTimeStamp: time,
-            decodeTimeStamp: .invalid
-        )
-        var newBuffer: CMSampleBuffer?
-        CMSampleBufferCreateCopyWithNewTiming(
-            allocator: nil,
-            sampleBuffer: buffer,
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleBufferOut: &newBuffer
-        )
-        return newBuffer
+        AudioSampleTiming.retime(buffer, to: time)
     }
 }

@@ -1,6 +1,10 @@
 import Foundation
 import AVFoundation
+import CoreMedia
 import os
+import VoomExceptionCatch
+
+private let cameraLogger = Logger(subsystem: "com.voom.app", category: "CameraCapture")
 
 // MARK: - Camera Frame Handler Protocol
 
@@ -24,7 +28,8 @@ public final class CaptureSessionBox: @unchecked Sendable {
 public actor CameraCapture {
     private var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureVideoDataOutput?
-    private var audioEngine: AVAudioEngine?
+    private var micSession: AVCaptureSession?
+    private var micDelegate: MicAudioDelegate?
     private let delegateHandler = CameraDelegateHandler()
 
     /// Access the capture session from any isolation context (no await needed).
@@ -36,43 +41,58 @@ public actor CameraCapture {
 
     public init() {}
 
-    public func startCapture() async throws {
-        let session = AVCaptureSession()
-        session.beginConfiguration()
+    /// Opens the preferred camera, then any remaining connected camera if that one fails.
+    /// Continuity Camera is last because it is often macOS's default while unavailable.
+    @discardableResult
+    public func startCapture(deviceID: String? = nil) async throws -> String {
+        guard await Self.ensureCameraAuthorized() else {
+            throw CaptureError.cameraAccessDenied
+        }
 
-        // Camera input
-        guard let camera = AVCaptureDevice.default(for: .video) else {
+        let candidates = CameraDeviceCatalog.devicesInPreferenceOrder(
+            preferredID: deviceID,
+            devices: CameraDeviceCatalog.availableDevices()
+        )
+        guard !candidates.isEmpty else {
             throw CaptureError.noCameraAvailable
         }
 
+        var lastError: Error = CaptureError.noCameraAvailable
+        for candidate in candidates {
+            do {
+                return try self.openSession(deviceID: candidate.uniqueID)
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError
+    }
+
+    private func openSession(deviceID: String) throws -> String {
+        guard let camera = AVCaptureDevice(uniqueID: deviceID) else {
+            throw CaptureError.noCameraAvailable
+        }
+
+        let session = AVCaptureSession()
+        session.beginConfiguration()
+
         let cameraInput = try AVCaptureDeviceInput(device: camera)
         guard session.canAddInput(cameraInput) else {
+            session.commitConfiguration()
             throw CaptureError.cannotAddInput
         }
         session.addInput(cameraInput)
+        Self.applyPreferredFormat(to: camera)
 
-        // Configure for 720p at 60fps — find the best matching format
-        try camera.lockForConfiguration()
-        if let match = Self.bestFormat(for: camera, targetWidth: 1280, targetHeight: 720, targetFPS: 60) {
-            camera.activeFormat = match.format
-            let duration = CMTime(value: 1, timescale: Int32(match.fps))
-            camera.activeVideoMinFrameDuration = duration
-            camera.activeVideoMaxFrameDuration = duration
-        }
-        camera.unlockForConfiguration()
-
-        // Video output for pixel buffers
         let videoOutput = AVCaptureVideoDataOutput()
         videoOutput.videoSettings = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
         ]
         videoOutput.alwaysDiscardsLateVideoFrames = true
-        // .userInitiated, not .userInteractive: camera frames feed the encoder
-        // but must yield to the WindowServer / foreground app so live preview +
-        // recording don't make the rest of the system feel laggy.
         videoOutput.setSampleBufferDelegate(delegateHandler, queue: .global(qos: .userInitiated))
 
         guard session.canAddOutput(videoOutput) else {
+            session.commitConfiguration()
             throw CaptureError.cannotAddOutput
         }
         session.addOutput(videoOutput)
@@ -82,167 +102,205 @@ public actor CameraCapture {
         session.startRunning()
         self.captureSession = session
         sessionBox.set(session)
+        return camera.uniqueID
     }
 
-    /// Find the smallest format that supports at least the target resolution and frame rate.
+    private static func ensureCameraAuthorized() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            return true
+        case .notDetermined:
+            return await AVCaptureDevice.requestAccess(for: .video)
+        default:
+            return false
+        }
+    }
+
+    /// USB/DAL cameras (Lenovo and similar) throw NSException from
+    /// `activeVideoMinFrameDuration`. Swift `catch` does not stop that, so
+    /// format setup is optional: preview still starts on the device default.
+    private static func applyPreferredFormat(to camera: AVCaptureDevice) {
+        guard let match = bestFormat(for: camera, targetWidth: 1280, targetHeight: 720, targetFPS: 30) else {
+            return
+        }
+
+        do {
+            try camera.lockForConfiguration()
+        } catch {
+            cameraLogger.error("Camera lockForConfiguration failed: \(error.localizedDescription)")
+            return
+        }
+        defer { camera.unlockForConfiguration() }
+
+        var formatError: NSError?
+        if !VoomCatchException({
+            camera.activeFormat = match.format
+        }, &formatError) {
+            cameraLogger.error("activeFormat rejected: \(formatError?.localizedDescription ?? "unknown")")
+            return
+        }
+
+        // Do not set min/max frame duration. USB/DAL cameras (Lenovo) abort the
+        // process from that setter even when the advertised range includes 30fps.
+
+    }
+
+    /// Smallest format at least `targetWidth`×`targetHeight` whose range can
+    /// serve `targetFPS`, otherwise the highest-rate format. Duration is always
+    /// taken from the range so UVC metadata is not converted through Int32 fps.
     private static func bestFormat(
         for device: AVCaptureDevice,
         targetWidth: Int,
         targetHeight: Int,
         targetFPS: Double
-    ) -> (format: AVCaptureDevice.Format, fps: Double)? {
-        var bestExact: (format: AVCaptureDevice.Format, fps: Double, pixels: Int)?
-        var bestFallback: (format: AVCaptureDevice.Format, fps: Double)?
+    ) -> (format: AVCaptureDevice.Format, frameDuration: CMTime)? {
+        var bestExact: (format: AVCaptureDevice.Format, frameDuration: CMTime, pixels: Int)?
+        var bestFallback: (format: AVCaptureDevice.Format, frameDuration: CMTime, fps: Double)?
 
         for format in device.formats {
             let dims = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
             let pixels = Int(dims.width) * Int(dims.height)
 
             for range in format.videoSupportedFrameRateRanges {
+                let duration = CameraFrameTiming.clampedDuration(
+                    desiredFPS: targetFPS,
+                    minDuration: range.minFrameDuration,
+                    maxDuration: range.maxFrameDuration
+                )
                 if Int(dims.width) >= targetWidth && Int(dims.height) >= targetHeight
                     && range.maxFrameRate >= targetFPS {
                     if bestExact == nil || pixels < bestExact!.pixels {
-                        bestExact = (format, targetFPS, pixels)
+                        bestExact = (format, duration, pixels)
                     }
                 }
                 if bestFallback == nil || range.maxFrameRate > bestFallback!.fps {
-                    bestFallback = (format, range.maxFrameRate)
+                    bestFallback = (format, duration, range.maxFrameRate)
                 }
             }
         }
 
         if let exact = bestExact {
-            return (exact.format, exact.fps)
+            return (exact.format, exact.frameDuration)
         }
-        return bestFallback
+        if let fallback = bestFallback {
+            return (fallback.format, fallback.frameDuration)
+        }
+        return nil
     }
 
-    /// No-op — mic now uses AVAudioEngine (separate from camera AVCaptureSession).
+    /// Microphone capture uses its own session, independent of camera and playback.
     public func prepareForMic() async throws {}
 
-    public func startMicCapture(handler: @escaping @Sendable (CMSampleBuffer) -> Void) async throws {
-        let engine = AVAudioEngine()
-        let inputNode = engine.inputNode
-
-        let nativeFormat = inputNode.outputFormat(forBus: 0)
-        guard nativeFormat.sampleRate > 0, nativeFormat.channelCount > 0 else {
+    public func startMicCapture(
+        deviceID: String? = nil,
+        handler: @escaping @Sendable (CMSampleBuffer) -> Void
+    ) async throws {
+        guard await Self.ensureMicAuthorized() else {
             throw CaptureError.noMicAvailable
         }
 
-        inputNode.installTap(onBus: 0, bufferSize: 4096, format: nativeFormat) { [weak self] buffer, time in
-            guard self != nil else { return }
-            if let sampleBuffer = Self.convertToSampleBuffer(buffer: buffer, time: time) {
-                handler(sampleBuffer)
+        guard let resolved = MicDeviceCatalog.recordingDevice(
+            preferredID: deviceID,
+            devices: MicDeviceCatalog.availableDevices()
+        ) else {
+            if deviceID != nil {
+                throw CaptureError.selectedMicUnavailable("The selected microphone")
             }
+            throw CaptureError.noMicAvailable
         }
+        cameraLogger.notice(
+            "Recording microphone \(resolved.localizedName, privacy: .public) bluetooth=\(resolved.isBluetooth)"
+        )
 
-        engine.prepare()
-        try engine.start()
-        self.audioEngine = engine
+        do {
+            try startAVCaptureMic(
+                preferredID: resolved.uniqueID,
+                preferredName: resolved.localizedName,
+                headset: resolved.isBluetooth,
+                dormantHeadset: resolved.isBluetooth && !resolved.hasInput,
+                handler: handler
+            )
+        } catch {
+            if deviceID != nil {
+                cameraLogger.error("Selected microphone failed: \(error.localizedDescription, privacy: .public)")
+                throw CaptureError.selectedMicUnavailable(resolved.localizedName)
+            }
+            throw error
+        }
     }
 
-    // MARK: - AVAudioPCMBuffer → CMSampleBuffer Conversion
+    public func stopMicCapture() {
+        micSession?.stopRunning()
+        micSession = nil
+        micDelegate = nil
+    }
 
-    private static func convertToSampleBuffer(buffer: AVAudioPCMBuffer, time: AVAudioTime) -> CMSampleBuffer? {
-        let frameCount = buffer.frameLength
-        guard frameCount > 0 else { return nil }
+    private func startAVCaptureMic(
+        preferredID: String?,
+        preferredName: String?,
+        headset: Bool,
+        dormantHeadset: Bool,
+        handler: @escaping @Sendable (CMSampleBuffer) -> Void
+    ) throws {
+        let captureDevice = MicAudioDevices.captureDevice(
+            preferredID: preferredID,
+            preferredName: preferredName,
+            allowBluetoothNameMatch: dormantHeadset
+        )
+        guard let captureDevice else {
+            throw CaptureError.noMicAvailable
+        }
+        cameraLogger.notice("AVCapture microphone \(captureDevice.localizedName, privacy: .public)")
 
-        let format = buffer.format
-        let channels = Int(format.channelCount)
-        let sampleRate = format.sampleRate
+        let session = AVCaptureSession()
+        session.beginConfiguration()
+        let input = try AVCaptureDeviceInput(device: captureDevice)
+        guard session.canAddInput(input) else {
+            session.commitConfiguration()
+            throw CaptureError.cannotAddInput
+        }
+        session.addInput(input)
 
-        guard let floatData = buffer.floatChannelData else { return nil }
-
-        // Build interleaved PCM data
-        let totalSamples = Int(frameCount) * channels
-        var interleaved = [Float](repeating: 0, count: totalSamples)
-
-        if channels == 1 {
-            let src = floatData[0]
-            for i in 0..<Int(frameCount) {
-                interleaved[i] = src[i]
-            }
-        } else {
-            for frame in 0..<Int(frameCount) {
-                for ch in 0..<channels {
-                    interleaved[frame * channels + ch] = floatData[ch][frame]
-                }
-            }
+        let output = AVCaptureAudioDataOutput()
+        if !headset {
+            output.audioSettings = [
+                AVFormatIDKey: Int(kAudioFormatLinearPCM),
+                AVSampleRateKey: 48_000,
+                AVNumberOfChannelsKey: 1,
+                AVLinearPCMBitDepthKey: 32,
+                AVLinearPCMIsFloatKey: true,
+                AVLinearPCMIsNonInterleaved: false
+            ]
+        }
+        let beautifier = AppDefaults.voiceEnhanceEnabled
+            ? VoiceBeautifier(sampleRate: MicPCM.targetSampleRate, headset: headset)
+            : nil
+        let delegate = MicAudioDelegate(beautifier: beautifier, handler: handler)
+        output.setSampleBufferDelegate(delegate, queue: DispatchQueue(label: "voom.mic", qos: .userInitiated))
+        guard session.canAddOutput(output) else {
+            session.commitConfiguration()
+            throw CaptureError.cannotAddOutput
+        }
+        session.addOutput(output)
+        session.commitConfiguration()
+        session.startRunning()
+        guard session.isRunning else {
+            throw CaptureError.noMicAvailable
         }
 
-        let dataSize = totalSamples * MemoryLayout<Float>.size
+        micSession = session
+        micDelegate = delegate
+    }
 
-        var blockBuffer: CMBlockBuffer?
-        guard CMBlockBufferCreateWithMemoryBlock(
-            allocator: kCFAllocatorDefault,
-            memoryBlock: nil,
-            blockLength: dataSize,
-            blockAllocator: kCFAllocatorDefault,
-            customBlockSource: nil,
-            offsetToData: 0,
-            dataLength: dataSize,
-            flags: 0,
-            blockBufferOut: &blockBuffer
-        ) == noErr, let block = blockBuffer else { return nil }
-
-        guard interleaved.withUnsafeBytes({ bytes in
-            CMBlockBufferReplaceDataBytes(
-                with: bytes.baseAddress!, blockBuffer: block,
-                offsetIntoDestination: 0, dataLength: dataSize
-            )
-        }) == noErr else { return nil }
-
-        var asbd = AudioStreamBasicDescription(
-            mSampleRate: sampleRate,
-            mFormatID: kAudioFormatLinearPCM,
-            mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
-            mBytesPerPacket: UInt32(channels * MemoryLayout<Float>.size),
-            mFramesPerPacket: 1,
-            mBytesPerFrame: UInt32(channels * MemoryLayout<Float>.size),
-            mChannelsPerFrame: UInt32(channels),
-            mBitsPerChannel: UInt32(MemoryLayout<Float>.size * 8),
-            mReserved: 0
-        )
-
-        var formatDescription: CMAudioFormatDescription?
-        guard CMAudioFormatDescriptionCreate(
-            allocator: kCFAllocatorDefault,
-            asbd: &asbd,
-            layoutSize: 0,
-            layout: nil,
-            magicCookieSize: 0,
-            magicCookie: nil,
-            extensions: nil,
-            formatDescriptionOut: &formatDescription
-        ) == noErr, let fmtDesc = formatDescription else { return nil }
-
-        let seconds = AVAudioTime.seconds(forHostTime: time.hostTime)
-        let pts = CMTime(seconds: seconds, preferredTimescale: CMTimeScale(sampleRate))
-
-        var timing = CMSampleTimingInfo(
-            duration: CMTime(value: 1, timescale: CMTimeScale(sampleRate)),
-            presentationTimeStamp: pts,
-            decodeTimeStamp: .invalid
-        )
-
-        var sampleBuffer: CMSampleBuffer?
-        var sampleSize = dataSize
-        guard CMSampleBufferCreate(
-            allocator: kCFAllocatorDefault,
-            dataBuffer: block,
-            dataReady: true,
-            makeDataReadyCallback: nil,
-            refcon: nil,
-            formatDescription: fmtDesc,
-            sampleCount: CMItemCount(frameCount),
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleSizeEntryCount: 1,
-            sampleSizeArray: &sampleSize,
-            sampleBufferOut: &sampleBuffer
-        ) == noErr else { return nil }
-
-        return sampleBuffer
+    private static func ensureMicAuthorized() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            return true
+        case .notDetermined:
+            return await AVCaptureDevice.requestAccess(for: .audio)
+        default:
+            return false
+        }
     }
 
     public func setVideoFrameHandler(_ handler: (any CameraFrameHandler)?) {
@@ -254,11 +312,19 @@ public actor CameraCapture {
         captureSession = nil
         videoOutput = nil
 
-        if let engine = audioEngine {
-            engine.inputNode.removeTap(onBus: 0)
-            engine.stop()
-            audioEngine = nil
-        }
+        stopMicCapture()
+    }
+}
+
+// MARK: - Frame duration
+
+enum CameraFrameTiming {
+    static func clampedDuration(desiredFPS: Double, minDuration: CMTime, maxDuration: CMTime) -> CMTime {
+        let fps = max(desiredFPS, 1)
+        let desired = CMTime(seconds: 1.0 / fps, preferredTimescale: 600)
+        if CMTimeCompare(desired, minDuration) < 0 { return minDuration }
+        if CMTimeCompare(desired, maxDuration) > 0 { return maxDuration }
+        return desired
     }
 }
 
@@ -287,15 +353,21 @@ public final class CameraDelegateHandler: NSObject, AVCaptureVideoDataOutputSamp
 public enum CaptureError: LocalizedError {
     case noCameraAvailable
     case noMicAvailable
+    case selectedMicUnavailable(String)
     case cannotAddInput
     case cannotAddOutput
+    case cameraAccessDenied
+    case screenAccessDenied
 
     public var errorDescription: String? {
         switch self {
         case .noCameraAvailable: "No camera found"
         case .noMicAvailable: "No microphone found"
+        case .selectedMicUnavailable(let name): "\(name) could not be opened. Connect it and choose it again, or select another microphone."
         case .cannotAddInput: "Cannot add capture input"
         case .cannotAddOutput: "Cannot add capture output"
+        case .cameraAccessDenied: "Camera access denied"
+        case .screenAccessDenied: ScreenCaptureAccess.deniedMessage
         }
     }
 }
