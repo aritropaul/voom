@@ -17,6 +17,7 @@ public actor ScreenRecorder {
     private var hadMicAudio = false
     private var ownsCamera = false
     private var micTimeAdjuster: MicTimeAdjuster?
+    private var streamDelegate: StreamStopNotifier?
 
     public init(stateProvider: any RecordingStateProvider) {
         self.stateProvider = stateProvider
@@ -30,6 +31,7 @@ public actor ScreenRecorder {
         pipPosition: PiPPosition,
         existingCamera: CameraCapture? = nil,
         cropRect: CGRect? = nil,
+        window: SCWindow? = nil,
         pipWindowNumber: Int? = nil,
         annotationWindowNumber: Int? = nil
     ) async throws {
@@ -59,7 +61,13 @@ public actor ScreenRecorder {
             exceptWindows.append(annotationSCWindow)
         }
 
-        if let voomApp {
+        if let window {
+            // Single-window capture. `desktopIndependentWindow` follows the window
+            // as it moves, resizes, or crosses displays, and captures its real
+            // content even when another window sits on top — the crop-a-display
+            // approach records whatever is visually in that rectangle instead.
+            filter = SCContentFilter(desktopIndependentWindow: window)
+        } else if let voomApp {
             filter = SCContentFilter(display: display, excludingApplications: [voomApp], exceptingWindows: exceptWindows)
         } else {
             filter = SCContentFilter(display: display, excludingWindows: [])
@@ -74,8 +82,16 @@ public actor ScreenRecorder {
             return Int(screen?.backingScaleFactor ?? 2)
         }
 
-        // Region capture: use sourceRect and compute dimensions from crop
-        if let cropRect {
+        // Window capture: size from the filter itself. `contentRect` is the
+        // window's rect in points and `pointPixelScale` resolves the backing
+        // scale even for a window straddling displays of different densities.
+        if window != nil {
+            config.ignoreShadowsSingleWindow = true
+            let pixelWidth = Int((Float(filter.contentRect.width) * filter.pointPixelScale).rounded())
+            let pixelHeight = Int((Float(filter.contentRect.height) * filter.pointPixelScale).rounded())
+            config.width = max(2, pixelWidth & ~1)
+            config.height = max(2, pixelHeight & ~1)
+        } else if let cropRect {
             config.sourceRect = cropRect
             let cropWidth = (Int(cropRect.width) * scaleFactor) & ~1
             let cropHeight = (Int(cropRect.height) * scaleFactor) & ~1
@@ -95,6 +111,9 @@ public actor ScreenRecorder {
         config.capturesAudio = systemAudioEnabled
         config.sampleRate = 48000
         config.channelCount = 2
+        // Keep Voom's own playback out of the capture — otherwise reviewing a
+        // recording while starting another one records it back into the new file.
+        config.excludesCurrentProcessAudio = true
 
         // Set up camera reference (for mic capture)
         if cameraEnabled {
@@ -120,9 +139,24 @@ public actor ScreenRecorder {
         )
         self.videoWriter = writer
 
-        // Create stream output handler
+        // Create stream output handler.
+        //
+        // Window capture streams only the target window, so the PiP panel can't
+        // be excepted into the filter the way it is for a display capture — the
+        // bubble is drawn into each frame here instead.
+        var compositor: CameraCompositor?
+        if window != nil, cameraEnabled, cameraCapture != nil {
+            compositor = CameraCompositor(
+                width: finalWidth,
+                height: finalHeight,
+                pipPosition: pipPosition,
+                scale: CGFloat(filter.pointPixelScale)
+            )
+        }
         let output = StreamOutput(
-            videoWriter: writer
+            videoWriter: writer,
+            camera: compositor != nil ? cameraCapture : nil,
+            compositor: compositor
         )
 
         // Set up mic capture if enabled
@@ -152,7 +186,15 @@ public actor ScreenRecorder {
         self.streamOutput = output
 
         // Start capture
-        let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+        //
+        // A delegate is mandatory, not optional polish: when the captured window
+        // closes (or a display is unplugged, or permission is revoked)
+        // ScreenCaptureKit stops the stream and this is the ONLY notification.
+        // Without it the timer keeps counting against a dead stream and the user
+        // gets a truncated file with no explanation.
+        let streamDelegate = StreamStopNotifier()
+        self.streamDelegate = streamDelegate
+        let stream = SCStream(filter: filter, configuration: config, delegate: streamDelegate)
         // .userInitiated, not .userInteractive: the capture+encode feed must
         // stay high-priority but must NOT sit co-equal with the WindowServer
         // and the foreground app. At .userInteractive the 5K60 pipeline starves
@@ -176,8 +218,11 @@ public actor ScreenRecorder {
         }
         stream = nil
 
-        if ownsCamera, let camera = cameraCapture {
-            await camera.stopCapture()
+        // The mic is always ours to release, even when the camera was borrowed
+        // from the live preview — otherwise the tap outlives the recording.
+        if let camera = cameraCapture {
+            await camera.stopMicCapture()
+            if ownsCamera { await camera.stopCapture() }
         }
         cameraCapture = nil
         ownsCamera = false
@@ -194,6 +239,7 @@ public actor ScreenRecorder {
         videoWriter = nil
         streamOutput = nil
         micTimeAdjuster = nil
+        streamDelegate = nil
 
         let outputURL = await MainActor.run { stateProvider.currentRecordingURL }
         if let outputURL {
@@ -280,10 +326,28 @@ public actor ScreenRecorder {
 
 // MicTimeAdjuster lives in VoomCore (shared with MeetingRecorder).
 
+// MARK: - Stream Stop Notifier
+
+/// Turns an unsolicited ScreenCaptureKit stop into an app-level notification so
+/// the session controller can finalize the file and tell the user why.
+final class StreamStopNotifier: NSObject, SCStreamDelegate, @unchecked Sendable {
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        NotificationCenter.default.post(
+            name: .captureStreamStopped,
+            object: nil,
+            userInfo: [captureStreamErrorKey: error]
+        )
+    }
+}
+
 // MARK: - StreamOutput
 
 public final class StreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
     private let videoWriter: VideoWriter
+    /// Only set for single-window capture, where the camera bubble has to be
+    /// drawn into the frame rather than captured as its own window.
+    private let camera: CameraCapture?
+    private let compositor: CameraCompositor?
     private let lock = NSLock()
 
     // Separate clock tracking for screen and audio
@@ -316,8 +380,10 @@ public final class StreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
         }
     }
 
-    public init(videoWriter: VideoWriter) {
+    public init(videoWriter: VideoWriter, camera: CameraCapture? = nil, compositor: CameraCompositor? = nil) {
         self.videoWriter = videoWriter
+        self.camera = camera
+        self.compositor = compositor
     }
 
     public func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
@@ -382,7 +448,25 @@ public final class StreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
         lastWriteTime = adjustedTime
         lock.unlock()
 
-        videoWriter.appendPixelBuffer(pixelBuffer, at: adjustedTime)
+        // A compositing failure falls through to the raw frame: a recording
+        // missing its bubble is far better than a dropped frame.
+        var frame = pixelBuffer
+        if let compositor, let cameraFrame = camera?.latestPixelBuffer,
+           let composited = compositor.composite(screen: pixelBuffer, camera: cameraFrame) {
+            frame = composited
+        }
+
+        videoWriter.appendPixelBuffer(frame, at: adjustedTime)
+    }
+
+    /// The last frame written, composited if this is a window capture, so the
+    /// tail frame matches the rest of the recording.
+    private func compositedLastFrame(_ pixelBuffer: CVPixelBuffer) -> CVPixelBuffer {
+        guard let compositor, let cameraFrame = camera?.latestPixelBuffer,
+              let composited = compositor.composite(screen: pixelBuffer, camera: cameraFrame) else {
+            return pixelBuffer
+        }
+        return composited
     }
 
     private func handleSystemAudioSample(_ sampleBuffer: CMSampleBuffer, adjustedTime: CMTime) {
@@ -395,7 +479,7 @@ public final class StreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
             }
         }
 
-        if let retimed = retimeSampleBuffer(sampleBuffer, to: adjustedTime) {
+        if let retimed = AudioSampleTiming.retime(sampleBuffer, to: adjustedTime) {
             videoWriter.appendSystemAudioSample(retimed)
         }
     }
@@ -429,23 +513,7 @@ public final class StreamOutput: NSObject, SCStreamOutput, @unchecked Sendable {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(lastBuffer) else { lock.unlock(); return }
         let finalTime = CMTimeAdd(lastWriteTime, CMTime(value: 1, timescale: 60))
         lock.unlock()
-        videoWriter.appendPixelBuffer(pixelBuffer, at: finalTime)
+        videoWriter.appendPixelBuffer(compositedLastFrame(pixelBuffer), at: finalTime)
     }
 
-    private func retimeSampleBuffer(_ buffer: CMSampleBuffer, to time: CMTime) -> CMSampleBuffer? {
-        var timing = CMSampleTimingInfo(
-            duration: CMSampleBufferGetDuration(buffer),
-            presentationTimeStamp: time,
-            decodeTimeStamp: .invalid
-        )
-        var newBuffer: CMSampleBuffer?
-        CMSampleBufferCreateCopyWithNewTiming(
-            allocator: nil,
-            sampleBuffer: buffer,
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleBufferOut: &newBuffer
-        )
-        return newBuffer
-    }
 }

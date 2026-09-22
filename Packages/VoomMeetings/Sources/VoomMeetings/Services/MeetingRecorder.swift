@@ -143,6 +143,8 @@ public actor MeetingRecorder {
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.showsCursor = true
         config.capturesAudio = true // system audio always on for meetings
+        // Keep Voom's own playback out of the meeting capture.
+        config.excludesCurrentProcessAudio = true
         config.sampleRate = 48000
         config.channelCount = 2
 

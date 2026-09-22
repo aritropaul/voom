@@ -6,6 +6,10 @@
 	<string>https://github.com/aritropaul/voom/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>0tIuvb3kAW88OZGHpdNK6EUDP+KZXjmGRyevZPuZaXc=</string>
+	<!-- Opt in to the .continuityCamera device type; without this an iPhone
+	     used as a webcam reports itself as the built-in camera. -->
+	<key>NSCameraUseContinuityCameraDeviceType</key>
+	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Voom needs camera access to record webcam overlay in your screen recordings.</string>
 	<key>NSMicrophoneUsageDescription</key>

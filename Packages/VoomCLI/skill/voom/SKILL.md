@@ -17,6 +17,9 @@ command contract — don't hardcode flags from this file, which may lag the bina
 - Fixed-length record: `voom record --duration 30 --json`.
 - Pick a display: `voom targets --json` to list displays, then
   `voom record --display <id> --json`.
+- Record one window: `voom targets --json` to list windows, then
+  `voom record --window <id> --json`. Captures that window's own content, so
+  windows placed on top of it are not recorded.
 - Include audio: add `--mic` and/or `--system-audio`.
 - List recordings: `voom list --json`.
 

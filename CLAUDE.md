@@ -11,10 +11,15 @@ A privacy-first macOS screen recording app. Records screen + camera + mic, trans
 cd Voom && xcodebuild -scheme Voom -configuration Debug build
 
 # Run (debug — product is named "Voom Debug.app", not "Voom.app")
-open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/"Voom Debug.app"
+# Resolve the path instead of globbing Voom-*: a second DerivedData tree (from
+# building a worktree copy of the project) makes the glob match two different
+# apps and `open` launches both.
+VOOM_APP=$(xcodebuild -project Voom/Voom.xcodeproj -scheme Voom -configuration Debug \
+  -showBuildSettings 2>/dev/null | awk -F' = ' '/ BUILT_PRODUCTS_DIR/{print $2}')/"Voom Debug.app"
+open "$VOOM_APP"
 
 # Kill and relaunch
-pkill -f "Voom Debug"; sleep 1; open ~/Library/Developer/Xcode/DerivedData/Voom-*/Build/Products/Debug/"Voom Debug.app"
+pkill -f "Voom Debug"; sleep 1; open "$VOOM_APP"
 
 # Swift tests (pure logic in VoomCore)
 swift test --package-path Packages/VoomCore
@@ -248,6 +253,17 @@ For folder references (like WorkerBundle): use `lastKnownFileType = folder` and 
 - **Debug bundle ID**: `com.voom.app.debug` / **Release**: `com.voom.app`
 - **Hardened runtime**: Off in Debug, **on in Release** (pbxproj and CI agree; required for notarization)
 - Never leave stale builds in `Voom/build/` — Launch Services may pick them over DerivedData
+- **Never `xcodebuild` a worktree/second copy of the project.** It creates a second
+  `~/Library/Developer/Xcode/DerivedData/Voom-*` tree, so any `Voom-*` glob becomes
+  ambiguous and can launch the wrong app.
+- **Never build with `CODE_SIGNING_ALLOWED=NO` for anything you intend to run.** That
+  produces an ad-hoc, linker-signed binary whose designated requirement is cdhash-based,
+  so macOS treats every rebuild as a brand-new app and re-prompts for Screen Recording,
+  Camera, Mic and the Keychain on every launch. A normal signed Debug build has a stable
+  requirement (bundle id + development cert) and keeps its grants across rebuilds.
+  If grants have already been poisoned by such a build:
+  `tccutil reset ScreenCapture com.voom.app.debug` (also `Camera`, `Microphone`), then
+  grant once.
 
 ## Release Process
 

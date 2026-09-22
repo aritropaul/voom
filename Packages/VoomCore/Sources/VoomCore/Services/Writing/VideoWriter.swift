@@ -244,6 +244,9 @@ public final class VideoWriter: @unchecked Sendable {
     // MARK: - Audio Mixing
 
     /// Buffer mic PCM samples (mono) with gain applied for later mixing.
+    /// One per writer so the resampler keeps its state across buffers.
+    private let micResampler = MicResampler()
+
     private func bufferMicSamples(_ sampleBuffer: CMSampleBuffer) {
         guard let formatDesc = CMSampleBufferGetFormatDescription(sampleBuffer),
               let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc),
@@ -256,21 +259,31 @@ public final class VideoWriter: @unchecked Sendable {
                                           totalLengthOut: &length, dataPointerOut: &dataPointer) == noErr,
               let data = dataPointer else { return }
 
+        // Decode to floats first, then normalise to mono 48 kHz. Appending the
+        // device's native format straight into the mix plays the mic back at the
+        // wrong rate — a 16 kHz Bluetooth headset comes out sped up and
+        // pitch-shifted.
+        var decoded: [Float] = []
         if asbd.pointee.mFormatFlags & kAudioFormatFlagIsFloat != 0 {
             let count = length / MemoryLayout<Float>.size
-            data.withMemoryRebound(to: Float.self, capacity: count) { ptr in
-                for i in 0..<count {
-                    pendingMicFloats.append(min(max(ptr[i] * micAudioGainMixed, -1.0), 1.0))
-                }
+            decoded = data.withMemoryRebound(to: Float.self, capacity: count) { ptr in
+                Array(UnsafeBufferPointer(start: ptr, count: count))
             }
         } else if asbd.pointee.mBitsPerChannel == 16 {
             let count = length / MemoryLayout<Int16>.size
-            data.withMemoryRebound(to: Int16.self, capacity: count) { ptr in
-                for i in 0..<count {
-                    let f = Float(ptr[i]) / Float(Int16.max) * micAudioGainMixed
-                    pendingMicFloats.append(min(max(f, -1.0), 1.0))
-                }
+            decoded = data.withMemoryRebound(to: Int16.self, capacity: count) { ptr in
+                (0..<count).map { Float(ptr[$0]) / Float(Int16.max) }
             }
+        }
+        guard !decoded.isEmpty else { return }
+
+        let normalized = micResampler.monoAt48k(
+            decoded,
+            channels: Int(asbd.pointee.mChannelsPerFrame),
+            sampleRate: asbd.pointee.mSampleRate
+        )
+        for sample in normalized {
+            pendingMicFloats.append(min(max(sample * micAudioGainMixed, -1.0), 1.0))
         }
 
         // Cap buffer at ~1 second to prevent unbounded growth

@@ -21,8 +21,13 @@ public final class CaptureSessionBox: @unchecked Sendable {
 
 // MARK: - Camera Capture
 
+private let cameraLogger = Logger(subsystem: "com.voom.app", category: "CameraCapture")
+
 public actor CameraCapture {
     private var captureSession: AVCaptureSession?
+    /// `uniqueID` of the device actually opened — may differ from the saved
+    /// preference when that camera was unavailable.
+    public private(set) var activeDeviceID: String?
     private var videoOutput: AVCaptureVideoDataOutput?
     private var audioEngine: AVAudioEngine?
     private let delegateHandler = CameraDelegateHandler()
@@ -36,30 +41,59 @@ public actor CameraCapture {
 
     public init() {}
 
-    public func startCapture() async throws {
+    /// Opens a camera session.
+    ///
+    /// `deviceID` is an `AVCaptureDevice.uniqueID`; when omitted the user's saved
+    /// preference is used, so every existing caller honours the choice without
+    /// having to thread it through. A preference naming an unplugged camera falls
+    /// back to a working one rather than failing the recording.
+    public func startCapture(deviceID: String? = nil) async throws {
         let session = AVCaptureSession()
         session.beginConfiguration()
 
         // Camera input
-        guard let camera = AVCaptureDevice.default(for: .video) else {
+        let preferredID = deviceID ?? AppDefaults.preferredCameraDeviceID
+        guard let camera = CameraDeviceCatalog.resolve(preferredID: preferredID) else {
+            session.commitConfiguration()
             throw CaptureError.noCameraAvailable
         }
+        self.activeDeviceID = camera.uniqueID
 
-        let cameraInput = try AVCaptureDeviceInput(device: camera)
+        let cameraInput: AVCaptureDeviceInput
+        do {
+            cameraInput = try AVCaptureDeviceInput(device: camera)
+        } catch {
+            // commitConfiguration must balance beginConfiguration on every exit
+            // or the session is left wedged mid-reconfiguration.
+            session.commitConfiguration()
+            throw error
+        }
         guard session.canAddInput(cameraInput) else {
+            session.commitConfiguration()
             throw CaptureError.cannotAddInput
         }
         session.addInput(cameraInput)
 
         // Configure for 720p at 60fps — find the best matching format
-        try camera.lockForConfiguration()
         if let match = Self.bestFormat(for: camera, targetWidth: 1280, targetHeight: 720, targetFPS: 60) {
-            camera.activeFormat = match.format
-            let duration = CMTime(value: 1, timescale: Int32(match.fps))
-            camera.activeVideoMinFrameDuration = duration
-            camera.activeVideoMaxFrameDuration = duration
+            do {
+                try camera.lockForConfiguration()
+                camera.activeFormat = match.format
+                // Requesting a duration outside the format's advertised ranges
+                // raises an ObjC exception that Swift cannot catch, so the rate
+                // is clamped into a real range first. External and virtual
+                // cameras report ranges that make this a live hazard.
+                if let duration = match.format.clampedFrameDuration(targetFPS: match.fps) {
+                    camera.activeVideoMinFrameDuration = duration
+                    camera.activeVideoMaxFrameDuration = duration
+                }
+                camera.unlockForConfiguration()
+            } catch {
+                // A device that won't lock keeps its current format — a
+                // suboptimal preview beats no preview.
+                cameraLogger.warning("Camera format configuration skipped: \(error.localizedDescription)")
+            }
         }
-        camera.unlockForConfiguration()
 
         // Video output for pixel buffers
         let videoOutput = AVCaptureVideoDataOutput()
@@ -73,6 +107,7 @@ public actor CameraCapture {
         videoOutput.setSampleBufferDelegate(delegateHandler, queue: .global(qos: .userInitiated))
 
         guard session.canAddOutput(videoOutput) else {
+            session.commitConfiguration()
             throw CaptureError.cannotAddOutput
         }
         session.addOutput(videoOutput)
@@ -249,16 +284,27 @@ public actor CameraCapture {
         delegateHandler.recordHandler = handler
     }
 
+    /// Stops the mic tap without touching the camera session.
+    ///
+    /// Recorders must be able to release the microphone even when they borrowed
+    /// someone else's camera: the PiP preview keeps its camera running across
+    /// recordings, so tying mic teardown to camera ownership left the tap — and
+    /// the system's microphone-in-use indicator — running after every
+    /// camera-plus-mic recording. Idempotent.
+    /// Adapted from PR #3 by @vitaliiznak.
+    public func stopMicCapture() {
+        guard let engine = audioEngine else { return }
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        audioEngine = nil
+    }
+
     public func stopCapture() {
         captureSession?.stopRunning()
         captureSession = nil
         videoOutput = nil
-
-        if let engine = audioEngine {
-            engine.inputNode.removeTap(onBus: 0)
-            engine.stop()
-            audioEngine = nil
-        }
+        activeDeviceID = nil
+        stopMicCapture()
     }
 }
 

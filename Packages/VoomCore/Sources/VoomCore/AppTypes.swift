@@ -16,6 +16,7 @@ public enum RecordingState: Equatable, Sendable {
 public enum RecordingMode: String, Codable, CaseIterable, Hashable, Sendable {
     case fullScreen
     case region
+    case window
     case cameraOnly
 }
 
@@ -60,7 +61,14 @@ public struct DetectedMeeting: Sendable {
 
 public extension Notification.Name {
     static let seekToTimestamp = Notification.Name("com.voom.seekToTimestamp")
+    /// Posted when ScreenCaptureKit tears the capture stream down on its own —
+    /// the recorded window closed, the display went away, or permission was
+    /// revoked. `userInfo[captureStreamErrorKey]` carries the underlying error.
+    static let captureStreamStopped = Notification.Name("com.voom.captureStreamStopped")
 }
+
+/// Key for the error carried by `.captureStreamStopped`.
+public let captureStreamErrorKey = "error"
 
 // MARK: - Upcoming Meeting
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import ServiceManagement
 import Sparkle
 import EventKit
@@ -20,6 +21,8 @@ struct InlineSettingsView: View {
     @AppStorage("RecordingDirectory") private var recordingDirectory = ""
     @AppStorage("LaunchAtLogin") private var launchAtLogin = false
     @AppStorage("MeetingDetectionEnabled") private var meetingDetectionEnabled = false
+    @AppStorage("PreferredCameraDeviceID") private var preferredCameraID: String?
+    @State private var cameraDevices: [CameraDevice] = []
     @State private var aiAPIKey = AIConfig.apiKey
     @AppStorage("AISelectedProvider") private var aiSelectedProvider = AIProvider.defaultProvider.rawValue
     @AppStorage("AISelectedModel") private var aiSelectedModel = AIProvider.defaultModel.id
@@ -247,6 +250,32 @@ struct InlineSettingsView: View {
 
     @ViewBuilder
     private var recordingContent: some View {
+        settingsRow(title: "Camera", subtitle: "Which camera the picture-in-picture bubble uses.") {
+            Picker("", selection: cameraSelection) {
+                Text("System Default").tag(String?.none)
+                ForEach(cameraDevices) { device in
+                    Text(device.name).tag(String?.some(device.id))
+                }
+                // Keep a vanished camera listed so the row shows the saved
+                // choice instead of silently snapping to System Default.
+                if let preferredCameraID, !cameraDevices.contains(where: { $0.id == preferredCameraID }) {
+                    Text("Unavailable camera").tag(String?.some(preferredCameraID))
+                }
+            }
+            .labelsHidden()
+            .controlSize(.small)
+            .frame(maxWidth: 180)
+        }
+        .onAppear { cameraDevices = CameraDeviceCatalog.availableDevices() }
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in
+            cameraDevices = CameraDeviceCatalog.availableDevices()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)) { _ in
+            cameraDevices = CameraDeviceCatalog.availableDevices()
+        }
+
+        Divider().foregroundStyle(VoomTheme.borderSubtle)
+
         settingsRow(title: "Auto-Transcribe", subtitle: "Transcribe recordings on-device after recording stops.") {
             Toggle("", isOn: $autoTranscribe)
                 .toggleStyle(.switch)
@@ -570,6 +599,17 @@ struct InlineSettingsView: View {
             Spacer()
             accessory()
         }
+    }
+
+    /// Routes writes through the session controller so the live preview rebinds
+    /// to the new device, not just the stored preference.
+    private var cameraSelection: Binding<String?> {
+        Binding(
+            get: { preferredCameraID },
+            set: { newValue in
+                Task { await RecordingSessionController.shared.selectCamera(deviceID: newValue) }
+            }
+        )
     }
 
     private var recordingDirectoryDisplay: String {

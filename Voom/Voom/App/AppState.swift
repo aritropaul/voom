@@ -18,6 +18,10 @@ final class AppState: RecordingStateProvider {
     var selectedRecordingID: UUID?
     var recordingMode: RecordingMode = .fullScreen
     var selectedRegion: CGRect?
+    /// Target for `.window` mode. Held as a value snapshot — the live `SCWindow`
+    /// is re-resolved by id when recording starts, so a moved or resized window
+    /// still captures correctly.
+    var selectedWindow: CapturableWindow?
     var isAnnotating: Bool = false
     var hasCompletedOnboarding: Bool {
         get { UserDefaults.standard.bool(forKey: "HasCompletedOnboarding") }

@@ -79,6 +79,9 @@ public actor CameraOnlyRecorder {
     public func stopRecording() async throws -> UUID? {
         if let camera = cameraCapture {
             await camera.setVideoFrameHandler(nil)
+            // Release the microphone with the recording, not whenever the
+            // camera session happens to be torn down.
+            await camera.stopMicCapture()
         }
 
         var finalizeError: Error?

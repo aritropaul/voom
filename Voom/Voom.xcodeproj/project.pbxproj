@@ -30,6 +30,7 @@
 		B04B8D5B0A0DCCE2E6FAAE1A /* AnnotationOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F1B859C84CB7A44AFF4E3A9 /* AnnotationOverlay.swift */; };
 		64D86073DFD9D7EC9CA27E05 /* AnnotationToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97E6F160020DC12A67366CF7 /* AnnotationToolbar.swift */; };
 		EB5D182176B346C35EA148E9 /* RegionSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F62201DF7112D57351F750 /* RegionSelector.swift */; };
+		C8B2D5F03E74A1692B5DAC37 /* WindowPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A1C4E92D63F0581A4C9B26 /* WindowPicker.swift */; };
 		1056F2812BC517F06659A708 /* TrimView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B3BD4E85C9A3307AC4DB577 /* TrimView.swift */; };
 		5F958621AEBCB1F0EE222894 /* CutSpliceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFDEBDE922D4BAEF4661EF66 /* CutSpliceView.swift */; };
 		AB52FEA7E24C83286D60D0E0 /* ChapterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC24AAAF50FB392D2C36351C /* ChapterView.swift */; };
@@ -75,6 +76,7 @@
 		6F1B859C84CB7A44AFF4E3A9 /* AnnotationOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationOverlay.swift; sourceTree = "<group>"; };
 		97E6F160020DC12A67366CF7 /* AnnotationToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationToolbar.swift; sourceTree = "<group>"; };
 		E5F62201DF7112D57351F750 /* RegionSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegionSelector.swift; sourceTree = "<group>"; };
+		B7A1C4E92D63F0581A4C9B26 /* WindowPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowPicker.swift; sourceTree = "<group>"; };
 		8B3BD4E85C9A3307AC4DB577 /* TrimView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrimView.swift; sourceTree = "<group>"; };
 		FFDEBDE922D4BAEF4661EF66 /* CutSpliceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CutSpliceView.swift; sourceTree = "<group>"; };
 		EC24AAAF50FB392D2C36351C /* ChapterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChapterView.swift; sourceTree = "<group>"; };
@@ -192,6 +194,7 @@
 				6F1B859C84CB7A44AFF4E3A9 /* AnnotationOverlay.swift */,
 				97E6F160020DC12A67366CF7 /* AnnotationToolbar.swift */,
 				E5F62201DF7112D57351F750 /* RegionSelector.swift */,
+				B7A1C4E92D63F0581A4C9B26 /* WindowPicker.swift */,
 			);
 			path = Overlay;
 			sourceTree = "<group>";
@@ -357,6 +360,7 @@
 				B04B8D5B0A0DCCE2E6FAAE1A /* AnnotationOverlay.swift in Sources */,
 				64D86073DFD9D7EC9CA27E05 /* AnnotationToolbar.swift in Sources */,
 				EB5D182176B346C35EA148E9 /* RegionSelector.swift in Sources */,
+				C8B2D5F03E74A1692B5DAC37 /* WindowPicker.swift in Sources */,
 				1056F2812BC517F06659A708 /* TrimView.swift in Sources */,
 				5F958621AEBCB1F0EE222894 /* CutSpliceView.swift in Sources */,
 				AB52FEA7E24C83286D60D0E0 /* ChapterView.swift in Sources */,
@@ -506,7 +510,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4.2.0;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 2J3WW2KWBU;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -520,7 +524,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 3.1.0;
+				MARKETING_VERSION = 4.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.voom.app.debug;
 				PRODUCT_NAME = "Voom Debug";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -539,7 +543,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4.2.0;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = 2J3WW2KWBU;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -553,7 +557,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 3.1.0;
+				MARKETING_VERSION = 4.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.voom.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

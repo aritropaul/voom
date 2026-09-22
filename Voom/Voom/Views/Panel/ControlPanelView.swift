@@ -10,6 +10,11 @@ struct ControlPanelView: View {
     @State private var isRecordHovered = false
     @State private var showSavePreset = false
     @State private var presetName = ""
+    @State private var cameraDevices: [CameraDevice] = []
+    /// Read through @AppStorage so the menu's checkmark tracks the value that
+    /// `selectCamera` writes. Writes go through the session controller, which
+    /// also rebinds the live preview.
+    @AppStorage("PreferredCameraDeviceID") private var preferredCameraID: String?
 
     let onOpenLibrary: () -> Void
     let onQuit: () -> Void
@@ -19,7 +24,22 @@ struct ControlPanelView: View {
         appState.recordingState == .recording || appState.recordingState == .paused
     }
 
+    /// The annotation overlay is a separate full-screen Voom window, so it only
+    /// reaches the file through a display-wide capture. Single-window capture
+    /// streams just the target window; the webcam gets composited in by the
+    /// recorder, but there is no pixel source to composite annotations from.
+    private var supportsAnnotation: Bool {
+        appState.recordingMode != .cameraOnly && appState.recordingMode != .window
+    }
+
+    // The modifier chain is split across three helpers only because a single
+    // chain this long no longer type-checks in reasonable time. Order and
+    // behaviour are unchanged.
     var body: some View {
+        withAlerts(withNotifications(withLifecycle(styledBar)))
+    }
+
+    private var styledBar: some View {
         barContent
             .padding(.horizontal, 6)
             .padding(.vertical, 6)
@@ -36,8 +56,29 @@ struct ControlPanelView: View {
             .preferredColorScheme(.dark)
             .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isRecordingActive)
             .animation(.spring(response: 0.3, dampingFraction: 0.85), value: appState.isCameraEnabled)
+    }
+
+    @ViewBuilder
+    private func withLifecycle<Content: View>(_ content: Content) -> some View {
+        content
             .onAppear {
+                refreshCameraDevices()
                 if appState.isCameraEnabled {
+                    Task { await session.startCameraPreview() }
+                }
+            }
+            // KVO on DiscoverySession.devices is unreliable on macOS; these
+            // notifications are the dependable signal that the list changed.
+            .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasConnectedNotification)) { _ in
+                refreshCameraDevices()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: AVCaptureDevice.wasDisconnectedNotification)) { _ in
+                refreshCameraDevices()
+                // The camera the user picked just went away. Fall back to the
+                // system's pick for the live preview without discarding their
+                // choice, so re-plugging it restores the selection.
+                if let preferredCameraID, !cameraDevices.contains(where: { $0.id == preferredCameraID }),
+                   appState.isCameraEnabled, appState.recordingMode != .cameraOnly {
                     Task { await session.startCameraPreview() }
                 }
             }
@@ -71,6 +112,11 @@ struct ControlPanelView: View {
                     }
                 }
             }
+    }
+
+    @ViewBuilder
+    private func withNotifications<Content: View>(_ content: Content) -> some View {
+        content
             .onReceive(NotificationCenter.default.publisher(for: .stopRecordingFromMenuBar)) { _ in
                 if isRecordingActive {
                     Task { await stopAndOpenLibrary() }
@@ -93,6 +139,23 @@ struct ControlPanelView: View {
                     Task { await stopAndOpenLibrary() }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .captureStreamStopped)) { notification in
+                // The system tore the stream down — the recorded window closed,
+                // a display went away, or permission was revoked. Save what we
+                // have rather than letting the timer run against a dead stream.
+                guard isRecordingActive else { return }
+                let reason = (notification.userInfo?[captureStreamErrorKey] as? Error)?.localizedDescription
+                Task {
+                    await stopAndOpenLibrary()
+                    session.errorMessage = "Recording stopped because the capture source went away."
+                        + (reason.map { " (\($0))" } ?? "")
+                }
+            }
+    }
+
+    @ViewBuilder
+    private func withAlerts<Content: View>(_ content: Content) -> some View {
+        content
             .alert("Recording Error", isPresented: Binding(
                 get: { session.errorMessage != nil },
                 set: { if !$0 { session.errorMessage = nil } }
@@ -213,6 +276,9 @@ struct ControlPanelView: View {
                 toggleButton(icon: "camera.fill", isOn: appState.isCameraEnabled) {
                     appState.isCameraEnabled.toggle()
                 }
+                if appState.isCameraEnabled {
+                    cameraDeviceMenu
+                }
             }
             toggleButton(icon: "mic.fill", isOn: appState.isMicEnabled) {
                 appState.isMicEnabled.toggle()
@@ -253,18 +319,27 @@ struct ControlPanelView: View {
             .fixedSize()
         }
 
-        // Display selector (hidden for cam-only)
+        // Target selector — a window in window mode, a display otherwise
+        // (hidden for cam-only)
         if appState.recordingMode != .cameraOnly {
             divider
 
             Button {
-                Task { await session.pickDisplay() }
+                if appState.recordingMode == .window {
+                    Task { await session.pickWindow() }
+                } else {
+                    Task { await session.pickDisplay() }
+                }
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "display")
+                    Image(systemName: appState.recordingMode == .window ? "macwindow" : "display")
                         .font(.system(size: 11))
-                    Text(displayLabel)
+                    Text(appState.recordingMode == .window ? windowLabel : displayLabel)
                         .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: 160, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .foregroundStyle(VoomTheme.textSecondary)
                 .padding(.horizontal, 8)
@@ -308,6 +383,59 @@ struct ControlPanelView: View {
         .disabled(appState.recordingState == .preparing)
     }
 
+    // MARK: - Camera Device Menu
+
+    /// A caret beside the camera toggle: the icon stays a pure on/off switch,
+    /// the caret picks the device. Matches the Zoom / QuickTime split.
+    @ViewBuilder
+    private var cameraDeviceMenu: some View {
+        Menu {
+            Button {
+                Task { await session.selectCamera(deviceID: nil) }
+            } label: {
+                if preferredCameraID == nil {
+                    Label("System Default", systemImage: "checkmark")
+                } else {
+                    Text("System Default")
+                }
+            }
+
+            if !cameraDevices.isEmpty {
+                Divider()
+            }
+
+            ForEach(cameraDevices) { device in
+                Button {
+                    Task { await session.selectCamera(deviceID: device.id) }
+                } label: {
+                    if preferredCameraID == device.id {
+                        Label(device.name, systemImage: "checkmark")
+                    } else {
+                        Text(device.name)
+                    }
+                }
+            }
+
+            if cameraDevices.isEmpty {
+                Text("No cameras found")
+            }
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(VoomTheme.textTertiary)
+                .frame(width: 14, height: 32)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Choose camera")
+    }
+
+    private func refreshCameraDevices() {
+        cameraDevices = CameraDeviceCatalog.availableDevices()
+    }
+
     // MARK: - Mode Picker
 
     @ViewBuilder
@@ -315,6 +443,7 @@ struct ControlPanelView: View {
         HStack(spacing: 2) {
             modeButton(icon: "display", mode: .fullScreen)
             modeButton(icon: "rectangle.dashed", mode: .region)
+            modeButton(icon: "macwindow", mode: .window)
             modeButton(icon: "camera.fill", mode: .cameraOnly)
         }
     }
@@ -357,10 +486,23 @@ struct ControlPanelView: View {
                     value: appState.recordingState
                 )
 
-            Text(appState.recordingState == .paused ? "Paused" : "Recording")
-                .font(.system(.caption, weight: .medium))
-                .foregroundStyle(appState.recordingState == .paused ? VoomTheme.textSecondary : .white)
-                .contentTransition(.interpolate)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(appState.recordingState == .paused ? "Paused" : "Recording")
+                    .font(.system(.caption, weight: .medium))
+                    .foregroundStyle(appState.recordingState == .paused ? VoomTheme.textSecondary : .white)
+                    .contentTransition(.interpolate)
+
+                // Naming the target is the cheap fix for the "I forgot what I
+                // was capturing" mistake window mode makes easy.
+                if appState.recordingMode == .window, let window = appState.selectedWindow {
+                    Text(window.displayLabel)
+                        .font(VoomTheme.fontBadge())
+                        .foregroundStyle(VoomTheme.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: 160, alignment: .leading)
+                }
+            }
         }
 
         divider
@@ -375,8 +517,9 @@ struct ControlPanelView: View {
 
         divider
 
-        // Annotation toggle (screen modes only)
-        if appState.recordingMode != .cameraOnly {
+        // Annotation toggle (display-wide capture only — single-window capture
+        // has no pixel source for the annotation overlay)
+        if supportsAnnotation {
             toggleButton(icon: "pencil.tip", isOn: appState.isAnnotating) {
                 appState.isAnnotating.toggle()
                 if appState.isAnnotating {
@@ -443,6 +586,10 @@ struct ControlPanelView: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private var windowLabel: String {
+        appState.selectedWindow?.displayLabel ?? "Choose window..."
     }
 
     private var displayLabel: String {

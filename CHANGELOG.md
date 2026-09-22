@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.2.0 — 2026-09-22
+
+- Record a single window: a new Window mode with a hover picker that highlights the window under the cursor. Capture follows the window as it moves, resizes or crosses displays, and records its own content even when another window sits on top of it.
+- The webcam bubble is composited into window recordings, since a single-window capture cannot include a separate floating panel.
+- Choose which camera the picture-in-picture bubble uses, from the control panel or Settings. External and Continuity cameras are listed, the choice is remembered, and an unplugged camera falls back instead of failing.
+- Camera frame-rate requests are clamped to what the device actually supports, fixing a crash on cameras that report a fixed rate above the requested one.
+- Recording now stops and saves with an explanation when the capture source goes away — a recorded window closing no longer leaves a silently truncated file.
+- The microphone is released when a recording ends rather than when the camera session happens to be torn down, so the system microphone indicator no longer stays on afterwards.
+- Microphone audio is resampled to the recording's rate before mixing, fixing sped-up, pitch-shifted audio from Bluetooth headsets and other non-48 kHz inputs.
+- Audio timing is preserved per sample when moving captured audio onto the recording timeline.
+- Voom's own playback is excluded from screen and meeting capture.
+- `voom record --window <id>` records a single window from the CLI.
+
 ## 3.1.0 — 2026-03-06
 
 - Bring your own AI: connect your own API key from OpenAI, Anthropic, Google, or xAI for AI-powered titles, summaries, and chapters.

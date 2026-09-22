@@ -65,11 +65,30 @@ func cmdRecord(_ args: [String]) async {
     let micEnabled = flag("--mic", in: args)
     let systemAudioEnabled = flag("--system-audio", in: args)
     let displaySel = value("--display", in: args)
+    let windowSel = value("--window", in: args)
     let duration = value("--duration", in: args).flatMap { Double($0) }
 
     do {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         guard !content.displays.isEmpty else { emitError("No displays available.") }
+
+        // Single-window capture. Resolved against the same window ids
+        // `voom targets` prints.
+        var window: SCWindow?
+        if let windowSel {
+            // A bare CLI process has no window-server connection until it asks
+            // CoreGraphics for something. Building a single-window content
+            // filter without one trips a CGS_REQUIRE_INIT assertion and kills
+            // the process; touching the display id establishes it first.
+            _ = CGMainDisplayID()
+            guard let id = UInt32(windowSel) else {
+                emitError("--window expects a window id. Run `voom targets` to list windows.")
+            }
+            guard let match = content.windows.first(where: { $0.windowID == id }) else {
+                emitError("No window with id \(id). Run `voom targets` to list windows.")
+            }
+            window = match
+        }
 
         let display: SCDisplay
         if let sel = displaySel {
@@ -91,7 +110,8 @@ func cmdRecord(_ args: [String]) async {
             cameraEnabled: false,
             micEnabled: micEnabled,
             systemAudioEnabled: systemAudioEnabled,
-            pipPosition: .bottomRight
+            pipPosition: .bottomRight,
+            window: window
         )
 
         if let duration {
@@ -118,7 +138,7 @@ func cmdGuide(json: Bool) {
     struct Cmd: Codable { let name: String; let usage: String; let summary: String }
     let commands = [
         Cmd(name: "targets", usage: "voom targets", summary: "List capturable displays and windows as JSON."),
-        Cmd(name: "record", usage: "voom record [--display <id|index>] [--mic] [--system-audio] [--duration <seconds>]",
+        Cmd(name: "record", usage: "voom record [--display <id|index>] [--window <id>] [--mic] [--system-audio] [--duration <seconds>]",
             summary: "Record the screen to your Voom library. Stops on Ctrl-C (or after --duration)."),
         Cmd(name: "list", usage: "voom list", summary: "List recordings in your Voom library as JSON."),
         Cmd(name: "guide", usage: "voom guide [--json]", summary: "Describe every command (machine-readable with --json)."),

@@ -65,6 +65,28 @@ final class RecordingSessionController {
         }
     }
 
+    /// Persists an explicit camera choice and rebinds the live preview to it.
+    ///
+    /// Restarting the preview rather than swapping the input on the running
+    /// session is deliberate: `OverlayManager.showCameraPiP` ignores a second
+    /// call for the same screen, so the PiP would keep rendering the old,
+    /// stopped session. `startCameraPreview()` tears the panel down first.
+    func selectCamera(deviceID: String?) async {
+        AppDefaults.preferredCameraDeviceID = deviceID
+        // Seeds macOS's own camera history so other apps and future launches
+        // agree with the choice the user just made here.
+        if let deviceID, let device = AVCaptureDevice(uniqueID: deviceID) {
+            AVCaptureDevice.userPreferredCamera = device
+        }
+        // Never rebind mid-recording: the running recorder holds this exact
+        // CameraCapture instance, and the PiP panel's window number is baked
+        // into the capture filter. Tearing either down would silently drop the
+        // webcam from the file. The choice still persists for the next take.
+        guard appState.recordingState == .idle else { return }
+        guard appState.isCameraEnabled, activeCamera != nil else { return }
+        await startCameraPreview()
+    }
+
     func stopCameraPreview() {
         OverlayManager.shared.hideCameraPiP()
         if let cam = activeCamera {
@@ -99,6 +121,25 @@ final class RecordingSessionController {
         }
     }
 
+    // MARK: - Window Picking
+
+    /// Presents the hover picker and stores the chosen window. Leaves the
+    /// existing selection untouched when the user cancels.
+    func pickWindow() async {
+        do {
+            let windows = try await WindowCatalog.availableWindows()
+            guard !windows.isEmpty else {
+                errorMessage = "No windows available to record. Open a window and try again."
+                return
+            }
+            if let picked = await WindowPicker.shared.pick(from: windows) {
+                appState.selectedWindow = picked
+            }
+        } catch {
+            errorMessage = "Failed to list windows: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: - Start
 
     func startRecording(skipCountdown: Bool = false) async {
@@ -122,6 +163,37 @@ final class RecordingSessionController {
                     appState.recordingState = .idle
                     return
                 }
+            }
+        }
+
+        // Window mode — pick a target if there isn't one yet, then resolve it to
+        // a live window. Resolving late matters: the window may have moved,
+        // resized, or closed since it was picked.
+        var captureWindow: SCWindow?
+        if appState.recordingMode == .window {
+            if appState.selectedWindow == nil {
+                await pickWindow()
+                guard appState.selectedWindow != nil else {
+                    appState.recordingState = .idle
+                    return
+                }
+            }
+            guard let target = appState.selectedWindow else {
+                appState.recordingState = .idle
+                return
+            }
+            do {
+                captureWindow = try await WindowCatalog.resolve(id: target.id)
+            } catch {
+                appState.recordingState = .idle
+                errorMessage = "Failed to access the window: \(error.localizedDescription)"
+                return
+            }
+            guard captureWindow != nil else {
+                appState.recordingState = .idle
+                appState.selectedWindow = nil
+                errorMessage = "\(target.displayLabel) is no longer open. Pick another window."
+                return
             }
         }
 
@@ -218,6 +290,7 @@ final class RecordingSessionController {
                     pipPosition: pipPosition,
                     existingCamera: camera,
                     cropRect: cropRect,
+                    window: captureWindow,
                     pipWindowNumber: pipWinNum,
                     annotationWindowNumber: annotationWinNum
                 )
