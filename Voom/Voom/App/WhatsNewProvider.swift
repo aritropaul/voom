@@ -72,5 +72,44 @@ extension VoomApp: @preconcurrency WhatsNewCollectionProvider {
             ],
             primaryAction: WhatsNew.PrimaryAction(title: "Continue")
         )
+
+        // Also catches up on 4.0–4.2, which shipped without a What's New entry.
+        WhatsNew(
+            version: "4.3.0",
+            title: "What's New in Voom",
+            features: [
+                WhatsNew.Feature(
+                    image: .init(systemName: "person.2.wave.2.fill", foregroundColor: .blue),
+                    title: "Sharper Speaker Labels",
+                    subtitle: "Meetings are diarized on your Mac with NVIDIA's Nemotron 3 — up to eight speakers, labeled word by word, and speaker echo is no longer mistaken for you."
+                ),
+                WhatsNew.Feature(
+                    image: .init(systemName: "macwindow", foregroundColor: .purple),
+                    title: "Record a Window, Pick a Camera",
+                    subtitle: "Record a single window as it moves between displays, and choose any camera — including your iPhone."
+                ),
+                WhatsNew.Feature(
+                    image: .init(systemName: "play.rectangle.on.rectangle.fill", foregroundColor: .indigo),
+                    title: "A New Share Page",
+                    subtitle: "Viewers watch, read the transcript, and leave comments pinned to the exact moment, all side by side."
+                ),
+                WhatsNew.Feature(
+                    image: .init(systemName: "scissors", foregroundColor: .pink),
+                    title: "Editing Tools",
+                    subtitle: "Pull AI clips, edit the transcript, blur sensitive areas, and export transcripts."
+                ),
+                WhatsNew.Feature(
+                    image: .init(systemName: "externaldrive.fill.badge.checkmark", foregroundColor: .green),
+                    title: "Recordings That Survive",
+                    subtitle: "Quitting or running out of disk mid-recording keeps what you captured, and recording no longer slows your Mac."
+                ),
+                WhatsNew.Feature(
+                    image: .init(systemName: "icloud.and.arrow.up.fill", foregroundColor: .orange),
+                    title: "One-Click Self-Hosting",
+                    subtitle: "Deploy your own share server to Cloudflare in one click and manage your links from a private dashboard."
+                ),
+            ],
+            primaryAction: WhatsNew.PrimaryAction(title: "Continue")
+        )
     }
 }

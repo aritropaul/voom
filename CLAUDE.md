@@ -73,7 +73,7 @@ voom/
 │   │   │       ├── Capture/           # CameraCapture, InputTracker, MicTimeAdjuster
 │   │   │       ├── Writing/           # VideoWriter (HEVC via AVAssetWriter; finalize() throws)
 │   │   │       ├── Storage/           # RecordingStorage, LibraryDatabase (SQLite), PresetStore
-│   │   │       ├── Transcription/     # TranscriptionService (FluidAudio)
+│   │   │       ├── Transcription/     # TranscriptionService (FluidAudio), TranscriptSegmenter, SpeakerAttribution, EchoBleedDetector
 │   │   │       ├── Sharing/           # ShareService, ShareCoordinator, CloudflareDeployService, ViewNotificationService
 │   │   │       ├── Editing/           # VideoEditor, FillerWordDetector, PrivacyBlurRenderer, TranscriptEditor, AutoZoomAnalyzer
 │   │   │       ├── Export/            # GIFExporter, TranscriptExporter
@@ -303,7 +303,7 @@ Both `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` are set from the git tag 
 
 | Package | Purpose | Where | Manager |
 |---------|---------|-------|---------|
-| FluidAudio (0.15.2+) | On-device ASR and speaker diarization | VoomCore, VoomMeetings | Swift Package |
+| FluidAudio (0.17.1+) | On-device ASR and speaker diarization (Nemotron 3, pyannote fallback) | VoomCore, VoomMeetings | Swift Package |
 | Sparkle | Auto-updates with EdDSA signing | Xcode project | Swift Package |
 | WhatsNewKit | What's-new sheets | Xcode project | Swift Package |
 | swift-argument-parser | CLI parsing | VoomCLI | Swift Package |

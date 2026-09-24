@@ -6,7 +6,8 @@ private let logger = Logger(subsystem: "com.voom.app", category: "MeetingTranscr
 
 /// Meeting transcription with split-track speaker diarization.
 /// Runs ASR on mixed audio, diarizes system audio for remote speakers,
-/// diarizes mic audio for "You" identification, then merges by temporal overlap.
+/// diarizes mic audio for "You" identification, then labels every word
+/// and re-segments the transcript wherever the speaker changes.
 public actor MeetingTranscription {
     public static let shared = MeetingTranscription()
     private init() {}
@@ -47,20 +48,36 @@ public actor MeetingTranscription {
         async let transcriptTask = transcribe(fileURL: fileURL)
         async let remoteTask = diarizeRemote(systemAudioURL: systemReferenceURL)
         async let localTask = diarizeLocal(micAudioURL: micReferenceURL)
+        async let echoTask = loadEchoDetector(micAudioURL: micReferenceURL, systemAudioURL: systemReferenceURL)
 
-        let transcriptSegments = await transcriptTask
+        let tokens = await transcriptTask
         let remoteSpeakers = await remoteTask
         let localSpeakers = await localTask
+        let echo = await echoTask
 
-        if transcriptSegments.isEmpty {
+        if tokens.isEmpty {
             logger.notice("[Voom] No transcript segments produced")
             return []
         }
 
-        logger.notice("[Voom] Merging: \(transcriptSegments.count) transcript, \(remoteSpeakers.count) remote, \(localSpeakers.count) local segments")
+        // Per word: mic speech makes it "You" — unless it's remote audio leaking from the
+        // speakers into the mic — otherwise the remote speaker talking most over it.
+        let words = TranscriptSegmenter.words(from: tokens)
+        var echoWords = 0
+        let labels: [String?] = words.map { word in
+            if SpeakerAttribution.coverage(of: word, by: localSpeakers) > 0.5 {
+                guard echo?.isEcho(start: word.startTime, end: word.endTime) == true else { return "You" }
+                echoWords += 1
+            }
+            if let remote = SpeakerAttribution.dominantSpeaker(for: word, in: remoteSpeakers) { return remote }
+            // The recording is system audio plus the mic: with the system silent, the word
+            // can only have come through the mic, even if the mic VAD missed it.
+            if echo?.systemIsSilent(start: word.startTime, end: word.endTime) == true { return "You" }
+            return nil
+        }
 
-        // Merge with "You" priority
-        let labeled = mergeSplitTrackResults(transcriptSegments, remoteSpeakers: remoteSpeakers, localSpeakers: localSpeakers)
+        logger.notice("[Voom] Merging: \(words.count) words, \(remoteSpeakers.count) remote, \(localSpeakers.count) local segments, \(echoWords) mic words rejected as speaker echo")
+        let labeled = entries(from: tokens, words: words, labels: labels)
         logger.notice("[Voom] Meeting transcription complete: \(labeled.count) labeled segments")
         return labeled
     }
@@ -71,31 +88,40 @@ public actor MeetingTranscription {
         async let transcriptTask = transcribe(fileURL: fileURL)
         async let diarizationTask = diarize(fileURL: fileURL)
 
-        let transcriptSegments = await transcriptTask
+        let tokens = await transcriptTask
         let speakerSegments = await diarizationTask
 
-        if transcriptSegments.isEmpty {
+        if tokens.isEmpty {
             logger.notice("[Voom] No transcript segments produced")
             return []
         }
 
         if speakerSegments.isEmpty {
-            logger.notice("[Voom] Diarization unavailable, returning unlabeled transcript (\(transcriptSegments.count) segments)")
-            return transcriptSegments.map { seg in
-                TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text)
-            }
+            let segments = TranscriptSegmenter.segments(from: tokens)
+            logger.notice("[Voom] Diarization unavailable, returning unlabeled transcript (\(segments.count) segments)")
+            return segments.map { TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text) }
         }
 
-        let labeled = mergeTranscriptWithSpeakers(transcriptSegments, speakerSegments)
+        let words = TranscriptSegmenter.words(from: tokens)
+        let labels = words.map { SpeakerAttribution.dominantSpeaker(for: $0, in: speakerSegments) }
+        let labeled = entries(from: tokens, words: words, labels: labels)
         logger.notice("[Voom] Meeting transcription complete: \(labeled.count) labeled segments")
         return labeled
     }
 
     // MARK: - Private Helpers
 
-    private func transcribe(fileURL: URL) async -> [VoomTranscriptSegment] {
+    /// Smooth the per-word labels and cut the transcript into single-speaker segments.
+    private func entries(from tokens: [VoomTranscriptToken], words: [VoomTranscriptWord], labels: [String?]) -> [TranscriptEntry] {
+        let speakers = SpeakerAttribution.resolve(labels, words: words)
+        return TranscriptSegmenter.segments(from: tokens, wordSpeakers: speakers).map {
+            TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text, speaker: $0.speaker)
+        }
+    }
+
+    private func transcribe(fileURL: URL) async -> [VoomTranscriptToken] {
         do {
-            return try await TranscriptionService.shared.transcribe(audioURL: fileURL)
+            return try await TranscriptionService.shared.transcribeTokens(audioURL: fileURL)
         } catch {
             logger.error("[Voom] Transcription failed: \(error)")
             return []
@@ -130,81 +156,15 @@ public actor MeetingTranscription {
         }
     }
 
-    // MARK: - Split-Track Merge
-
-    /// For each ASR segment, check overlap with "You" segments first.
-    /// If >50% overlap → "You". Otherwise find best remote speaker match.
-    private func mergeSplitTrackResults(
-        _ transcript: [VoomTranscriptSegment],
-        remoteSpeakers: [SpeakerSegment],
-        localSpeakers: [SpeakerSegment]
-    ) -> [TranscriptEntry] {
-        transcript.map { seg in
-            let segDuration = seg.endTime - seg.startTime
-            guard segDuration > 0 else {
-                return TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text)
-            }
-
-            // Check "You" overlap first
-            let youOverlap = totalOverlap(for: seg, in: localSpeakers)
-            if youOverlap / segDuration > 0.5 {
-                return TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text, speaker: "You")
-            }
-
-            // Find best remote speaker
-            let remoteSpeaker = bestMatchingSpeaker(for: seg, in: remoteSpeakers)
-            return TranscriptEntry(startTime: seg.startTime, endTime: seg.endTime, text: seg.text, speaker: remoteSpeaker)
+    /// Nonisolated so decoding both tracks runs alongside ASR and diarization.
+    private nonisolated func loadEchoDetector(micAudioURL: URL?, systemAudioURL: URL) async -> EchoBleedDetector? {
+        guard let micURL = micAudioURL else { return nil }
+        do {
+            return try EchoBleedDetector.load(micURL: micURL, systemURL: systemAudioURL)
+        } catch {
+            // Without it, mic speech is taken at face value, as before.
+            logger.error("[Voom] Echo detection unavailable: \(error)")
+            return nil
         }
-    }
-
-    /// Total overlap of a transcript segment with a set of speaker segments.
-    private func totalOverlap(for segment: VoomTranscriptSegment, in speakers: [SpeakerSegment]) -> TimeInterval {
-        var total: TimeInterval = 0
-        for speaker in speakers {
-            let overlapStart = max(segment.startTime, speaker.startTime)
-            let overlapEnd = min(segment.endTime, speaker.endTime)
-            if overlapEnd > overlapStart {
-                total += overlapEnd - overlapStart
-            }
-        }
-        return total
-    }
-
-    // MARK: - Mixed Audio Merge (Fallback)
-
-    private func mergeTranscriptWithSpeakers(
-        _ transcript: [VoomTranscriptSegment],
-        _ speakers: [SpeakerSegment]
-    ) -> [TranscriptEntry] {
-        transcript.map { seg in
-            let speaker = bestMatchingSpeaker(for: seg, in: speakers)
-            return TranscriptEntry(
-                startTime: seg.startTime,
-                endTime: seg.endTime,
-                text: seg.text,
-                speaker: speaker
-            )
-        }
-    }
-
-    private func bestMatchingSpeaker(
-        for segment: VoomTranscriptSegment,
-        in speakers: [SpeakerSegment]
-    ) -> String? {
-        var bestSpeaker: String?
-        var bestOverlap: TimeInterval = 0
-
-        for speaker in speakers {
-            let overlapStart = max(segment.startTime, speaker.startTime)
-            let overlapEnd = min(segment.endTime, speaker.endTime)
-            let overlap = overlapEnd - overlapStart
-
-            if overlap > bestOverlap {
-                bestOverlap = overlap
-                bestSpeaker = speaker.speaker
-            }
-        }
-
-        return bestSpeaker
     }
 }

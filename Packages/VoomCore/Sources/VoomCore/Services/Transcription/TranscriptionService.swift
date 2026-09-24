@@ -10,11 +10,13 @@ public struct VoomTranscriptSegment: Sendable {
     public let startTime: TimeInterval
     public let endTime: TimeInterval
     public let text: String
+    public let speaker: String?
 
-    public init(startTime: TimeInterval, endTime: TimeInterval, text: String) {
+    public init(startTime: TimeInterval, endTime: TimeInterval, text: String, speaker: String? = nil) {
         self.startTime = startTime
         self.endTime = endTime
         self.text = text
+        self.speaker = speaker
     }
 }
 
@@ -49,6 +51,13 @@ public actor TranscriptionService {
     }
 
     public func transcribe(audioURL: URL) async throws -> [VoomTranscriptSegment] {
+        let segments = TranscriptSegmenter.segments(from: try await transcribeTokens(audioURL: audioURL))
+        logger.notice("[Voom] Extracted \(segments.count) transcript segments")
+        return segments
+    }
+
+    /// Transcribe to token-level timings, for callers that attribute speakers per word.
+    public func transcribeTokens(audioURL: URL) async throws -> [VoomTranscriptToken] {
         let hadResidentModels = asrManager != nil
         do {
             return try await runTranscription(audioURL: audioURL)
@@ -69,7 +78,7 @@ public actor TranscriptionService {
         }
     }
 
-    private func runTranscription(audioURL: URL) async throws -> [VoomTranscriptSegment] {
+    private func runTranscription(audioURL: URL) async throws -> [VoomTranscriptToken] {
         let asrManager = try await manager()
 
         logger.notice("[Voom] Starting transcription: \(audioURL.lastPathComponent)")
@@ -78,48 +87,13 @@ public actor TranscriptionService {
         let result = try await asrManager.transcribe(audioURL, decoderState: &decoderState)
         logger.notice("[Voom] Transcription complete: \(result.text.count) chars, \(result.tokenTimings?.count ?? 0) tokens")
 
-        let segments = segmentsFromTokenTimings(result)
-        logger.notice("[Voom] Extracted \(segments.count) transcript segments")
-        return segments
-    }
-
-    // MARK: - Token Grouping
-
-    /// Group token-level timings into sentence-like segments.
-    /// Breaks at sentence-ending punctuation, time gaps > 1.5s, or after ~30 words.
-    private func segmentsFromTokenTimings(_ result: ASRResult) -> [VoomTranscriptSegment] {
         guard let timings = result.tokenTimings, !timings.isEmpty else {
-            // No token timings — return entire text as one segment
+            // No token timings — the entire text becomes one token spanning the file
             let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return [] }
-            return [VoomTranscriptSegment(startTime: 0, endTime: result.duration, text: text)]
+            return [VoomTranscriptToken(text: text, startTime: 0, endTime: result.duration)]
         }
-
-        var segments: [VoomTranscriptSegment] = []
-        var currentTokens: [TokenTiming] = []
-
-        for (i, token) in timings.enumerated() {
-            currentTokens.append(token)
-
-            let isLast = i == timings.count - 1
-            let endsWithPunctuation = token.token.hasSuffix(".") || token.token.hasSuffix("?") || token.token.hasSuffix("!")
-            let hasTimeGap = !isLast && (timings[i + 1].startTime - token.endTime) > 1.5
-            let tooManyWords = currentTokens.count >= 30
-
-            if isLast || endsWithPunctuation || hasTimeGap || tooManyWords {
-                let text = currentTokens.map(\.token).joined().trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty {
-                    segments.append(VoomTranscriptSegment(
-                        startTime: currentTokens.first!.startTime,
-                        endTime: currentTokens.last!.endTime,
-                        text: text
-                    ))
-                }
-                currentTokens = []
-            }
-        }
-
-        return segments
+        return timings.map { VoomTranscriptToken(text: $0.token, startTime: $0.startTime, endTime: $0.endTime) }
     }
 }
 

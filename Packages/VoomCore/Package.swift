@@ -8,7 +8,7 @@ let package = Package(
         .library(name: "VoomCore", targets: ["VoomCore"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.15.2"),
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", from: "0.17.1"),
     ],
     targets: [
         .target(
