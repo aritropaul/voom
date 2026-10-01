@@ -38,7 +38,10 @@ public actor TranscriptionService {
 
         logger.notice("[Voom] Loading FluidAudio ASR models...")
         let task = Task<AsrManager, Error> {
-            let models = try await AsrModels.downloadAndLoad()
+            // Parakeet Ultra: same architecture, languages and token timings as
+            // v3 (the library default), lower WER on English and every FLEURS
+            // language at the same speed.
+            let models = try await AsrModels.downloadAndLoad(version: .ultra)
             return AsrManager(models: models)
         }
         loadTask = task

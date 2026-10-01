@@ -20,10 +20,10 @@ public actor SpeakerDiarizationService {
     /// Meetings are diarized after recording, so its ~10 s latency is free.
     private static let nemotronConfig = Nemotron3Config.fast128
 
-    /// CPU + GPU, not the Neural Engine: on some Macs the ANE compile fails and CoreML then
-    /// rejects FluidAudio 0.17.1's preallocated output buffers on every prediction
-    /// (FluidAudio #951, fix pending in #952). The GPU still runs ~500x real time and
-    /// leaves the ANE to the ASR model transcribing alongside.
+    /// CPU + GPU, not the Neural Engine. Originally a workaround for FluidAudio #951/#952
+    /// (ANE compile failures, then rejected output buffers), fixed in 0.17.2/0.17.4; it
+    /// stays because the GPU still runs ~500x real time and leaves the ANE to the ASR
+    /// model transcribing alongside.
     private static let nemotronComputeUnits = MLComputeUnits.cpuAndGPU
 
     private var nemotron: Nemotron3Diarizer?
