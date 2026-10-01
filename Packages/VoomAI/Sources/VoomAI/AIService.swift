@@ -10,7 +10,9 @@ public actor AIService: AIGenerationProvider {
 
     private init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 60
+        // Current flagship models reason before answering and a non-streaming
+        // response sends nothing until it's done, so allow for a long think.
+        config.timeoutIntervalForRequest = 180
         self.session = URLSession(configuration: config)
     }
 
@@ -112,7 +114,10 @@ public actor AIService: AIGenerationProvider {
             struct APIError: Decodable { let message: String }
         }
 
-        let body = Request(model: model, max_tokens: 1024, system: system, messages: [
+        // Claude 5-generation models always think, and thinking tokens count
+        // toward max_tokens: a small cap can be spent entirely on thinking and
+        // return no text. It's a ceiling, not a charge — only used tokens bill.
+        let body = Request(model: model, max_tokens: 16000, system: system, messages: [
             .init(role: "user", content: user),
         ])
 
