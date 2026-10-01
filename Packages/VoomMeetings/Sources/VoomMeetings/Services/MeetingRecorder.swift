@@ -296,49 +296,65 @@ public actor MeetingRecorder {
         // Auto-transcribe meetings with speaker diarization
         let autoTranscribeEnabled = AppDefaults.autoTranscribeEnabled
         if autoTranscribeEnabled {
-            let capturedID = recordingID
-            let capturedURL = url
-            let capturedMicRef = micReferenceURL
-            let capturedSysRef = systemReferenceURL
-            Task.detached {
-                await MainActor.run {
-                    if var rec = RecordingStore.shared.recording(for: capturedID) {
-                        rec.isTranscribing = true
-                        RecordingStore.shared.update(rec)
-                    }
-                }
-
-                // Run meeting-specific transcription with split-track diarization
-                let segments = await MeetingTranscription.shared.transcribeMeeting(
-                    fileURL: capturedURL,
-                    micReferenceURL: capturedMicRef,
-                    systemReferenceURL: capturedSysRef
-                )
-
-                // Generate meeting title, summary, and chapters from diarized transcript
-                let title = await MeetingAnalysis.shared.generateMeetingTitle(from: segments)
-                let summary = await MeetingAnalysis.shared.generateDetailedSummary(from: segments)
-                let chapters = await TextAnalysisService.shared.generateChapters(from: segments)
-
-                await MainActor.run {
-                    if var rec = RecordingStore.shared.recording(for: capturedID) {
-                        rec.transcriptSegments = segments
-                        if let title, !title.isEmpty { rec.title = title }
-                        rec.summary = summary
-                        if !chapters.isEmpty { rec.chapters = chapters }
-                        rec.isTranscribed = !segments.isEmpty
-                        rec.isTranscribing = false
-                        RecordingStore.shared.update(rec)
-                    }
-                }
-
-                // Clean up temp audio reference files
-                if let micRef = capturedMicRef { try? FileManager.default.removeItem(at: micRef) }
-                if let sysRef = capturedSysRef { try? FileManager.default.removeItem(at: sysRef) }
-            }
+            Self.autoTranscribe(
+                recordingID: recordingID,
+                fileURL: url,
+                micReferenceURL: micReferenceURL,
+                systemReferenceURL: systemReferenceURL
+            )
         }
 
         return recordingID
+    }
+
+    // MARK: - Auto-Transcription
+
+    /// Transcribes a meeting with speaker diarization, then generates its title,
+    /// summary and chapters. Without the split reference tracks (e.g. when
+    /// restarting a transcription a previous session left unfinished) it falls
+    /// back to diarizing the mixed audio.
+    public nonisolated static func autoTranscribe(
+        recordingID: UUID,
+        fileURL: URL,
+        micReferenceURL: URL? = nil,
+        systemReferenceURL: URL? = nil
+    ) {
+        Task.detached {
+            await MainActor.run {
+                if var rec = RecordingStore.shared.recording(for: recordingID) {
+                    rec.isTranscribing = true
+                    RecordingStore.shared.update(rec)
+                }
+            }
+
+            // Run meeting-specific transcription with split-track diarization
+            let segments = await MeetingTranscription.shared.transcribeMeeting(
+                fileURL: fileURL,
+                micReferenceURL: micReferenceURL,
+                systemReferenceURL: systemReferenceURL
+            )
+
+            // Generate meeting title, summary, and chapters from diarized transcript
+            let title = await MeetingAnalysis.shared.generateMeetingTitle(from: segments)
+            let summary = await MeetingAnalysis.shared.generateDetailedSummary(from: segments)
+            let chapters = await TextAnalysisService.shared.generateChapters(from: segments)
+
+            await MainActor.run {
+                if var rec = RecordingStore.shared.recording(for: recordingID) {
+                    rec.transcriptSegments = segments
+                    if let title, !title.isEmpty { rec.title = title }
+                    rec.summary = summary
+                    if !chapters.isEmpty { rec.chapters = chapters }
+                    rec.isTranscribed = !segments.isEmpty
+                    rec.isTranscribing = false
+                    RecordingStore.shared.update(rec)
+                }
+            }
+
+            // Clean up temp audio reference files
+            if let micRef = micReferenceURL { try? FileManager.default.removeItem(at: micRef) }
+            if let sysRef = systemReferenceURL { try? FileManager.default.removeItem(at: sysRef) }
+        }
     }
 }
 

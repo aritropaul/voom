@@ -74,11 +74,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        resumeStalledTranscriptions()
+
         // Show onboarding on first launch only
         if !appState.hasCompletedOnboarding {
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.5))
                 WindowActions.openWindow?(id: "onboarding")
+            }
+        }
+    }
+
+    /// Restarts transcriptions a previous session never finished. A quit, crash
+    /// or force quit mid-transcription leaves `isTranscribing` persisted as
+    /// true, and nothing else clears it: the recording shows "Transcribing…"
+    /// forever and its Transcribe button stays hidden.
+    private func resumeStalledTranscriptions() {
+        for recording in RecordingStore.shared.recordings where recording.isTranscribing {
+            logger.notice("[Voom] Restarting stalled transcription for \(recording.fileURL.lastPathComponent)")
+            if recording.isMeeting ?? false {
+                MeetingRecorder.autoTranscribe(recordingID: recording.id, fileURL: recording.fileURL)
+            } else {
+                RecordingStore.shared.autoTranscribe(recordingID: recording.id, fileURL: recording.fileURL)
             }
         }
     }
