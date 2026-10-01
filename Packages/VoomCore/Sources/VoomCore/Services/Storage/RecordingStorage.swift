@@ -309,6 +309,11 @@ public final class RecordingStore {
                         RecordingStore.shared.update(rec)
                     }
                 }
+                do {
+                    try await ShareCoordinator.syncShareMetadata(recordingID: capturedID)
+                } catch {
+                    logger.error("[Voom] Couldn't update the share page after transcription: \(error.localizedDescription)")
+                }
             } catch {
                 logger.error("[Voom] Auto-transcription failed: \(error)")
                 await MainActor.run {

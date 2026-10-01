@@ -103,6 +103,54 @@ describe('share data + view counts', () => {
   });
 });
 
+describe('metadata re-post', () => {
+  async function postMetadata(shareCode, body) {
+    const res = await SELF.fetch(`${BASE}/api/metadata/${shareCode}`, {
+      method: 'POST',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(200);
+  }
+
+  async function rows(shareCode) {
+    const video = await env.DB.prepare('SELECT id, title, summary FROM videos WHERE share_code = ?').bind(shareCode).first();
+    const segs = await env.DB.prepare('SELECT text FROM transcript_segments WHERE video_id = ? ORDER BY start_time').bind(video.id).all();
+    const chaps = await env.DB.prepare('SELECT title FROM chapters WHERE video_id = ? ORDER BY timestamp').bind(video.id).all();
+    return { video, segments: segs.results.map(r => r.text), chapters: chaps.results.map(r => r.title) };
+  }
+
+  it('replaces the transcript and chapters instead of appending', async () => {
+    const { shareCode } = await createShare();
+    await completeUpload(shareCode);
+    await postMetadata(shareCode, {
+      title: 'Transcribed title',
+      summary: 'A summary',
+      segments: [{ startTime: 0, endTime: 1, text: 'first' }, { startTime: 1, endTime: 2, text: 'second' }],
+      chapters: [{ timestamp: 0, title: 'Intro' }],
+    });
+
+    const after = await rows(shareCode);
+    expect(after.segments).toEqual(['first', 'second']);
+    expect(after.chapters).toEqual(['Intro']);
+    expect(after.video.title).toBe('Transcribed title');
+    expect(after.video.summary).toBe('A summary');
+  });
+
+  it('clears chapters and summary when re-posted empty, and leaves omitted fields alone', async () => {
+    const { shareCode } = await createShare();
+    await completeUpload(shareCode);
+    await postMetadata(shareCode, { title: 't', summary: 's', chapters: [{ timestamp: 0, title: 'Intro' }] });
+    await postMetadata(shareCode, { title: 't', summary: null, chapters: [] });
+
+    const after = await rows(shareCode);
+    expect(after.chapters).toEqual([]);
+    expect(after.video.summary).toBeNull();
+    // `segments` was omitted from both re-posts, so the upload's transcript stays
+    expect(after.segments).toEqual(['hello world']);
+  });
+});
+
 describe('video streaming + ranges', () => {
   let shareCode;
   const bytes = new Uint8Array(100).map((_, i) => i);

@@ -582,26 +582,39 @@ struct PlayerView: View {
         updated.isTranscribing = true
         store.update(updated)
 
+        var transcribed = false
         do {
             let voomSegments = try await TranscriptionService.shared.transcribe(audioURL: recording.fileURL)
             let entries = voomSegments.map {
                 TranscriptEntry(startTime: $0.startTime, endTime: $0.endTime, text: $0.text)
             }
-            updated.transcriptSegments = entries
-            updated.isTranscribed = !voomSegments.isEmpty
-
             let generatedTitle = await TextAnalysisService.shared.generateTitle(from: entries)
             let generatedSummary = await TextAnalysisService.shared.generateSummary(from: entries)
+
+            // Apply onto the store's current copy, not the pre-transcription
+            // snapshot: the recording may have been shared while this ran.
+            updated = store.recording(for: recording.id) ?? updated
+            updated.transcriptSegments = entries
+            updated.isTranscribed = !voomSegments.isEmpty
             if !generatedTitle.isEmpty {
                 updated.title = generatedTitle
             }
             updated.summary = generatedSummary.isEmpty ? nil : generatedSummary
+            transcribed = true
         } catch {
             playerLogger.error("[Voom] Manual transcription failed: \(error)")
             toast.error("Transcription failed: \(error.localizedDescription)")
+            updated = store.recording(for: recording.id) ?? updated
         }
         updated.isTranscribing = false
         store.update(updated)
+
+        guard transcribed else { return }
+        do {
+            try await ShareCoordinator.syncShareMetadata(recordingID: recording.id)
+        } catch {
+            toast.error("Couldn't update the share page: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Summary Section

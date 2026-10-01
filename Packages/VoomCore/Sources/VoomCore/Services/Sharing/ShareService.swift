@@ -182,6 +182,20 @@ public actor ShareService {
         }
     }
 
+    /// Re-posts the recording's transcript, title, summary and chapters to an
+    /// existing share, replacing what the worker has — for recordings that
+    /// change after they were shared (e.g. shared before transcription finished).
+    public func updateMetadata(shareCode: String, recording: Recording) async throws {
+        try await postMetadata(
+            shareCode: shareCode,
+            title: recording.title,
+            summary: recording.summary,
+            segments: recording.transcriptSegments,
+            chapters: recording.chapters,
+            isMeeting: recording.isMeeting
+        )
+    }
+
     public func renew(shareCode: String) async throws -> Date {
         guard ShareConfig.isConfigured else { throw ShareError.notConfigured }
 
@@ -372,18 +386,16 @@ public actor ShareService {
             }
             return dict
         }
+        // Summary and chapters are always sent (null / empty when absent): the
+        // worker replaces what it has, so a re-post must be able to clear them.
         var body: [String: Any] = [
             "segments": segmentDicts,
             "title": title,
-        ]
-        if let summary, !summary.isEmpty {
-            body["summary"] = summary
-        }
-        if let chapters, !chapters.isEmpty {
-            body["chapters"] = chapters.map { ch -> [String: Any] in
+            "summary": summary.flatMap { $0.isEmpty ? nil : $0 } ?? NSNull(),
+            "chapters": (chapters ?? []).map { ch -> [String: Any] in
                 ["timestamp": ch.timestamp, "title": ch.title]
-            }
-        }
+            },
+        ]
         if let isMeeting {
             body["isMeeting"] = isMeeting
         }

@@ -712,9 +712,13 @@ async function handleMetadata(request, env, shareCode) {
   const body = await request.json();
   const { segments, title, summary, chapters, isMeeting } = body;
 
+  // A provided array replaces what's stored, so the app can re-post after a
+  // recording changes (e.g. it was shared before transcription finished)
+  // without duplicating rows. An omitted field leaves the stored rows alone.
   // Chunk inserts so a multi-hour transcript can't exceed D1 batch limits.
   const BATCH_CHUNK = 100;
-  if (segments && segments.length > 0) {
+  if (Array.isArray(segments)) {
+    await env.DB.prepare('DELETE FROM transcript_segments WHERE video_id = ?').bind(video.id).run();
     const stmt = env.DB.prepare(
       'INSERT INTO transcript_segments (video_id, start_time, end_time, text, speaker) VALUES (?, ?, ?, ?, ?)'
     );
@@ -724,7 +728,8 @@ async function handleMetadata(request, env, shareCode) {
     }
   }
 
-  if (chapters && chapters.length > 0) {
+  if (Array.isArray(chapters)) {
+    await env.DB.prepare('DELETE FROM chapters WHERE video_id = ?').bind(video.id).run();
     const stmt = env.DB.prepare(
       'INSERT INTO chapters (video_id, timestamp, title) VALUES (?, ?, ?)'
     );

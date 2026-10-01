@@ -1,5 +1,8 @@
 import AppKit
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.voom.app", category: "Share")
 
 /// Single implementation of the share-link user flows. Views call these and
 /// translate the outcome into their own toast/alert UI — the service calls,
@@ -11,13 +14,40 @@ public enum ShareCoordinator {
     @discardableResult
     public static func shareAndCopyLink(_ recording: Recording) async throws -> URL {
         let result = try await ShareService.shared.share(recording: recording)
-        var updated = recording
+        // Re-read rather than writing back the pre-upload snapshot: transcription
+        // may have finished during the upload, and the snapshot would discard it.
+        var updated = RecordingStore.shared.recording(for: recording.id) ?? recording
         updated.shareURL = result.shareURL
         updated.shareCode = result.shareCode
         updated.shareExpiresAt = result.expiresAt
         RecordingStore.shared.update(updated)
         copy(result.shareURL)
+
+        // The upload posted the pre-upload transcript; push whatever landed since.
+        if updated.transcriptSegments != recording.transcriptSegments
+            || updated.title != recording.title
+            || updated.summary != recording.summary
+            || updated.chapters != recording.chapters {
+            do {
+                try await syncShareMetadata(recordingID: recording.id)
+            } catch {
+                logger.error("[Voom] Shared \(result.shareCode) but couldn't update its transcript: \(error.localizedDescription)")
+            }
+        }
         return result.shareURL
+    }
+
+    /// Pushes the recording's current transcript, title, summary and chapters to
+    /// its share page, replacing what's there. Call after transcription: a
+    /// recording shared before it finished otherwise shows no transcript on the
+    /// web. No-op for recordings that aren't shared or whose share has expired.
+    public static func syncShareMetadata(recordingID: UUID) async throws {
+        guard ShareConfig.isConfigured,
+              let recording = RecordingStore.shared.recording(for: recordingID),
+              let code = recording.shareCode,
+              recording.shareExpiresAt.map({ $0 > Date() }) ?? true else { return }
+        try await ShareService.shared.updateMetadata(shareCode: code, recording: recording)
+        logger.notice("[Voom] Updated share page \(code) with \(recording.transcriptSegments.count) transcript segments")
     }
 
     /// Copies an existing share link. Returns false if the recording has none.

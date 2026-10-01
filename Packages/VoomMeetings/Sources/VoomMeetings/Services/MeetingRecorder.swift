@@ -350,6 +350,11 @@ public actor MeetingRecorder {
                     RecordingStore.shared.update(rec)
                 }
             }
+            do {
+                try await ShareCoordinator.syncShareMetadata(recordingID: recordingID)
+            } catch {
+                recorderLogger.error("[Voom] Couldn't update the share page after meeting transcription: \(error.localizedDescription)")
+            }
 
             // Clean up temp audio reference files
             if let micRef = micReferenceURL { try? FileManager.default.removeItem(at: micRef) }

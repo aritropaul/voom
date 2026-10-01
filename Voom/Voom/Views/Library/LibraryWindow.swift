@@ -1014,6 +1014,11 @@ struct LibraryWindow: View {
                 store.update(rec)
             }
             toast.success("Transcript regenerated (\(entries.count) segments)", icon: "waveform")
+            do {
+                try await ShareCoordinator.syncShareMetadata(recordingID: recordingID)
+            } catch {
+                toast.error("Couldn't update the share page: \(error.localizedDescription)")
+            }
         }
     }
 
