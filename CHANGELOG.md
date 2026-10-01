@@ -1,5 +1,23 @@
 # Changelog
 
+## 4.4.0 — 2026-10-01
+
+- Transcription runs on Parakeet Ultra (FluidAudio 0.17.5). It has the same languages, word timings and speed as Parakeet v3 and fewer errors: 2.13% vs 2.27% word error rate on LibriSpeech test-clean, and lower in all 24 FLEURS languages FluidAudio measures. The model (about 600 MB) downloads once, with the first transcription after updating.
+- A transcription cut off by quitting, a crash or a force quit restarts the next time Voom opens. Before, the recording stayed on "Transcribing…" with its Transcribe button hidden.
+- Sharing a recording before its transcript is ready no longer leaves the share page without one. When transcription finishes, Voom pushes the transcript, title, summary and chapters to the page, and regenerating a transcript updates it too.
+- Sharing while a transcription runs, or transcribing in the player while a share uploads, no longer throws away the other's result.
+- The share server replaces a recording's transcript and chapters when the app re-sends them instead of adding a second copy.
+- The AI model list now offers GPT-6 Astra, GPT-6.1 Sol and GPT-6 Luna; Claude Opus 5.5, Fable 5.1 and Sonnet 5.5; Gemini 3.8 Flash; and Grok 4.7. A saved model that was dropped moves to its successor at the same tier.
+- Claude requests allow up to 16,000 output tokens and AI requests wait up to three minutes, because current models think before they answer and that thinking counts against the limit.
+
+## 4.3.0 — 2026-09-24
+
+- Meetings are diarized on your Mac with NVIDIA's Nemotron 3 (through FluidAudio 0.17.1), which tells up to eight remote speakers apart and detects people talking over each other. The previous pyannote pipeline remains as an automatic fallback.
+- Speakers are assigned per word from the transcription's word timings, so lines split exactly where the speaker changes.
+- When recording on laptop speakers, remote voices echoed into the mic are no longer labeled as you.
+- Long meetings are streamed in chunks instead of being decoded into memory whole.
+- The in-app What's New catches up on 4.0 through 4.2.
+
 ## 4.2.0 — 2026-09-22
 
 - Record a single window: a new Window mode with a hover picker that highlights the window under the cursor. Capture follows the window as it moves, resizes or crosses displays, and records its own content even when another window sits on top of it.

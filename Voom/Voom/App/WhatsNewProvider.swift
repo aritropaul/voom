@@ -111,5 +111,28 @@ extension VoomApp: @preconcurrency WhatsNewCollectionProvider {
             ],
             primaryAction: WhatsNew.PrimaryAction(title: "Continue")
         )
+
+        WhatsNew(
+            version: "4.4.0",
+            title: "What's New in Voom",
+            features: [
+                WhatsNew.Feature(
+                    image: .init(systemName: "waveform", foregroundColor: .blue),
+                    title: "More Accurate Transcripts",
+                    subtitle: "Transcription now runs on Parakeet Ultra, which makes fewer mistakes in English and 24 other languages at the same speed."
+                ),
+                WhatsNew.Feature(
+                    image: .init(systemName: "link", foregroundColor: .orange),
+                    title: "Share Right Away",
+                    subtitle: "Share a recording before its transcript is ready, and the link fills in the transcript, title, summary and chapters once it is."
+                ),
+                WhatsNew.Feature(
+                    image: .init(systemName: "arrow.clockwise", foregroundColor: .green),
+                    title: "Transcripts That Finish",
+                    subtitle: "If Voom quits or crashes while transcribing, it picks the job back up the next time it opens."
+                ),
+            ],
+            primaryAction: WhatsNew.PrimaryAction(title: "Continue")
+        )
     }
 }
